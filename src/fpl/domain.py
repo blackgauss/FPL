@@ -36,6 +36,16 @@ do NOT subclass them — compose them, exactly as Player is composed from
 Identity+State and Squad is composed from Players + configuration. The core
 types stay final; richer objects own them as fields.
 
+Interoperability contract — how we SPEAK in the model and EXECUTE in the
+wheels: the canonical exchange medium is a `player_code`-keyed polars frame
+(the fields in _FRAME_PLAYER_COLUMNS). Domain -> frame is public
+(players_to_frame / squad_from_frame) and frame -> domain is public
+(players_from_frame). Bundles for numpy/JAX/the model layer are handed over
+as arrays via frame.to_numpy() at that same boundary — numpy and JAX accept
+the identical ndarray, so no per-framework adapter is ever needed. Lowering
+is one-directional (domain -> frame -> array); nothing executes by looping
+over these value objects.
+
 Computation contract — the domain is for EXPRESSION, not execution: no
 algorithm loops over these value objects to do work. Bulk computation stays
 in the frame layer (score/filter/enumerate/simulate/model), keyed on
@@ -83,6 +93,15 @@ suite via tests/unit/test_domain.py::test_domain_docstrings_execute.)
     ...  .get_column("expected_points").sum())
     52.0
 
+    ...or hand the same read to numpy/JAX as an ndarray (jnp.asarray(arr)
+    is the identical input to a JAX graph):
+
+    >>> arr = (forecast
+    ...  .filter(pl.col("player_code").is_in(squad.codes()))
+    ...  .get_column("expected_points").to_numpy())
+    >>> float(arr.sum())
+    52.0
+
     Captain = best starter (expression in domain terms + the same store):
 
     >>> codes = dict(zip(forecast["player_code"].to_list(),
@@ -112,6 +131,7 @@ str-subclass, so it stays interoperable with every string column).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -358,6 +378,18 @@ def players_from_frame(frame: pl.DataFrame) -> list[Player]:
                 cost_tenths=int(row.get("price_tenths", 0))),
         ))
     return players
+
+
+def players_to_frame(players: Sequence[Player]) -> pl.DataFrame:
+    """Build the canonical player_code-keyed frame from Player objects.
+
+    The public inverse of players_from_frame and the compatibility bridge for
+    execution: once in a polars frame, values go to numpy/JAX via
+    .to_numpy() at the same boundary (see the Interoperability contract). The
+    round-trip players_to_frame -> players_from_frame is lossless (tested).
+    """
+    frames = [p._frame_row() for p in players]
+    return pl.DataFrame(frames)
 
 
 def squad_from_frame(frame: pl.DataFrame, *, gw: int = 1) -> Squad:

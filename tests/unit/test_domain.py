@@ -17,6 +17,8 @@ from fpl.domain import (
     PlayerState,
     Position,
     Squad,
+    players_from_frame,
+    players_to_frame,
     position_sort_key,
     squad_from_frame,
 )
@@ -280,6 +282,27 @@ class TestValidate:
 
 class TestLiveIntegrationShape:
     """Interface documentation-by-example: the columns optimizers depend on."""
+
+    def test_players_to_frame_roundtrip(self):
+        # the compatibility seam: domain -> canonical frame -> back, lossless
+        squad = make_squad()
+        frame = players_to_frame(list(squad.players))
+        assert frame.height == 15
+        assert set(frame.columns) >= {"player_code", "web_name", "position",
+                                      "team_code", "price_tenths"}
+        assert players_from_frame(frame) == list(squad.players)
+
+    def test_execute_in_numpy_from_domain(self):
+        # speak in the model, execute in numpy (JAX eats the same ndarray)
+        import numpy as np
+
+        squad = make_squad()
+        frame = players_to_frame(list(squad.players))
+        costs = frame["price_tenths"].to_numpy()
+        positions = frame["position"].to_numpy()
+        assert isinstance(costs, np.ndarray)
+        assert int(costs.sum()) == squad.cost_tenths()  # arrays agree with the object
+        assert int((positions == "GKP").sum()) == 2
 
     def test_domain_docstrings_execute(self):
         """The documented recipe is not aspirational — doctests run in-suite.
