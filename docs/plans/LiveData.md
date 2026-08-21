@@ -70,20 +70,26 @@ INJURED, Lacroix + Bruno G. TRANSFERRED, and price moves on most others.
 
 ## Tests
 
-- `tests/live/` (26) — fetch/cache/TTL/fallback with a mocked session; every
-  filter's semantics; `flag_squad_player`; hygiene agreement incl. the
-  no-scale unit trap.
-- `tests/integration/` (8) — black-box **stage-interface** tests: run the real
-  pipeline (features→assemble→score→filter→enumerate→reconcile→hygiene) on a
-  dense synthetic season and assert each interface's output contract:
-  - assemble(require_target=False) predicts a pre-season window (was 0 rows);
-  - enumerate yields only complete 15-man, in-budget, 4-position squads;
-  - greedy raises informatively on an infeasible pool;
-  - live reconcile updates transferred clubs + drops unavailable BEFORE
-    filter_pool;
-  - price units agree under price_scale=10.
-  These caught four real integration bugs during this work (null-target path,
-  units mismatch, empty-squad overflow, silent infeasible-pool failure).
+- `tests/unit/` — shared units (tenths↔millions, squad counts) + freshness gate
+- `tests/ingest|features|model|team|live/` — fast per-module unit + contract suites
+- `tests/integration/` — black-box stage-interface + the composable
+  `fpl.pipeline.run_basket` (incl. freshness gate, live reconcile seam)
+- `tests/e2e/` — script-equivalent path via the runner (search + live-apply)
+
+## Composability / separation (the refactor)
+
+- `fpl/units.py` — single source for price (tenths↔£m) and squad constraints
+  (`SQUAD_COUNTS`, budget). Previously split across enumerate/agreement; the
+  price-units trap keeps recurring.
+- `fpl/live/freshness.py` — a gate (raises) not just a report: snapshot age,
+  empty/missing feature store, and price/team/removed drift vs live all fail
+  fast before team selection.
+- `fpl/pipeline.run_basket` — one orchestrator: assemble → score → (live
+  reconcile) → filter → enumerate → value. The harness gained a `scored`/
+  `per_gw` seam so live reconcile slots in upstream; scripts and later stages
+  (captain/transfers) share this one path instead of re-implementing it.
+- `greedy_teams` got bounded per-team retries (completeness on tight pools)
+  and scarcity-ordered position fill (a landmine found by the interface suite).
 
 ## Follow-ons
 

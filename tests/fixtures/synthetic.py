@@ -172,16 +172,19 @@ def build_season_tree_dense(
     gw_dir = season_dir / "By Gameweek"
     season_dir.mkdir(parents=True, exist_ok=True)
 
+    # spread players evenly across 4 positions, then assign clubs by cycling so
+    # each club holds a mix of positions (keeps enumeration feasible under the
+    # ≤3-per-club cap).
     clubs = [3, 43, 7, 8, 14][:n_clubs]
     full_pos = ["Goalkeeper", "Defender", "Midfielder", "Forward"]
-    # enough players to distribute across positions (feasibility for a full
-    # squad is the caller's concern, not the builder's)
     if n_players < 3:
         raise ValueError("n_players must be >= 3")
-
-    # assign ~25% to each position; rotate clubs so no club dominates a position
     pos_for = [full_pos[i % 4] for i in range(n_players)]
-    club_for = [clubs[(i // 4) % len(clubs)] for i in range(n_players)]
+    slot_in_pos = {p: 0 for p in full_pos}  # sequential index within position
+    club_for = []
+    for p in pos_for:
+        club_for.append(clubs[slot_in_pos[p] % n_clubs])
+        slot_in_pos[p] += 1
     players_rows = [
         f"{223001 + i},{i + 1},First,Last,P{i},{club_for[i]},{pos_for[i]}"
         for i in range(n_players)
@@ -189,12 +192,19 @@ def build_season_tree_dense(
     (season_dir / "players.csv").write_text(
         "player_code,player_id,first_name,second_name,web_name,team_code,position\n"
         + "\n".join(players_rows) + "\n", encoding="utf-8")
-    (season_dir / "teams.csv").write_text(TEAMS_CSV, encoding="utf-8")
-    (season_dir / "team_history.csv").write_text(
+    (season_dir / "teams.csv").write_text(
+        "code,id,name,short_name,strength,strength_overall_home,"
+        "strength_overall_away,strength_attack_home,strength_attack_away,"
+        "strength_defence_home,strength_defence_away,pulse_id,elo,fotmob_name\n"
+        + "\n".join(
+            f"{c},{i+1},Club{i},{c},4,4,4,4,4,4,4,{10+i},2000,Club{i}"
+            for i, c in enumerate(clubs))
+        + "\n", encoding="utf-8")
+    (season_dir / "team_history.csv").write_text((
         "player_id,gw,team_code\n"
         + "\n".join(f"{i+1},{g},{club_for[i]}"
                     for i in range(n_players) for g in range(1, n_gws + 1))
-        + "\n", encoding="utf-8")
+        + "\n"), encoding="utf-8")
 
     for gw in range(1, n_gws + 1):
         folder = gw_dir / f"GW{gw}"

@@ -33,10 +33,13 @@ from tests.live.fixtures_live import make_payload
 
 
 class ToyModel:
-    """Constant predictor compatible with lightgbm .predict(X)."""
+    """Value-spread predictor: distinct scores so pool/enumeration have a
+    clean ordering (a constant predictor makes every tie, starving positions
+    under the club cap)."""
 
     def predict(self, X):
-        return np.full(X.shape[0], 2.5)
+        # deterministic per-row value spread, unlike a constant
+        return 2.0 + 0.5 * (np.arange(X.shape[0]) % 11)
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +51,7 @@ def store(tmp_path_factory):
     from fpl.model.train import load_training
 
     root = Path(tmp_path_factory.mktemp("pipeline"))
-    build_season_tree_dense(root, n_players=20, n_gws=4)
+    build_season_tree_dense(root, n_players=40, n_gws=4)
     data = load_season(root, "2025-2026")
     feats = build_features(data.gw_stats, data.team_history, data.matches,
                            data.players)

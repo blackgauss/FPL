@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import polars as pl
 
+from fpl.units import TENTHS_PER_POUND
 
-def to_tenths(price: pl.Series, scale: float = 10.0) -> pl.Series:
+
+def to_tenths(price: pl.Series, scale: float = TENTHS_PER_POUND) -> pl.Series:
     """Convert a dataset price column to FPL tenths units.
 
     scale = 10 when the dataset stores decimal millions (e.g. 15.5 -> 155);
@@ -56,7 +58,7 @@ def report_agreement(
         "player_code", pl.col(dataset_price_col).alias("ds_price_raw"),
         pl.col(dataset_team_col).alias("ds_team"),
     )
-    out = (
+    base = (
         live.sort("player_code")
         .join(d, on="player_code", how="left")
         .with_columns(
@@ -67,13 +69,14 @@ def report_agreement(
             (pl.col("team_code").eq(pl.col("ds_team"))).alias("team_ok"),
             (pl.col("ds_price").is_not_null()).alias("matched_to_dataset"),
         )
-        .select(
-            "player_code", "web_name", "now_cost", "ds_price", "price_diff_tenths",
-            "team_code", "ds_team", "team_ok", "status", "news",
-            "matched_to_dataset",
-        )
     )
-    return out
+    keep = [
+        c for c in
+        ("player_code", "web_name", "now_cost", "ds_price", "price_diff_tenths",
+         "team_code", "ds_team", "team_ok", "status", "news", "matched_to_dataset")
+        if c in base.columns
+    ]
+    return base.select(keep)
 
 
 def hygiene_summary(

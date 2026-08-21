@@ -80,24 +80,42 @@ def run(
     enum_kw: dict | None = None,
     value_kw: dict | None = None,
     dist_forecast: pl.DataFrame | None = None,
+    scored: pl.DataFrame | None = None,
+    per_gw: pl.DataFrame | None = None,
+    pool: pl.DataFrame | None = None,
+    players: pl.DataFrame | None = None,
 ) -> SearchResult:
     """Execute score -> filter -> enumerate -> value for one configuration.
 
     `dist_forecast` (per-player-GW CDFs) is required by value_fn="h2h_dist";
-    compute it once via scripts/fit_dist.py and pass it in — it is not
-    re-fit inside the harness.
+    pass it in — not re-fit inside the harness.
+
+    Composability: `scored`/`per_gw` (and optionally `pool`/`players`) let a
+    caller inject a pre-computed scoring — e.g. after live reconcile — instead
+    of the harness re-scoring from disk. When omitted the harness assembles
+    from `processed` itself. This is the seam `fpl.pipeline` uses to keep the
+    leaf modules free of orchestration.
     """
-    td, players, gw_stats = _load(processed, season)
+    if scored is None or per_gw is None:
+        td, players, gw_stats = _load(processed, season)
+        scored, per_gw = score_players(
+            td, model, gw_start=gw_start, gw_end=gw_end, players=players,
+            detail=True)
+        avail = availability_from_gw_stats(gw_stats, players,
+                                           gw_start=gw_start, gw_end=gw_end)
+        pool = filter_pool(scored, avail, **(pool_kw or {}))
+    else:
+        # caller injected a pre-scored frame (e.g. after live reconcile);
+        # pool must be built from the same scored + its availability
+        if pool is None:
+            pool_players = players if players is not None else pl.read_parquet(
+                f"{processed}/players_{season}.parquet")
+            pool_gw = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
+            avail = availability_from_gw_stats(
+                pool_gw, pool_players, gw_start=gw_start, gw_end=gw_end)
+            pool = filter_pool(scored, avail, **(pool_kw or {}))
 
-    scored, per_gw = score_players(
-        td, model, gw_start=gw_start, gw_end=gw_end,
-        players=players, detail=True,
-    )
-    avail = availability_from_gw_stats(gw_stats, players,
-                                       gw_start=gw_start, gw_end=gw_end)
-    pool = filter_pool(scored, avail, **(pool_kw or {}))
     basket = REGISTRY["enumerate"][enum](pool, **(enum_kw or {}))
-
     totals = squad_gw_totals(basket, per_gw)
     value = _value(value_fn, basket, totals, dist_forecast, value_kw or {})
     weak = weaknesses(basket, totals)
