@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from fpl.experiments import cache
 from fpl.experiments.run import run_experiment
 from fpl.experiments.splits import TemporalSplit
 from fpl.model.experiment import REGISTRY
@@ -37,6 +38,7 @@ PROFILE_DIR = ROOT / "experiments" / "artifacts" / "profile"
 
 
 def main() -> None:
+    cache.reset_experiment_cache()   # deterministic, independent of prior runs
     parser = argparse.ArgumentParser(description="Profile the reference pipeline")
     parser.add_argument("--config", default="config/experiments_ranking.yaml")
     parser.add_argument("--experiment", default="lgbm_all")
@@ -57,9 +59,11 @@ def main() -> None:
         y = np.concatenate([t24.y, t25.y[train_mask]])
         return REGISTRY["lgbm"]({})(x, y, t24.categorical)
 
-    def fit_and_predict():
-        fn = fit()
-        return fn(t25.X[test_mask])
+    # fit once so the inference stage measures PREDICT-only (no redundant fit)
+    fitted_predict = fit()
+
+    def predict_only():
+        return fitted_predict(t25.X[test_mask])
 
     def declared_run():
         return run_experiment({
@@ -79,7 +83,7 @@ def main() -> None:
         "data_prep/load_training": (
             lambda: load_training(PROCESSED, seasons), "data_prep_load"),
         "training/fit_registry": (fit, "training_fit"),
-        "inference/fit_and_predict_holdout": (fit_and_predict, "inference_holdout"),
+        "inference/predict_holdout": (predict_only, "inference_holdout"),
         "comparison/run_experiment": (declared_run, "run_experiment"),
         "candidate/run_basket": (candidates, "candidate_basket"),
     }
@@ -101,6 +105,7 @@ def main() -> None:
     print("\n--- candidate/run_basket ---")
     print(summarize_profile(profiled["candidate/run_basket"]))
     print(f"\nprofiles written to {PROFILE_DIR}")
+    print(f"experiment cache: {cache.cache_counts()}")
 
 
 if __name__ == "__main__":
