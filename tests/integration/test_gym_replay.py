@@ -14,7 +14,7 @@ import pytest
 
 from fpl.data.contract import load_season
 from fpl.domain import Player, PlayerIdentity, PlayerState, Position, Squad
-from fpl.gym import replay
+from fpl.gym import Eval, replay
 
 _POS = ("GKP", "DEF", "MID", "FWD")
 
@@ -100,3 +100,32 @@ class TestGymReplay:
             assert r.predicted_points == pytest.approx(
                 len(r.xi) * 3.0 + (3.0 if r.captain_doubled else 0.0))
             assert r.actual_points >= 0
+
+
+class TestEvalProtocol:
+    def test_run_with_forecast_frame(self, season):
+        squad = _build_squad(season.players)
+        # a flat model forecast: expected = 3.0 for every member every week
+        forecast = pl.DataFrame({
+            "player_code": [c for c in squad.codes() for _ in (2, 3)],
+            "gw": [g for _ in squad.codes() for g in (2, 3)],
+            "expected_points": [3.0] * (2 * len(squad.codes())),
+        })
+        res = Eval(squad, gw_stats=season.gw_stats, players=season.players,
+                   weeks=2, forecast=forecast,
+                   name="baseline-unit").run()
+        assert len(res.weeks) == 2
+        assert res.total_actual == pytest.approx(
+            sum(w.actual_points for w in res.weeks))
+        assert res.total_predicted is not None
+        assert res.gap == pytest.approx(res.total_predicted - res.total_actual)
+        assert res.substitutions == 0
+        assert res.captain_weeks == len(res.weeks)
+        assert "baseline-unit" in res.summary()
+        assert "predicted" in res.summary() and "gap" in res.summary()
+
+    def test_predictor_and_forecast_are_exclusive(self, season):
+        squad = _build_squad(season.players)
+        with pytest.raises(ValueError, match="not both"):
+            Eval(squad, gw_stats=season.gw_stats, players=season.players,
+                 weeks=1, predictor=lambda s, g: {}, forecast=season.gw_stats)
