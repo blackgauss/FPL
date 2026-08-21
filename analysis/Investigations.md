@@ -205,9 +205,9 @@ role context (`appear_rate_5`, `start_rate_5`, `minutes_share_5`) calculated
 from GWs through the source row. A first-team regular is a role cohort, not
 simply someone who appeared in the target GW.
 
-- Baseline vs role features on all holdout rows: MAE **0.991 → 0.988**.
-- On pre-GW first-team regulars: MAE **2.287 → 2.351**.
-- On non-regulars: MAE **0.537 → 0.511**.
+- Baseline vs role features on all holdout rows: MAE **0.986 → 0.991**.
+- On pre-GW first-team regulars: MAE **2.270 → 2.340**.
+- On non-regulars: MAE **0.537 → 0.519**.
 
 **Read:** this first three-feature definition is not a win for the relevant
 regular cohort. Filtering training data to regulars was also slightly worse
