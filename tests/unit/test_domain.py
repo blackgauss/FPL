@@ -8,6 +8,7 @@ never touching external/.
 """
 
 import polars as pl
+import pytest
 
 from fpl.domain import (
     POSITION_ORDER,
@@ -82,8 +83,6 @@ class TestPlayer:
         # inner facets; change is a NEW value. (Assigning to the read-only
         # forwarding properties also fails via slots; we assert the stored
         # fields so the failure reason stays a clean AttributeError.)
-        import pytest
-
         p = self._p()
         with pytest.raises(AttributeError):
             p.state.club = 2  # type: ignore[misc]
@@ -156,6 +155,21 @@ class TestSquadFromFrame:
     def test_eleven_unique_codes(self):
         squad = make_squad()
         assert len(set(squad.starters)) == 11
+
+    def test_rejects_missing_position_shape(self):
+        # 14 players only -> clear ValueError naming the shape problem
+        with pytest.raises(ValueError, match="15 players"):
+            squad_from_frame(valid_frame().head(14))
+
+    def test_rejects_non_squad_shape(self):
+        # a position permanently short (e.g. 1 GKP) -> names missing positions
+        import polars as pl
+
+        frame = valid_frame().with_columns(
+            pl.when(pl.col("player_code") == 2).then(pl.lit("DEF"))
+            .otherwise(pl.col("position")).alias("position"))
+        with pytest.raises(ValueError, match="GKP"):
+            squad_from_frame(frame)
 
     def test_codes_and_budget_conveniences(self):
         squad = make_squad()
@@ -237,6 +251,31 @@ class TestValidate:
             bad = Squad(players=squad.players, starters=squad.starters,
                         captain=same_club[0], vice_captain=same_club[1])
         assert any("different clubs" in p for p in bad.validate())
+
+    def test_duplicate_player_codes_reported(self):
+        squad = make_squad()
+        dup = Squad(players=squad.players[:14] + (squad.players[0],),
+                    starters=squad.starters)
+        assert any("duplicate player code" in p for p in dup.validate())
+
+    def test_unknown_starter_reported_not_crashed(self):
+        squad = make_squad()
+        bad = Squad(players=squad.players, starters=(999999,))
+        problems = bad.validate()
+        assert any("unknown players" in p for p in problems)
+
+    def test_captain_not_in_squad_reported(self):
+        squad = make_squad()
+        bad = Squad(players=squad.players, starters=squad.starters,
+                    captain=999999, vice_captain=999999)
+        problems = bad.validate()
+        assert any("captain not in squad" in p for p in problems)
+        assert any("vice-captain not in squad" in p for p in problems)
+
+    def test_gameweek_below_one_reported(self):
+        squad = make_squad()
+        bad = Squad(players=squad.players, starters=squad.starters, gw=0)
+        assert any("gameweek must be >= 1" in p for p in bad.validate())
 
 
 class TestLiveIntegrationShape:

@@ -185,9 +185,10 @@ class Squad:
 
     Invariants (validated by `squad_from_frame` / checked by `validate`):
       - exactly 15 players; position counts == SQUAD_COUNTS;
-      - total cost <= budget; <= MAX_PER_CLUB per club;
+      - player codes unique; total cost <= budget; <= MAX_PER_CLUB per club;
       - 11 starters (1 GKP, >=3 DEF, >=1 FWD at all times);
-      - captain/vice are starters, and a different club.
+      - starters/captain/vice reference known players; captain/vice are
+        starters, and a different club; gw >= 1.
 
     Weekly decisions (transfers, captain, XI) are new Squad values — built by
     composing/replacing fields (dataclasses.replace / plan builders), never
@@ -222,10 +223,19 @@ class Squad:
         return counts
 
     def validate(self) -> list[str]:
-        """Return a list of rule violations (empty == valid Squad)."""
+        """Return a list of rule violations (empty == valid Squad).
+
+        Reports *problems* (including malformed references) rather than
+        crashing, so callers can surface why a Squad is not selectable.
+        """
         problems: list[str] = []
         if len(self.players) != 15:
             problems.append(f"must have 15 players, got {len(self.players)}")
+        by_code = self.by_code()
+        if len(by_code) != len(self.players):
+            problems.append("duplicate player code in squad")
+        if self.gw < 1:
+            problems.append(f"gameweek must be >= 1, got {self.gw}")
         counts = self.position_counts()
         for pos, need in SQUAD_COUNTS.items():
             if counts[pos] != need:
@@ -239,9 +249,13 @@ class Squad:
             if n > MAX_PER_CLUB:
                 problems.append(f"club {club} has {n} > {MAX_PER_CLUB}")
         starts = self.starters or [p.code for p in self.players[:11]]
+        unknown = [c for c in starts if c not in by_code]
+        if unknown:
+            problems.append(f"starters reference unknown players: {unknown}")
+        starts = [c for c in starts if c in by_code]  # check only known codes
         pos_starts = {"GKP": 0, "DEF": 0, "FWD": 0}
         for code in starts:
-            p = self.by_code()[code]
+            p = by_code[code]
             if p.position in pos_starts:
                 pos_starts[p.position] += 1
         if pos_starts["GKP"] < 1:
@@ -252,13 +266,19 @@ class Squad:
             problems.append("starting XI must include >=1 forward")
         if len(starts) != 11:
             problems.append(f"must have 11 starters, got {len(starts)}")
-        if self.captain is not None and self.captain not in starts:
-            problems.append("captain must be a starter")
-        if self.vice_captain is not None and self.vice_captain not in starts:
-            problems.append("vice-captain must be a starter")
+        if self.captain is not None:
+            if self.captain not in by_code:
+                problems.append("captain not in squad")
+            elif self.captain not in starts:
+                problems.append("captain must be a starter")
+        if self.vice_captain is not None:
+            if self.vice_captain not in by_code:
+                problems.append("vice-captain not in squad")
+            elif self.vice_captain not in starts:
+                problems.append("vice-captain must be a starter")
         if (self.captain is not None and self.vice_captain is not None
-                and self.by_code()[self.captain].club
-                == self.by_code()[self.vice_captain].club):
+                and self.captain in by_code and self.vice_captain in by_code
+                and by_code[self.captain].club == by_code[self.vice_captain].club):
             problems.append("captain and vice-captain should be different clubs")
         return problems
 
@@ -281,8 +301,27 @@ def players_from_frame(frame: pl.DataFrame) -> list[Player]:
 
 
 def squad_from_frame(frame: pl.DataFrame, *, gw: int = 1) -> Squad:
-    """Build a valid Squad from a 15-row basket frame (greedy output)."""
+    """Build a valid Squad from a 15-row basket frame (greedy output).
+
+    Raises ValueError with the exact shape problem if the frame is not a
+    15-player basket with the required position counts (2 GKP / 5 DEF /
+    5 MID / 3 FWD), so downstream layers get a clear failure, not an
+    IndexError half way through XI selection.
+    """
     players = players_from_frame(frame)
+    counts = {pos: 0 for pos in SQUAD_COUNTS}
+    for p in players:
+        if p.position not in counts:
+            raise ValueError(
+                f"basket row has unknown position {p.position!r}; "
+                f"expected one of {sorted(SQUAD_COUNTS)}")
+        counts[p.position] += 1
+    missing = [pos for pos, need in SQUAD_COUNTS.items() if counts[pos] < need]
+    if len(players) != 15 or missing:
+        raise ValueError(
+            f"basket must be 15 players with {dict(SQUAD_COUNTS)}; "
+            f"got {len(players)} players, counts {counts}, "
+            f"missing positions {missing}")
     # legal XI: 1 GKP, 4 DEF, 5 MID, 1 FWD (len 11, all four positions)
     by_pos: dict[str, list[Player]] = {"GKP": [], "DEF": [], "MID": [], "FWD": []}
     for p in players:
