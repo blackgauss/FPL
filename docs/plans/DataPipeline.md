@@ -76,6 +76,24 @@ parquet, reproduces 6.645/11.5/7.2; `queries.py`+tests deleted. Parquet dataset
 documented in `DataDocumentation.md`. Full suite 40 tests green; real dataset
 built at `data/processed/`.
 
+**Multi-season extension (2026-08-20, pre stage-2 assessment):** added a legacy
+layout adapter so the dataset covers 3 seasons:
+- `2025-2026`, `2026-2027`: modern `By Gameweek/GW{n}` layout
+- `2024-2025`: legacy per-table layout (`matches/GW{n}/`, long-table
+  `playerstats/playerstats.csv`) auto-detected by `detect_layout`
+
+Legacy seasons keep the *identical* shared schema — the 7 modern columns
+(`minutes`, `goals_scored`, `assists`, `saves`, `starts`, plus names) that the
+2024-25 playerstats lacks are emitted as typed-null. Legacy `matches.csv` has no
+`tournament` column (defaults to `prem`); legacy `players.position` includes
+`Unknown` (mapped to `UNK`). Real ingests: 2024-25 = 27,657 gw rows; 2026-27 =
+595 players + 390 scheduled fixtures (pre-season, 0 matches played).
+
+**Difficulty = seed, not default (decision):** FPL-Core `teams.strength`/`elo`
+are empty pre-season but update weekly as the season progresses; therefore no
+static difficulty default is baked in. Any pre-season strength is treated as a
+seed value that fresh ingests overwrite — no hardcoded ratings.
+
 **Key finding encoded in the suite:** FPL-points stats are Premier-League only —
 a cup match carries a folder-`gw` and will wrongly join a `gw_stats` row (fan-out /
 phantom points) unless the EDA pattern first filters `matches.tournament == 'prem'`.

@@ -5,5 +5,5 @@ fpl_core_root: external/fpl_core/data
 processed_dir: data/processed
 
 seasons:
-  available: ["2025-2026", "2026-2027"]
+  available: ["2024-2025", "2025-2026", "2026-2027"]
   default: "2025-2026"   # latest season with played matches

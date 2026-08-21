@@ -14,8 +14,9 @@ idempotent determinism, and the EDA with/without pattern over the produced parqu
 import polars as pl
 import pytest
 
+from fpl.data.contract import detect_layout
 from fpl.data.ingest import TABLES, run
-from tests.fixtures.synthetic import build_season_tree
+from tests.fixtures.synthetic import build_legacy_season_tree, build_season_tree
 
 SEASON = "2025-2026"
 EXPECTED_COLUMNS = {
@@ -236,3 +237,50 @@ class TestEdaPattern:
 
 def assert_frames_unique(df: pl.DataFrame, subset: list[str]) -> None:
     assert df.height == df.unique(subset=subset).height, f"dup on {subset}"
+
+
+class TestLegacyLayout:
+    """Legacy (2024-25) layout must produce the same shared contract schemas."""
+
+    @pytest.fixture()
+    def legacy(self, tmp_path_factory) -> dict[str, pl.DataFrame]:
+        root = build_legacy_season_tree(tmp_path_factory.mktemp("legacy"))
+        out = tmp_path_factory.mktemp("processed")
+        run(root.parent, "2024-2025", out)
+        return {
+            table: pl.read_parquet(out / f"{table}_2024-2025.parquet")
+            for table in TABLES
+        }
+
+    def test_layout_detected(self, tmp_path):
+        modern = build_season_tree(tmp_path / "m")
+        assert detect_layout(modern) == "modern"
+        legacy = build_legacy_season_tree(tmp_path / "l")
+        assert detect_layout(legacy) == "legacy"
+
+    def test_same_schema_as_modern(self, legacy):
+        for table, cols in EXPECTED_COLUMNS.items():
+            assert legacy[table].columns == cols, f"{table} columns mismatch"
+
+    def test_legacy_gw_stats_typed_nulls(self, legacy):
+        # missing modern columns are typed-null (minutes, goals_scored, ...)
+        missing = ["minutes", "goals_scored", "assists", "saves", "starts"]
+        for col in missing:
+            assert legacy["gw_stats"][col].null_count() == legacy["gw_stats"].height
+            assert legacy["gw_stats"].schema[col] == pl.Int64
+
+    def test_legacy_points_preserved(self, legacy):
+        row = legacy["gw_stats"].filter(
+            (pl.col("player_id") == 430) & (pl.col("gw") == 1)
+        )
+        assert row.get_column("total_points").item() == 13
+
+    def test_legacy_matches_default_prem(self, legacy):
+        assert set(legacy["matches"].get_column("tournament")) == {"prem"}
+
+    def test_legacy_match_stats(self, legacy):
+        ms = legacy["match_stats"]
+        assert ms.filter(pl.col("player_id") == 430).height == 2
+        assert ms.filter(
+            (pl.col("player_id") == 239) & (pl.col("match_id") == "m2")
+        ).get_column("minutes_played").item() == 0.0

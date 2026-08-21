@@ -1,8 +1,8 @@
 # External data (repo clones, downloaded datasets)
 external/
 
-# Data snapshots and processed outputs
-data/
+# Data snapshots and processed outputs (project-root data/ only)
+/data/
 
 # Python
 __pycache__/

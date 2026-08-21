@@ -130,3 +130,49 @@ def build_season_tree(base: Path, season: str = "2025-2026") -> Path:
         (folder / "playermatchstats.csv").write_text(mstat, encoding="utf-8")
 
     return season_dir
+
+
+LEGACY_PLAYERSTATS_CSV = """id,gw,status,total_points,event_points,bonus,bps,now_cost,form,ep_next,ep_this,selected_by_percent
+430,1,a,13,13,2,35,15.0,5.0,5.5,5.5,73.0
+430,2,a,2,2,0,10,14.1,3.5,8.0,7.0,70.0
+239,1,a,9,9,3,30,11.0,4.0,4.5,4.5,50.0
+"""
+
+LEGACY_MATCHES_CSV = """gameweek,kickoff_time,home_team,home_team_elo,home_score,away_score,away_team,away_team_elo,finished,match_id,match_url
+1.0,2025-08-16T16:30:00+00:00,43.0,2050.0,2,1,3.0,2000.0,True,m1,url1
+2.0,2025-08-23T16:30:00+00:00,3.0,2000.0,0,3,43.0,2050.0,True,m2,url2
+"""
+
+LEGACY_MSTAT_CSV = """player_id,match_id,minutes_played,goals,assists,xg,xa
+430,m1,90,2,0,1.8,0.2
+430,m2,90,0,0,0.4,0.1
+239,m1,90,1,1,0.5,0.9
+239,m2,0,0,0,0.0,0.0
+"""
+
+
+def build_legacy_season_tree(base: Path, season: str = "2024-2025") -> Path:
+    """Write a mini legacy-layout season (per-table dirs, matches/GWn/) into `base`."""
+    season_dir = base / season
+    (season_dir / "players").mkdir(parents=True, exist_ok=True)
+    (season_dir / "teams").mkdir(parents=True, exist_ok=True)
+    (season_dir / "playerstats").mkdir(parents=True, exist_ok=True)
+    (season_dir / "players" / "players.csv").write_text(PLAYERS_CSV, encoding="utf-8")
+    (season_dir / "teams" / "teams.csv").write_text(TEAMS_CSV, encoding="utf-8")
+    (season_dir / "playerstats" / "playerstats.csv").write_text(
+        LEGACY_PLAYERSTATS_CSV, encoding="utf-8"
+    )
+    for gw in (1, 2):
+        (season_dir / "matches" / f"GW{gw}").mkdir(parents=True, exist_ok=True)
+        (season_dir / "playermatchstats" / f"GW{gw}").mkdir(parents=True, exist_ok=True)
+    (season_dir / "matches" / "GW1" / "matches.csv").write_text(
+        LEGACY_MATCHES_CSV, encoding="utf-8"
+    )
+    (season_dir / "matches" / "GW2" / "matches.csv").write_text(
+        LEGACY_MATCHES_CSV, encoding="utf-8"
+    )
+    for gw in (1, 2):
+        (season_dir / "playermatchstats" / f"GW{gw}" / "playermatchstats.csv").write_text(
+            LEGACY_MSTAT_CSV, encoding="utf-8"
+        )
+    return season_dir
