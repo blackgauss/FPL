@@ -16,6 +16,7 @@ dependencies = [
     "lightgbm>=4.0",
     "scikit-learn>=1.4",
     "scipy>=1.11",
+    "tdigest>=0.4.1",
 ]
 
 [project.optional-dependencies]

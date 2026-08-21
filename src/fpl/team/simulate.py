@@ -130,10 +130,14 @@ def simulate_squad_distributions(
     """
     import numpy as np
 
-    from fpl.dist import QS, sample_from_cdf
+    from fpl.dist import QS
 
     rng = np.random.default_rng(seed)
     qs = np.asarray(QS)
+
+    def _sample(quantiles: np.ndarray) -> float:
+        # inverse-CDF sampling from a stored quantile vector
+        return float(np.interp(rng.uniform(), qs, quantiles))
 
     # flatten the quantile struct into columns q<..>, then to a list per row
     qcols = [f"q{int(q*100)}" for q in QS]
@@ -154,8 +158,7 @@ def simulate_squad_distributions(
         cdfs = [np.asarray(x, dtype=float) for x in g["cdf_list"].to_list()]
         tot = np.zeros(n_samples)
         for c in cdfs:
-            tot += np.fromiter((sample_from_cdf(c, qs, rng)
-                                for _ in range(n_samples)), dtype=float)
+            tot += np.fromiter((_sample(c) for _ in range(n_samples)), dtype=float)
         rows.append((team_id, gw, float(tot.mean()), float(tot.std())))
 
     return pl.DataFrame(rows, schema=["team_id", "gw", "sample_mean", "sample_std"],

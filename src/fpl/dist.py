@@ -1,4 +1,4 @@
-"""Distributional player points: CDFs with contextual variance.
+"""Distributional player points: per-context t-digests of model residuals.
 
 Mean-only forecasts make many teams look alike (identical expected totals),
 which is exactly the failure the team H2H surfaced. This module captures the
@@ -6,72 +6,104 @@ which is exactly the failure the team H2H surfaced. This module captures the
 model's residual structure.
 
 Two ideas:
-1. The model predicts E[points | context]. The *noise* around that is the
-   model's residual distribution, which we estimate on held-out data (no
-   leakage) and bin by a contextual factor (position) because forwards are
-   far more volatile than defenders.
-2. For a player with point prediction `pred` and context bin, its CDF is
-   `pred + residual_quantile(bin, q)`. We keep the quantile vector (a cheap
-   CDF estimate — t-digest would be a drop-in if we ever need to *merge*
-   compactly) so a simulator can sample GW outcomes and a squad's total
-   distribution is distinct even when means coincide.
+1. The model predicts E[points | context]. The noise around that is the
+   residual distribution, estimated on held-out data (no leakage) and binned
+   by a contextual factor tuple `(position, price_band)` — cheap players are
+   measurably burstier (higher coefficient-of-variation of points in every
+   position), so a cheap over-hyped pick gets a wider/tail-heavier posterior
+   than a premium star at the same predicted mean.
+2. The residual distribution is stored as a **t-digest** (`tdigest.TDigest`):
+   a standard, compact CDF estimate that supports positional accuracy at the
+   tails, `update()` to fold in new GW residuals over the season without
+   refitting, and `merge()` to combine digests across seasons. The quantile
+   vector a player's CDF needs is simply read off the digest via
+   `.percentile()` — no reinventing of quantile storage.
+
+The team simulator MC-samples squad totals from these digests, so squads
+differ by variance and tail risk, not just mean.
 """
 
 from __future__ import annotations
 
 import numpy as np
+from tdigest import TDigest
 
 QS = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
+
+# price bands (£m) — cheap players are measurably more volatile (higher CV of
+# points) in every position, so binning residuals by price captures a real
+# contextual variance difference, not just a modeling artifact.
+PRICE_BANDS = [(0, 5.0), (5.0, 7.0), (7.0, 9.0), (9.0, 100.0)]
+
+
+def price_band(now_cost: float) -> str:
+    for lo, hi in PRICE_BANDS:
+        if lo <= now_cost < hi:
+            return f"£{lo:.0f}-{hi:.0f}m"
+    return "£9+m"
 
 
 def fit_residual_cdfs(
     actual: np.ndarray,
     predicted: np.ndarray,
     context: np.ndarray,
-    qs: list[float] | None = None,
-) -> dict[object, np.ndarray]:
-    """Per-context-bin residual quantiles (the additive noise CDF).
+) -> dict[object, TDigest]:
+    """Per-context-bin residual distribution as a t-digest.
 
     actual/predicted are the held-out pairs; `context` gives each row's bin
-    (e.g. position codes). Returns {bin: ndarray of residual quantiles at qs}.
+    (e.g. a position code, or a (position, price_band) tuple). Returns
+    {bin: TDigest} of residuals (actual - predicted). Each digest can be
+    `update`d later with new GW residuals or `merge`d across seasons.
+
+    Binning choice: position-only is stable at small holdout sizes; price
+    bands (see PRICE_BANDS) show real separation but need more held-out GWs
+    before per-position price bins have enough samples.
     """
-    qs = qs or QS
-    bins = np.unique(context)
-    cdfs: dict[object, np.ndarray] = {}
     residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
-    for b in bins:
-        err = residuals[context == b]
-        if err.size == 0:
-            cdfs[b] = np.zeros(len(qs))
-            continue
-        cdfs[b] = np.quantile(err, qs)
+    cdfs: dict[object, TDigest] = {}
+    keys = {tuple(k) if isinstance(k, (tuple, list)) else k for k in context.tolist()}
+    for b in keys:
+        mask = np.asarray(
+            [(tuple(k) if isinstance(k, (tuple, list)) else k) == b
+             for k in context.tolist()])
+        digest = TDigest()
+        for e in residuals[mask]:
+            digest.update(float(e))
+        cdfs[b] = digest
     return cdfs
 
 
-def player_points_quantiles(
-    pred: float,
-    residual_cdf: np.ndarray,
-    qs: list[float] | None = None,
-) -> np.ndarray:
-    """Predicted points CDF for one player-GW: pred + residual quantiles.
+def update_residual_cdfs(
+    cdfs: dict[object, TDigest],
+    actual: np.ndarray,
+    predicted: np.ndarray,
+    context: np.ndarray,
+) -> dict[object, TDigest]:
+    """Fold new residuals into existing per-bin digests (incremental refresh)."""
+    residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
+    for b in {tuple(k) for k in context.tolist()}:
+        digest = cdfs.setdefault(b, TDigest())
+        mask = np.asarray([tuple(k) == b for k in context.tolist()])
+        for e in residuals[mask]:
+            digest.update(float(e))
+    return cdfs
 
-    `residual_cdf` is the bin's residual-quantile vector (from
-    fit_residual_cdfs). Returns points at each quantile in qs.
-    """
+
+def quantiles_of(digest: TDigest, qs: list[float] | None = None) -> np.ndarray:
+    """Residual quantiles at `qs` read off a t-digest (percentile stores %)."""
     qs = qs or QS
-    return np.asarray(pred, dtype=float) + np.asarray(residual_cdf, dtype=float)
+    return np.asarray([digest.percentile(q * 100) for q in qs], dtype=float)
 
 
 def moments_from_quantiles(points_at_qs: np.ndarray, qs: list[float]) -> dict[str, float]:
-    """Approximate mean/std from a CDF's stored quantiles.
+    """Approximate mean/std from a CDF's quantile vector.
 
     Linear-interpolates the quantile curve over [0,1] (clamping the tail to
     the first/last stored quantile) and integrates x dq — a standard
-    quadrature estimate of E[X] from quantiles. Works on non-uniform qs.
+    quadrature estimate of E[X] from quantiles.
     """
     qs_arr = np.asarray(qs, dtype=float)
     x = np.asarray(points_at_qs, dtype=float)
-    # full-range grid: prepend (0, first) and append (1, last)
     full_q = np.concatenate([[0.0], qs_arr, [1.0]])
     full_x = np.concatenate([[x[0]], x, [x[-1]]])
     mean = float(np.trapezoid(full_x, x=full_q))
@@ -79,7 +111,6 @@ def moments_from_quantiles(points_at_qs: np.ndarray, qs: list[float]) -> dict[st
     return {"mean": mean, "std": float(np.sqrt(max(var, 0.0)))}
 
 
-def sample_from_cdf(points_at_qs: np.ndarray, qs: list[float], rng) -> float:
-    """Draw one sample from the CDF via linear interpolation (inverse CDF)."""
-    u = rng.uniform()
-    return float(np.interp(u, np.asarray(qs), np.asarray(points_at_qs)))
+def sample_from_digest(digest: TDigest, rng) -> float:
+    """Inverse-CDF sample from a t-digest (uniform -> percentile)."""
+    return float(digest.percentile(rng.uniform() * 100))

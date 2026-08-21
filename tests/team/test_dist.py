@@ -1,15 +1,17 @@
-"""Black-box tests: distributional point forecasts + distributional H2H."""
+"""Black-box tests: t-digest residual CDFs + distributional H2H."""
 
 import numpy as np
 import polars as pl
 import pytest
+from tdigest import TDigest
 
 from fpl.dist import (
     QS,
     fit_residual_cdfs,
     moments_from_quantiles,
-    player_points_quantiles,
-    sample_from_cdf,
+    quantiles_of,
+    sample_from_digest,
+    update_residual_cdfs,
 )
 from fpl.team.simulate import simulate_h2h_dist, simulate_squad_distributions
 
@@ -25,29 +27,45 @@ class TestDist:
     def test_fit_residual_cdfs_bin_by_context(self):
         act = np.array([1.0, 3.0, 5.0, 2.0, 4.0])
         pred = np.array([2.0, 2.0, 6.0, 2.0, 2.0])
-        ctx = np.array(["FWD", "FWD", "DEF", "FWD", "DEF"])
+        ctx = np.array([("FWD", "£5-7m"), ("FWD", "£5-7m"),
+                        ("DEF", "£5-7m"), ("FWD", "£5-7m"), ("DEF", "£5-7m")],
+                       dtype=object)
         cdfs = fit_residual_cdfs(act, pred, ctx)
-        assert set(cdfs) == {"FWD", "DEF"}
-        # DEF residuals: (5-6), (4-2) -> [-1, 2]
-        assert np.allclose(cdfs["DEF"], np.quantile([-1.0, 2.0], QS))
+        assert set(cdfs) == {("FWD", "£5-7m"), ("DEF", "£5-7m")}
+        # digests expose quantiles via .percentile
+        q = quantiles_of(cdfs[("FWD", "£5-7m")])
+        assert q.shape == (len(QS),)
 
-    def test_player_quantiles_additive(self):
-        cdf = np.quantile([-1, 0, 0, 1, 2], QS)
-        q = player_points_quantiles(5.0, cdf)
-        assert np.allclose(q, 5.0 + cdf)
+    def test_update_incremental(self):
+        d1 = TDigest()
+        for x in [1, 2, 3, 4]:
+            d1.update(float(x))
+        n_before = d1.n
+        # update() folds new residuals into an existing digest (the "refresh
+        # players weekly" story — no refitting needed)
+        update_residual_cdfs({("FWD", "£5-7m"): d1},
+                             np.array([5.0, 6.0]), np.array([0.0, 0.0]),
+                             np.array([("FWD", "£5-7m")] * 2, dtype=object))
+        assert d1.n == n_before + 2
+
+    def test_sample_from_digest_recovers_modes(self):
+        rng = np.random.default_rng(0)
+        d = TDigest()
+        for x in [1.0] * 200 + [9.0] * 700:
+            d.update(x)
+        got = np.array([sample_from_digest(d, rng) for _ in range(2000)])
+        # heavier mode (9.0) should dominate the samples
+        assert got.mean() > 5.0
+        assert np.percentile(got, 75) >= 8.5
 
     def test_moments_degenerate(self):
-        qs = np.asarray(QS)
-        p = player_points_quantiles(0.0, np.full(len(qs), 3.0))
-        m = moments_from_quantiles(p, qs)
-        assert m["mean"] == pytest.approx(3.0, abs=1e-6)
-        assert m["std"] < 1e-6
-
-    def test_sample_from_cdf_in_range(self):
-        rng = np.random.default_rng(0)
-        cdf = np.array([0.0, 5.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0])
-        got = [sample_from_cdf(cdf, QS, rng) for _ in range(300)]
-        assert 0.0 <= min(got) <= max(got) <= 10.0
+        # constant points -> degenerate CDF -> std 0
+        d = TDigest()
+        for _ in range(200):
+            d.update(3.0)
+        q = quantiles_of(d)
+        m = moments_from_quantiles(q, QS)
+        assert m["std"] < 5e-2
 
 
 class TestDistributedH2H:

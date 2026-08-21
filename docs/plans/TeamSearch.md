@@ -104,12 +104,19 @@ over the very variance (contextual factors) that separates teams.
 
 `src/fpl/dist.py` + `src/fpl/team/distribution.py` add distribution to the
 forecast:
-- residual CDFs from held-out model errors, **binned by position** (forwards
-  are far more volatile than defenders); `fit_residual_cdfs`
-- per-player-GW CDF = point prediction + position's residual quantiles
-  (`distributional_forecast`), stored as a 9-quantile struct per row —
-  a cheap CDF estimate; t-digest would be a drop-in if merging ever needs it
-- `scripts/fit_dist.py` writes `data/processed/dist_{season}.parquet`
+- residual CDFs from held-out model errors as **t-digests** (`tdigest`), one
+  per context bin — the standard, compact quantile store. It supports
+  `update()` to fold in new GW residuals over the season (no refitting) and
+  `merge()` across seasons/seasons, which is exactly the "refreshing players
+  weekly" use-case. The per-GW player CDF is read off the digest via
+  `.percentile()`.
+- **Binning = position by default.** Price-band binning (price × position)
+  was tried and reverted: the £9+ bins are structurally too thin (~2-3
+  premium FWD/MID players) for stable quantiles at current holdout sizes —
+  the earlier per-player CV table showed clear price separation over a full
+  season, but a ~3-GW holdout can't populate the expensive bins. `bins="position_price"` is supported and switches back once more seasons accrue.
+- per-player-GW CDF = point prediction + the context bin's residual digest;
+  `scripts/fit_dist.py` writes the quantile vector (`dist_{season}.parquet`)
 - `simulate_squad_distributions` MC-samples squad GW totals from player CDFs;
   `simulate_h2h_dist` (registry `value.h2h_dist`) turns those into per-team
   win_ratio / exp_wins / avg_edge
@@ -118,11 +125,6 @@ Result on real data: distributional H2H separates **all 20 squads** into
 distinct win_ratios (0.49–0.56) where mean-only H2H collapsed to ~5 identical
 groups. Higher-variance squads (forwards-heavy, tail-dependent) are now
 distinguishable — the risk/return axis from the journal.
-
-Storage note: the per-player-GW CDF is a struct column (quantile vector). If
-we ever need to *merge* many distributions compactly (e.g. squad-total CDF
-without MC), a t-digest is the right drop-in, but the current vector is
-sufficient for MC sampling at these volumes.
 
 ## Candidate sanity (eyeballing the basket)
 
