@@ -233,6 +233,34 @@ the global sample strength while recovering useful position-specific behavior.
 This is the first position-model design with a positive decision-surface
 result.
 
+## Results summary (for further work)
+
+| # | Experiment (file) | Key result | Read | Next action |
+|---|---|---|---|---|
+| 1 | Matchup feature A/B (`ab_matchup_model.py`) | Holdout MAE tied (1.008 vs 1.010); `opponent_team_code` 5th by gain | Raw opponent id is safe but too sparse | Denser matchup representation / feature search |
+| 2 | Team-flag covariance (`ab_team_covariance.py`) | α≈0.042 sensible; z-calibration second-order (IID 2.42 vs cov 2.41) | Covariance is not the scale problem | Calibrate variance first |
+| 3 | Match-state factor (`ab_match_state_factor.py`) | Goals-state loses (mean\|z\| 6.6 vs 2.5); no same-team r | Weak state sharpens past reality | Richer pre-GW state after calibration |
+| 4 | Variance calibration (`ab_variance_calibration.py`) | k≈1.20: mean\|z\| 2.55→2.12, std(z) 1.64→1.37, coverage up, CRPS 22.5→21.7 | Scale is the head of the house | Take the cheap win into the scorer |
+| 5 | Tail quantiles by position/bucket (`ab_tail_calibration.py`) | q90 pinball 0.444→0.388, q95 0.327→0.284; top-decile q90 pinball 1.078→0.951 | Proper tail loss improves; coverage needs a pass | Conformal/quantile calibration; separate q95 extreme tail |
+| 6 | Integrated factor sampler (`ab_factor_sampling.py`) | IID 3.354/1.986 vs factor 3.334/2.002 (gym) | Not a production win yet | Larger rolling holdout before wiring into ranking |
+| 7 | First-team regularity (`ab_first_team_regularity.py`) | all MAE .986→.991; regulars 2.270→2.340 | Filtering/coarse role features are not the fix | Better role/lineup-depth model |
+| 8 | Position correction + shrinkage (`ab_position_shrinkage.py`) | all MAE 1.009→1.001; top10 3.052→3.019 | First positive position-model result | Validate rolling; then production position layer |
+
+## Further work (ordered)
+
+| Area | Task | Status | Depends on |
+|---|---|---|---|
+| Serving | Apply variance calibration (k) in the distributional scorer | Ready evidence | None |
+| Serving | Position-shrinkage layer in the point scorer | Experiment 8 validated on one window | Rolling validation |
+| Model | P(playing) / first-team-role model (expected × P(start)) | Missing, flagged by GW1 rotation risk | None |
+| H2H | Ownership-calibrated opponent sampler (match API marginals) | PoC exists, uncalibrated | None |
+| H2H | Captain ownership from league/entry picks after GW1 | Not available pre-GW1 | GW1 commences |
+| H2H | Trustable H2H MC (calibrated sampler + covariance + captain) | Blocked above | All H2H rows |
+| Gym | Predicted-settlement mode (model P(play), not actual XI) | Current Eval uses actual XI | P(playing) model |
+| Tooling | Quantile/distribution/gym output modes for declared runner | Design only | None |
+| Tooling | JAX integration | Deferred until a real JAX model | None |
+| Weekly | GW2 transfer path via `players_to_replace` + planner, gym-graded | Ready to run once GW1 actuals exist | GW1 completes |
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical
