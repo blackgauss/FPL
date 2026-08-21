@@ -124,6 +124,27 @@ we ever need to *merge* many distributions compactly (e.g. squad-total CDF
 without MC), a t-digest is the right drop-in, but the current vector is
 sufficient for MC sampling at these volumes.
 
+## Candidate sanity (eyeballing the basket)
+
+`scripts/inspect_teams.py` prints each squad as 15 named players with
+position/club/cost/window-expected. First inspection of 2025-26 GW31-33:
+
+- **Validity holds**: every squad has 15 players, ≤ 10.0M price, correct
+  position counts, ≤3 per club, across 14 distinct squads / 20.
+- **But the roster is only as good as its scorer.** The pool's top picks were
+  cheap/hype players the point model over-rates (Welbeck model 18.2 vs actual
+  10; B.Fernandes 22.9 vs 15), while big names like Haaland (12.5 vs 15) were
+  *filtered out of the pool* because they fell below the per-position/team
+  cut even though their expectations were close to actual. So the teams look
+  unusual NOT because the harness is broken but because the underlying point
+  forecast over-estimates value picks.
+- **Diversity is 14/20 distinct.** The "missed star" jitter on greedy does not
+  create a truly separate top-end (top-3 squads were byte-identical).
+
+Implication: the point-model calibration (not the variance layer) is the
+highest-leverage fix for team search — and eyeballing the basket is how we
+caught it. Enumerate diversity (MCMC/beam) is secondary.
+
 ## Open decisions
 
 - H2H value metric — win_ratio today; variance/utility (risk-return from the
@@ -131,3 +152,5 @@ sufficient for MC sampling at these volumes.
 - Better basket diversity: swap in an MCMC/beam enumerator (REGISTRY entry)
 - Captain / free-transfer mechanics (Stage 5) — need per-GW, not just
   window-sum, expected points (already kept in `per_gw` + now `dist`)
+- Point-model calibration (see Candidate sanity) — the real blocker for
+  sensible teams
