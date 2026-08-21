@@ -169,6 +169,25 @@ the proper scoring rule, especially q90/q95, without changing the mean model.
 Coverage needs a second calibration pass (or conformal adjustment); this is a
 useful tail layer before event-specific models.
 
+## Experiment 6 — integrated factor sampling A/B
+
+`experiments/ab_factor_sampling.py` uses the existing `dist_2025-2026.parquet`
+marginals and `fpl.gym.Eval`: IID samples each player's quantiles independently;
+the factor arm preserves those marginals but adds learned shared team and
+signed fixture shocks in Gaussian-copula space. The rhos are learned from
+pre-holdout residuals only (`team=0.0144`, `fixture=0.0028`); 12 holdout
+squad-weeks and 300 draws per week.
+
+- IID: `mean|z| = 3.354`, `std(z) = 1.986`
+- factor: `mean|z| = 3.334`, `std(z) = 2.002`
+
+**Read:** the integrated factor has a tiny mean|z| improvement (~0.6%) but
+worsens dispersion calibration slightly. It is not a production win yet.
+The marginals are preserved and the gym path is correct, but the learned
+shared shocks are too small / too weakly identified to improve uncertainty on
+12 squad-weeks. Keep this as an experimental seam; do not wire it into team
+ranking until it beats IID on a larger, rolling holdout.
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical

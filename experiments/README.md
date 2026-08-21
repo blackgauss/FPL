@@ -22,6 +22,10 @@ Ran so far:
 - `ab_tail_calibration.py` — global residual quantiles vs position + predicted-
   level residual quantiles. Tests q50/q90/q95 pinball loss and coverage on a
   leakage-safe holdout; this is tail calibration, not mean accuracy.
+- `ab_factor_sampling.py` — existing marginal quantiles with IID sampling vs
+  learned shared team/fixture shocks, integrated through `fpl.gym.Eval`.
+  Current result is not a production win (tiny mean|z| gain, slightly worse
+  dispersion); keep it experimental until larger rolling holdouts improve it.
 
 Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
 run a *leakage gate + deterministic seed* first, prefer model-free arms and
