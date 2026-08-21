@@ -1,0 +1,16 @@
+# Standard runner proof: baseline vs the simplest leakage-safe matchup feature.
+fit_gw_max: 30
+test_gw_min: 31
+seasons: ["2024-2025", "2025-2026"]
+
+experiments:
+  baseline:
+    model: lgbm
+    note: current feature set
+  matchup:
+    model: lgbm
+    features: [team_code, position, now_cost, ep_next, had_match, was_home,
+               opponent_elo, home_elo, pts_avg_3, pts_avg_5,
+               opponent_team_code]
+    categorical_columns: [team_code, position, opponent_team_code]
+    note: current set plus pre-deadline opponent identity
