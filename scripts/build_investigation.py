@@ -87,6 +87,7 @@ def t(name: str) -> pl.DataFrame:
 
 players, teams = t("players"), t("teams")
 gw_stats, features = t("gw_stats"), t("features")
+matches = t("matches")
 print(f"season={season}  players={players.height}  "
       f"gw_stats={gw_stats.height}  features={features.height}")"""
     ),
@@ -207,6 +208,76 @@ print(f"same-team pairs : {len(same):6d}  mean r = {same_m:.4f}")
 print(f"cross-team pairs: {len(cross):6d}  mean r = {cross_m:.4f}")
 print(f"=> teammates co-move {same_m / cross_m:.1f}x the random baseline "
       f"(ratio), i.e. NOT I.I.D.")"""
+    ),
+    md("""## 5. Matchup effects — opponent strength × position
+
+Raw linear correlation of the matchup fields was near zero (§2), but matchups
+can still matter non-linearly. Bucket `opponent_elo` into quartiles and look
+at mean realized points per position; and split by venue. If positions
+respond differently to opponent strength / home-away, per-position matchup
+terms (not one global row) are warranted."""),
+    code(
+        """matchup = ff.with_columns(
+    pl.when(pl.col("opponent_elo") < ff["opponent_elo"].quantile(0.25)).then(1)
+    .when(pl.col("opponent_elo") < ff["opponent_elo"].quantile(0.5)).then(2)
+    .when(pl.col("opponent_elo") < ff["opponent_elo"].quantile(0.75)).then(3)
+    .otherwise(4).alias("opp_q"))
+
+print("mean next_points by position x opponent-strength quartile "
+      "(1 = weakest opponent):")
+print(matchup.group_by(["position", "opp_q"])
+      .agg(pl.col("next_points").mean().alias("mean_pts"),
+           pl.col("next_points").count().alias("n"))
+      .sort(["position", "opp_q"]))
+print("\\nmean next_points by position x venue (was_home, 1=home):")
+print(matchup.group_by(["position", "was_home"])
+      .agg(pl.col("next_points").mean().alias("mean_pts"))
+      .sort(["position", "was_home"]))"""
+    ),
+    md("""## 6. Shared-fixture (opponent) co-movement — players who face each other
+
+§4 showed teammates co-move. The other side of covariance is the OPPONENT in
+the same gameweek: does a player's points move with their own team's total and
+against the opposing team's total that GW? And do the two teams in a match
+co-move at all? Strong own-team coupling (positive) and opponent coupling
+(negative) mean a player's weekend outcome is jointly determined with the
+people he actually plays alongside and against — covariance, not I.I.D."""),
+    code(
+        """pt = (gw_stats
+      .join(players.select("player_id", "team_code", "position"), on="player_id")
+      .filter(pl.col("minutes") > 0))
+own = pt.group_by(["team_code", "gw"]).agg(
+    pl.col("total_points").sum().alias("own_total"))
+
+m = matches.select("gw", "home_team", "away_team")
+opp = pl.concat([
+    m.rename({"home_team": "team_code", "away_team": "opp_team"}).select("gw", "team_code", "opp_team"),
+    m.rename({"away_team": "team_code", "home_team": "opp_team"}).select("gw", "team_code", "opp_team"),
+])
+opp_total = opp.join(
+    own.rename({"team_code": "opp_team", "own_total": "opp_total"})
+       .select("opp_team", "gw", "opp_total"), on=["opp_team", "gw"])
+
+dat = (pt.join(own, on=["team_code", "gw"])
+         .join(opp_total.select("team_code", "gw", "opp_total"), on=["team_code", "gw"]))
+
+def corrs(df):
+    return {"vs_own_team": float(df.select(pl.corr("total_points", "own_total")).item()),
+            "vs_opponent": float(df.select(pl.corr("total_points", "opp_total")).item())}
+
+print("player points vs own / opponent team total that GW (shared fixture):")
+print("  overall:", corrs(dat))
+for p in ["GKP", "DEF", "MID", "FWD"]:
+    print(f"  {p:<4}:", corrs(dat.filter(pl.col("position") == p)))
+
+shared = (
+    matches.join(own.rename({"team_code": "home_team", "own_total": "home_pts"}),
+                 on=["home_team", "gw"], how="left")
+    .join(own.rename({"team_code": "away_team", "own_total": "away_pts"}),
+          on=["away_team", "gw"], how="left")
+    .select("gw", "home_pts", "away_pts").drop_nulls())
+print("shared fixture: corr(home_total, away_total) across all matches =",
+      round(float(shared.select(pl.corr("home_pts", "away_pts")).item()), 4))"""
     ),
     md("""## Takeaways → next steps
 
