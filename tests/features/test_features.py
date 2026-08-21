@@ -160,6 +160,36 @@ def test_transfer_reflected_in_opponent(data):
 
 
 def test_first_gw_and_last_gw_dropped(data):
-    # GW1 has no prev context, GW4 has no target -> both excluded
+    # without carryover, GW1 has no prev context -> dropped at store time;
+    # GW4 (no target) is kept in the store (scoreable) but dropped in training
     gws = set(data.get_column("gw"))
-    assert gws == {2, 3}
+    assert gws == {2, 3, 4}
+
+
+def test_carryover_seeds_first_gw():
+    # with a carryover frame, GW1 rows survive (beans); non-covered new-arrivals drop
+    import tempfile
+    from pathlib import Path
+
+    from fpl.data.contract import load_season
+    from fpl.data.features import build_features
+
+    root = Path(tempfile.mkdtemp())
+    from tests.fixtures.synthetic import build_season_tree
+
+    build_season_tree(root)
+    season = load_season(root, "2025-2026")
+    carryover = pl.DataFrame({
+        "player_code": [223094, 118748],
+        "prev_points": [5.0, 4.0],
+        "pts_avg_3": [6.0, 5.0],
+        "pts_avg_5": [5.5, 4.5],
+    })
+    feats = build_features(season.gw_stats, season.team_history, season.matches,
+                           season.players, carryover=carryover)
+    gw1 = feats.filter(pl.col("gw") == 1)
+    assert gw1.height > 0
+    assert set(gw1.get_column("player_code")) <= {223094, 118748}
+    # Haaland's GW1 prev_points came from carryover, not null-dropped
+    haa = gw1.filter(pl.col("player_code") == 223094)
+    assert haa.get_column("prev_points").fill_null(-1).item() != -1

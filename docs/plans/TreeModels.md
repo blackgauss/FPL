@@ -90,7 +90,45 @@ src/fpl/model/eval.py   mae/rmse + baselines
 scripts/train_tree.py   train + held-out eval
 ```
 
-## Held-out baseline (GW 31..38 of 2025-26, 5802 rows)
+## Season-start (cold) evaluation — the real selection setting
+
+The durable headline numbers were late-season (GW31-38): hist_gb 0.942, lgbm
+0.951. That is **not** the setting a GW1 team-pick operates in — you choose a
+team before the season's data accrues. Re-evaluating as a true cold start
+(model trained only on 2024-25, scoring 2025-26 GW1-5):
+
+| model | MAE | RMSE |
+|---|---|---|
+| hist_gb | 1.134 | 2.076 |
+| lgbm (no ep_next) | 1.151 | 2.141 |
+| lgbm (full) | 1.174 | 2.118 |
+| ridge | 1.185 | 2.071 |
+| lgbm_basic | 1.187 | 2.166 |
+
+vs FPL `ep_next` at the same cold window: 1.241 / 2.232 — our cold model still
+edges it, but the gap is much smaller than late-season implied.
+
+Two honest findings:
+- **Late-season overstates the model** — cold-start MAE is ~0.18 worse.
+- **`ep_next` helps late-season but hurts cold-start** — at season start FPL's
+  forecast is noisy; dropping it improves MAE (1.174 -> 1.151). Use
+  `--season-start` in `scripts/run_experiments.py` to reproduce.
+
+## Carryover seeds GW1 (season-start features)
+
+Prior to this, `build_features` dropped every GW1 row (no current-season
+history => null rolling features) — so 2026-27 produced **0 feature rows** and
+the "GW1 team" was unschedulable. The store now accepts a `carryover` frame
+(player_code -> trailing prev_points / pts_avg_3 / pts_avg_5 from the prior
+season's store); GW1 rows are seeded from it and kept. Drop-null was also
+loosened to field rolling-features only (not the target), so scoreable rows
+survive for inference; training drops null-target rows in `assemble`.
+
+2026-27 now yields 461 GW1 feature rows (595 players, of which 460 have
+carryover); 2025-26 keeps its GW1 too. `scripts/features.py` builds the
+carryover automatically by processing seasons oldest->newest.
+
+## Latest held-out (2025-26 GW31-38) NOTE — superseded by season-start above
 
 | Model | MAE | RMSE |
 |---|---|---|

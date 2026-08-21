@@ -29,15 +29,26 @@ def main() -> None:
     seasons = [args.season] if args.season else cfg.seasons.available
     root = cfg.processed_dir
 
+    # carryover: each player's trailing rolling stats from the PREVIOUS
+    # season's feature store, used to seed the next season's GW1 (season start
+    # has no current-season history yet). Built from the already-written store,
+    # so iteration order matters: process seasons oldest->newest.
+    carryover: pl.DataFrame | None = None
     for season in seasons:
         gw_stats = pl.read_parquet(root / f"gw_stats_{season}.parquet")
         team_history = pl.read_parquet(root / f"team_history_{season}.parquet")
         matches = pl.read_parquet(root / f"matches_{season}.parquet")
         players = pl.read_parquet(root / f"players_{season}.parquet")
-        features = build_features(gw_stats, team_history, matches, players)
+        features = build_features(gw_stats, team_history, matches, players,
+                                  carryover=carryover)
         out = root / f"features_{season}.parquet"
         features.write_parquet(out)
         print(f"{out}: {features.height} rows")
+        carryover = features.group_by("player_code").agg(
+            pl.col("prev_points").last().alias("prev_points"),
+            pl.col("pts_avg_3").last().alias("pts_avg_3"),
+            pl.col("pts_avg_5").last().alias("pts_avg_5"),
+        )
 
 
 if __name__ == "__main__":

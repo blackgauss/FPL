@@ -20,15 +20,24 @@ from fpl.model.train import load_training
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run candidate model experiments")
     parser.add_argument("--config", default="config/experiments.yaml")
+    parser.add_argument("--season-start", action="store_true",
+                        help="use the season_start block: train on prior season, test early GWs")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as fh:
         spec = yaml.safe_load(fh)
 
     seasons = spec["seasons"]
-    fit_gw_max = spec.get("fit_gw_max", 30)
-    test_gw_min = spec.get("test_gw_min", 31)
     root = "data/processed"
+    if args.season_start and "season_start" in spec:
+        ss = spec["season_start"]
+        fit_gw_max = ss.get("fit_gw_max", 0)
+        test_gw_min = 1
+        test_gw_max = ss.get("test_gw_max", 5)
+    else:
+        fit_gw_max = spec.get("fit_gw_max", 30)
+        test_gw_min = spec.get("test_gw_min", 31)
+        test_gw_max = None
 
     results = []
     for name, exp in spec["experiments"].items():
@@ -37,7 +46,7 @@ def main() -> None:
         train, fit = by_season[seasons[0]], by_season[seasons[-1]]
         results.append(run_experiment(
             train, fit, name=name, model=exp["model"], params=exp.get("params"),
-            fit_gw_max=fit_gw_max, test_gw_min=test_gw_min,
+            fit_gw_max=fit_gw_max, test_gw_min=test_gw_min, test_gw_max=test_gw_max,
         ))
 
     print_results(results)

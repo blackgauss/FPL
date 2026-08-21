@@ -6,6 +6,14 @@ fit_gw_max: 30
 test_gw_min: 31
 seasons: ["2024-2025", "2025-2026"]
 
+# Season-start (honest) benchmark: trained ONLY on seasons[0], evaluated on
+# seasons[1]'s first gameweeks — mirrors picking the GW1 team before data
+# accrues. Report: our cold model MAE 1.190 vs FPL ep_next 1.241 (2025-26 #GW1-5).
+season_start:
+  fit_gw_max: 0          # train on previous season only
+  test_gw_max: 5         # evaluate seasons[1] GW1..5
+  note: "cold start; expected worse than late-season, but the true selection setting"
+
 experiments:
   lgbm_all:
     model: lgbm
