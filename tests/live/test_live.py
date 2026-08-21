@@ -13,7 +13,7 @@ import time
 import polars as pl
 import pytest
 
-from fpl.domain import Player, PlayerForm, PlayerIdentity, Position, Squad
+from fpl.domain import Player, PlayerIdentity, PlayerState, Position, Squad
 from fpl.live.agreement import hygiene_summary, price_diff_tenths, report_agreement, to_tenths
 from fpl.live.filters import (
     available,
@@ -273,7 +273,7 @@ class TestFlagSquad:
     @staticmethod
     def _p(code, name, position, club, cost):
         return Player(identity=PlayerIdentity(code, name, Position(position)),
-                      form=PlayerForm(club, cost))
+                      state=PlayerState(club, cost))
 
     def test_healthy_all_ok(self, live):
         from fpl.live.filters import flag_squad

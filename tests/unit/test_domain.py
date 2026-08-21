@@ -12,8 +12,8 @@ import polars as pl
 from fpl.domain import (
     POSITION_ORDER,
     Player,
-    PlayerForm,
     PlayerIdentity,
+    PlayerState,
     Position,
     Squad,
     position_sort_key,
@@ -60,16 +60,16 @@ class TestPlayer:
     @staticmethod
     def _p(club=1, cost=55, code=10, name="D1", position="DEF"):
         return Player(identity=PlayerIdentity(code, name, Position(position)),
-                      form=PlayerForm(club, cost))
+                      state=PlayerState(club, cost))
 
     def test_fields_and_forwarding(self):
         p = self._p()
         assert p.code == 10 and p.position == "DEF"
         assert p.club == 1 and p.cost_tenths == 55
-        # forwarding reads live facets: identity and form are independent
+        # forwarding reads live facets: identity and state are independent
         assert (p.code, p.name, p.position) == (
             p.identity.code, p.identity.name, p.identity.position)
-        assert (p.club, p.cost_tenths) == (p.form.club, p.form.cost_tenths)
+        assert (p.club, p.cost_tenths) == (p.state.club, p.state.cost_tenths)
         assert isinstance(p.code, int) and isinstance(p.club, int)  # plain ints
 
     def test_hashable(self):
@@ -86,26 +86,26 @@ class TestPlayer:
 
         p = self._p()
         with pytest.raises(AttributeError):
-            p.form.club = 2  # type: ignore[misc]
+            p.state.club = 2  # type: ignore[misc]
         with pytest.raises(AttributeError):
             p.identity.code = 99  # type: ignore[misc]
         assert p.club == 1 and p.code == 10
 
     def test_identity_obj_is_shared_across_weeks(self):
-        # the point of the split: across weeks/form the identity is the SAME
-        # object; only the form is replaced.
+        # the point of the split: across weeks/state the identity is the SAME
+        # object; only the state is replaced.
         p = self._p(club=1, cost=55)
-        q = p.with_form(club=13, cost_tenths=100)  # transferred + price rise
+        q = p.with_state(club=13, cost_tenths=100)  # transferred + price rise
         assert q.identity is p.identity
         assert q.code == p.code and q.position == p.position
         assert q.club == 13 and q.cost_tenths == 100
         assert p.club == 1 and p.cost_tenths == 55  # original untouched
 
-    def test_with_form_is_the_only_form_transition(self):
+    def test_with_state_is_the_only_transition(self):
         p = self._p(club=1, cost=55)
-        same = p.with_form()
+        same = p.with_state()
         assert same == p  # no-op transition is an equal value
-        moved = p.with_form(club=5)
+        moved = p.with_state(club=5)
         assert moved == self._p(club=5, cost=55)
 
     def test_frame_row_roundtrip(self):
@@ -176,7 +176,7 @@ class TestValidate:
         squad = make_squad()
         players = list(squad.players)
         extra_fwd = Player(identity=PlayerIdentity(99, "F9", Position.FWD),
-                           form=PlayerForm(13, 5))
+                           state=PlayerState(13, 5))
         over = Squad(players=tuple([*players, extra_fwd]),
                      starters=squad.starters)
         problems = over.validate()
@@ -184,7 +184,7 @@ class TestValidate:
 
     def test_over_budget_reported(self):
         squad = make_squad()
-        players = [p.with_form(cost_tenths=p.cost_tenths * 10)
+        players = [p.with_state(cost_tenths=p.cost_tenths * 10)
                    if i == 0 else p
                    for i, p in enumerate(squad.players)]
         over = Squad(players=tuple(players), starters=squad.starters)
@@ -195,7 +195,7 @@ class TestValidate:
         squad = make_squad()
         # move one player into club 1 (already at MAX_PER_CLUB of 3)
         players = tuple(
-            p.with_form(club=1)
+            p.with_state(club=1)
             if p.club == 12 else p
             for p in squad.players)
         over = Squad(players=players, starters=squad.starters)
@@ -228,7 +228,7 @@ class TestValidate:
             p0 = byc[squad.starters[0]]
             p1 = byc[squad.starters[1]]
             players = tuple(
-                p.with_form(club=p0.club)
+                p.with_state(club=p0.club)
                 if p.code == p1.code else p for p in squad.players)
             bad = Squad(players=players, starters=squad.starters,
                         captain=byc[squad.starters[0]].code,

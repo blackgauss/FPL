@@ -9,28 +9,35 @@ scripts, and the weekly optimizers.
 Immutability contract (the important part):
 
   * These are pure value objects — never mutated in place. Change is a NEW
-    value (dataclasses.replace, with_form(), or the frame->domain builders).
-  * Identity is separated from form as two distinct types, so it is explicit
+    value (dataclasses.replace, with_state(), or the frame->domain builders).
+  * Identity is separated from state as two distinct types, so it is explicit
     what endures and what is refreshed each week:
 
   PlayerIdentity  immutable FOREVER: code, name, position. Two rows with the
                   same identity are the same player; it can be shared across
                   weeks/squads unchanged.
-  PlayerForm      one week's volatile State: club, cost_tenths (transfers and
+  PlayerState     one week's volatile state: club, cost_tenths (transfers and
                   price move every GW). Replaced weekly, never edited.
-  Player          a weekly row = identity + form, composed and frozen.
-                  `with_form()` is the way form changes (same identity).
+  Player          a weekly row = identity + state, composed and frozen.
+                  `with_state()` is the way state changes (same identity).
   Squad           one gameweek's snapshot (15 Players + XI/captain/vice/gw/
                   transfers made). Everything in it is state; the "team"
                   persists across weeks only as the carried player identities.
 
-Typing note: all three are `@dataclass(frozen=True, slots=True)` — every
+Typing note: all these are `@dataclass(frozen=True, slots=True)` — every
 attribute is effectively final (no in-place writes), slots close the shape
 (no ad-hoc attributes), and all the modern stdlib (StrEnum, dataclasses) is
 used rather than inventing machinery.
 
+Extension contract — composition over inheritance: this is a closed, flat set
+of small value types. To build more-structured domain instances (a selected
+player carrying its forecast/distribution, a club entity, a transfer record)
+do NOT subclass them — compose them, exactly as Player is composed from
+Identity+State and Squad is composed from Players + configuration. The core
+types stay final; richer objects own them as fields.
+
 Public/private surface: the public API is exactly the types (PlayerIdentity,
-PlayerForm, Player, Squad, Position, POSITION_ORDER, position_sort_key) plus
+PlayerState, Player, Squad, Position, POSITION_ORDER, position_sort_key) plus
 the two frame->domain builders (players_from_frame, squad_from_frame).
 Everything that bridges to frame column names or dataset layout is private
 (underscore-prefixed) so callers depend on the domain, not on the data
@@ -85,11 +92,11 @@ def position_sort_key(position: str) -> int:
 
 @dataclass(frozen=True, slots=True)
 class PlayerIdentity:
-    """A player's permanent identity — never changes across weeks or forms.
+    """A player's permanent identity — never changes across weeks or state.
 
     `code` is the stable FPL player_code; `name` is the display name (a rename
     is a NEW identity); `position` is the player's role for this snapshot.
-    Two rows sharing an identity are the same player, regardless of form.
+    Two rows sharing an identity are the same player, regardless of state.
     """
 
     code: int
@@ -98,11 +105,11 @@ class PlayerIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class PlayerForm:
+class PlayerState:
     """A player's volatile weekly state — the part that changes every GW.
 
     `club` (team_code) changes on transfer, `cost_tenths` changes on price
-    moves. A form is replaced (new value), never edited.
+    moves. A state is replaced (new value), never edited.
     """
 
     club: int
@@ -111,16 +118,20 @@ class PlayerForm:
 
 @dataclass(frozen=True, slots=True)
 class Player:
-    """A weekly player row: permanent identity + this week's form, composed.
+    """A weekly player row: permanent identity + this week's state, composed.
 
     Forwarding properties (`code`/`name`/`position` from identity, `club`/
-    `cost_tenths` from form) keep everyday call sites terse while the two
+    `cost_tenths` from state) keep everyday call sites terse while the two
     facets stay first-class — e.g. `squad.players[i].identity` is the same
-    object every week, only `.form` is replaced.
+    object every week, only `.state` is replaced.
+
+    Composition is the extension pattern: richer per-week records (a selected
+    player with its forecast, minutes, availability) OWN a `Player` as a field
+    and expose what they need; Player itself is never subclassed.
     """
 
     identity: PlayerIdentity
-    form: PlayerForm
+    state: PlayerState
 
     @property
     def code(self) -> int:
@@ -136,24 +147,24 @@ class Player:
 
     @property
     def club(self) -> int:
-        return self.form.club
+        return self.state.club
 
     @property
     def cost_tenths(self) -> int:
-        return self.form.cost_tenths
+        return self.state.cost_tenths
 
-    def with_form(self, *, club: int | None = None,
-                  cost_tenths: int | None = None) -> Player:
-        """New Player: the SAME identity, replaced weekly form. Never mutates.
+    def with_state(self, *, club: int | None = None,
+                   cost_tenths: int | None = None) -> Player:
+        """New Player: the SAME identity, replaced weekly state. Never mutates.
 
         This (and dataclasses.replace) is the only way a player's state moves
         from one week to the next.
         """
         return Player(
             identity=self.identity,
-            form=PlayerForm(club=self.club if club is None else club,
-                            cost_tenths=self.cost_tenths
-                            if cost_tenths is None else cost_tenths),
+            state=PlayerState(club=self.club if club is None else club,
+                              cost_tenths=self.cost_tenths
+                              if cost_tenths is None else cost_tenths),
         )
 
     def _frame_row(self) -> dict:
@@ -177,6 +188,10 @@ class Squad:
       - total cost <= budget; <= MAX_PER_CLUB per club;
       - 11 starters (1 GKP, >=3 DEF, >=1 FWD at all times);
       - captain/vice are starters, and a different club.
+
+    Weekly decisions (transfers, captain, XI) are new Squad values — built by
+    composing/replacing fields (dataclasses.replace / plan builders), never
+    by subclassing Squad.
     """
 
     players: tuple[Player, ...]
@@ -258,7 +273,7 @@ def players_from_frame(frame: pl.DataFrame) -> list[Player]:
                 code=int(row["player_code"]),
                 name=row.get("web_name") or f"p{row['player_code']}",
                 position=Position(row["position"])),
-            form=PlayerForm(
+            state=PlayerState(
                 club=int(row["team_code"]),
                 cost_tenths=int(row.get("price_tenths", 0))),
         ))
