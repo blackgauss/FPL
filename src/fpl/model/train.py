@@ -38,13 +38,17 @@ class TrainingData:
 
 def load_training(processed: str | Path, seasons: list[str],
                   feature_columns: list[str] | None = None,
-                  players: dict[str, pl.DataFrame] | None = None
+                  players: dict[str, pl.DataFrame] | None = None,
+                  require_target: bool = True,
                   ) -> dict[str, TrainingData]:
     """Read the feature store for each season and assemble a TrainingData.
 
     `processed` is data/processed (per config), `seasons` a list of labels.
     Returns {season: TrainingData}. This is the single read path for training,
     experiments, and serving — scripts should not hand-roll the 3-file load.
+    `require_target=False` keeps rows without a next-points label (used for
+    scoring a season-start / pre-season window where the target doesn't exist
+    yet).
     """
     result: dict[str, TrainingData] = {}
     for season in seasons:
@@ -53,13 +57,15 @@ def load_training(processed: str | Path, seasons: list[str],
         plr = players[season] if players is not None else \
             pl.read_parquet(f"{processed}/players_{season}.parquet")
         result[season] = assemble(feat, plr, gw_stats, season,
-                                  feature_columns=feature_columns)
+                                  feature_columns=feature_columns,
+                                  require_target=require_target)
     return result
 
 
 def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
              season: str | None = None,
-             feature_columns: list[str] | None = None) -> TrainingData:
+             feature_columns: list[str] | None = None,
+             require_target: bool = True) -> TrainingData:
     """Prepare a model-ready matrix from feature-store + player + gw_stats rows.
 
     `players` MUST be the frame of the same season as `df` (it carries the
@@ -67,6 +73,8 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
     (player_id, gw) for price — the stable code never crosses seasons.
     `feature_columns` selects a subset of the canonical features (for quick
     ablations); categorical columns that are dropped are simply absent.
+    `require_target` drops rows without `next_points` (trainable); set False
+    to keep them for inference at season start (target unknown yet).
     """
     if feature_columns is None:
         feature_columns = FEATURE_COLUMNS
@@ -99,7 +107,8 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
 
     # rows without a target are not trainable; the feature store keeps them
     # (for scoring/inference at season start) but training drops them here
-    df = df.filter(pl.col("next_points").is_not_null())
+    if require_target:
+        df = df.filter(pl.col("next_points").is_not_null())
 
     cat_selected = [c for c in CATEGORY_COLUMNS if c in feature_columns]
     X = df.select(feature_columns).with_columns(
