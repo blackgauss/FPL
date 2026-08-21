@@ -37,21 +37,24 @@ class TrainingData:
 
 def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
              season: str | None = None) -> TrainingData:
-    """Prepare a model-ready matrix from feature-store + player + gw_stats rows."""
-    # join player position; join per-GW price (features table has neither)
-    df = (
-        df.join(
-            players.select("player_id", "position"),
-            on="player_id",
-            how="left",
-        )
-        .join(
-            gw_stats.select("player_id", "gw", "now_cost", "ep_next"),
-            on=["player_id", "gw"],
-            how="left",
-        )
-        .sort("player_id", "gw")
+    """Prepare a model-ready matrix from feature-store + player + gw_stats rows.
+
+    `players` MUST be the frame of the same season as `df` (it carries the
+    season-local position codes). Joins happen on `player_code` and
+    (player_id, gw) for price — the stable code never crosses seasons.
+    """
+    # join player position on the stable cross-season code
+    df = df.join(
+        players.select("player_code", "position"),
+        on="player_code",
+        how="left",
     )
+    # join per-GW price (features table has neither now_cost nor ep_next)
+    df = df.join(
+        gw_stats.select("player_id", "gw", "now_cost", "ep_next"),
+        on=["player_id", "gw"],
+        how="left",
+    ).sort("player_id", "gw")
 
     had_match = pl.col("opponent_team_code").is_not_null()
     df = df.with_columns(
@@ -82,5 +85,5 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
         gw=df.get_column("gw").to_numpy().astype(np.int64),
         feature_names=feature_names,
         categorical=categorical,
-        meta=df.select("player_id", "gw", "season"),
+        meta=df.select("player_id", "player_code", "gw", "season"),
     )

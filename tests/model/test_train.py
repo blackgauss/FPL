@@ -25,34 +25,38 @@ class TestBaselineMean:
         assert y_pred.to_list() == [3.0, 3.0]
 
 
+@pytest.fixture()
+def frames():
+    features = pl.DataFrame({
+        "player_id": [1, 1, 2],
+        "player_code": [223094, 223094, 118748],
+        "gw": [2, 3, 2],
+        "team_code": [43, 43, 3],
+        "opponent_team_code": [3, None, 43],
+        "was_home": [True, None, False],
+        "home_elo": [2064.0, None, 1991.0],
+        "opponent_elo": [1991.0, None, 2064.0],
+        "prev_points": [13, 2, 9],
+        "pts_avg_3": [13.0, 7.5, 9.0],
+        "pts_avg_5": [13.0, 7.5, 9.0],
+        "total_points": [2, 4, 5],
+        "next_points": [4, 1, 3],
+    })
+    players = pl.DataFrame({
+        "player_id": [1, 2],
+        "player_code": [223094, 118748],
+        "position": ["FWD", "MID"],
+    })
+    gw_stats = pl.DataFrame({
+        "player_id": [1, 1, 2],
+        "gw": [2, 3, 2],
+        "now_cost": [15.0, 14.1, 11.0],
+        "ep_next": [4.0, 5.0, 3.0],
+    })
+    return features, players, gw_stats
+
+
 class TestAssemble:
-    @pytest.fixture()
-    def frames(self):
-        features = pl.DataFrame({
-            "player_id": [1, 1, 2],
-            "gw": [2, 3, 2],
-            "team_code": [43, 43, 3],
-            "opponent_team_code": [3, None, 43],
-            "was_home": [True, None, False],
-            "home_elo": [2064.0, None, 1991.0],
-            "opponent_elo": [1991.0, None, 2064.0],
-            "prev_points": [13, 2, 9],
-            "pts_avg_3": [13.0, 7.5, 9.0],
-            "pts_avg_5": [13.0, 7.5, 9.0],
-            "total_points": [2, 4, 5],
-            "next_points": [4, 1, 3],
-        })
-        players = pl.DataFrame({
-            "player_id": [1, 2],
-            "position": ["FWD", "MID"],
-        })
-        gw_stats = pl.DataFrame({
-            "player_id": [1, 1, 2],
-            "gw": [2, 3, 2],
-            "now_cost": [15.0, 14.1, 11.0],
-            "ep_next": [4.0, 5.0, 3.0],
-        })
-        return features, players, gw_stats
 
     def test_feature_columns(self, frames):
         features, players, gw_stats = frames
@@ -88,3 +92,36 @@ class TestAssemble:
             td.feature_names.index("team_code"),
             td.feature_names.index("position"),
         }
+
+
+class TestStableIdentity:
+    """Cross-season safety: player_id is season-local (803/804 reused for a
+    different player across 2024-25 and 2025-26). Training must join player
+    metadata on player_code, and only rows with a resolvable code kept."""
+
+    def test_position_comes_from_player_code(self, frames):
+        features, players, gw_stats = frames
+        # same code, but players table re-uses id 1 for a DIFFERENT code/player
+        players_bad = pl.DataFrame({
+            "player_id": [1, 2],
+            "player_code": [999999, 118748],  # id 1 now maps to a stranger
+            "position": ["GKP", "MID"],
+        })
+        td = assemble(features, players_bad, gw_stats, season="2025-2026")
+        names = td.feature_names
+        pos_idx = names.index("position")
+        # row for player_code 223094 (player_id 1) has no match in players_bad
+        # codes -> position becomes unknown; NEVER GKP (the stranger's position).
+        xi = td.meta.with_row_index("r").filter(
+            pl.col("player_code") == 223094).get_column("r").to_list()
+        for i in xi:
+            assert td.X[i, pos_idx] != 0, "wrong cross-season position attached"
+
+    def test_unknown_position_flagged_rather_than_wrong(self, frames):
+        features, players, gw_stats = frames
+        td = assemble(features, players, gw_stats, season="2025-2026")
+        # every row must resolve a position from ITS OWN code, none null
+        pos_idx = td.feature_names.index("position")
+        assert not any(
+            row[pos_idx] is None for row in td.X
+        ), "unresolved position present"

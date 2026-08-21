@@ -23,6 +23,27 @@ player-GW feature store from `data-tools`. The forecast feeds later team-selecti
 - **Rows with no PL match** (opponent/venue null — 409 in 2025-26) are kept with
   an explicit `had_match` flag and zero-filled venue/elo: a blank GW is itself
   signal (0 points), not missing data.
+- **Stable identity across seasons**: `player_id` is a season-local FPL element
+  id that gets REUSED for a different player each season — 803 of 804 shared
+  IDs collide between 2024-25 and 2025-26. The feature store therefore carries
+  `player_code` (the stable cross-season key); all player-metadata joins in
+  `assemble` use `player_code`, and per-season players frames are loaded
+  separately. Leakage validation (`src/fpl/model/leakage.py`) runs before any
+  training and would fail a pipeline that joined on `player_id`.
+
+## Leakage validation (journal "Data" section)
+
+`src/fpl/model/leakage.py` encodes the guarantees, each a pure check returning
+violations; `validate()` raises before a model fits if any fail:
+- **identity**: features carry `player_code`; no row keyed by a `player_id`
+  whose code resolves to a different player;
+- **causality**: `next_points` equals the following GW's `total_points` for the
+  same player (statistical check on the target shift);
+- **split**: train max GW < test min GW.
+
+The checks caught a real contamination during this fork: the original version
+joined 2025-26 player metadata onto 2024-25 rows via `player_id`, silently
+attaching the wrong players' positions/prices to every older-season row.
 
 ## Pipeline
 

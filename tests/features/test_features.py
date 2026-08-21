@@ -93,14 +93,15 @@ def _tree(base: Path) -> Path:
 def data(tmp_path_factory):
     root = _tree(tmp_path_factory.mktemp("features"))
     season = load_season(root.parent, "2025-2026")
-    return build_features(season.gw_stats, season.team_history, season.matches)
+    return build_features(season.gw_stats, season.team_history, season.matches,
+                          season.players)
 
 
 def test_columns_are_the_contract(data):
     assert data.columns == [
-        "player_id", "gw", "team_code", "opponent_team_code", "was_home",
-        "home_elo", "opponent_elo", "prev_points", "pts_avg_3", "pts_avg_5",
-        "total_points", "next_points",
+        "player_id", "player_code", "gw", "team_code", "opponent_team_code",
+        "was_home", "home_elo", "opponent_elo", "prev_points", "pts_avg_3",
+        "pts_avg_5", "total_points", "next_points",
     ]
 
 

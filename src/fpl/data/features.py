@@ -33,12 +33,24 @@ def build_features(
     gw_stats: pl.DataFrame,
     team_history: pl.DataFrame,
     matches: pl.DataFrame,
+    players: pl.DataFrame,
 ) -> pl.DataFrame:
-    """Return one feature row per (player_id, gw) for a single season."""
+    """Return one feature row per (player_id, gw) for a single season.
+
+    Rows are keyed by season-local `player_id` (FPL element id) but ALSO carry
+    the stable cross-season `player_code`. Downstream training must join player
+    metadata on `player_code` — never `player_id`, which is reused for different
+    players across seasons.
+    """
     prem = matches.filter(pl.col("tournament") == "prem")
 
     base = (
         gw_stats.select("player_id", "gw", "total_points")
+        .join(
+            players.select("player_id", "player_code"),
+            on="player_id",
+            how="left",
+        )
         .join(
             team_history.select("player_id", "gw", "team_code"),
             on=["player_id", "gw"],
@@ -79,7 +91,7 @@ def build_features(
     )
 
     return base.select(
-        "player_id", "gw", "team_code", "opponent_team_code", "was_home",
-        "home_elo", "opponent_elo", "prev_points", "pts_avg_3", "pts_avg_5",
-        "total_points", "next_points",
+        "player_id", "player_code", "gw", "team_code", "opponent_team_code",
+        "was_home", "home_elo", "opponent_elo", "prev_points", "pts_avg_3",
+        "pts_avg_5", "total_points", "next_points",
     ).drop_nulls(subset=["prev_points", "pts_avg_3", "pts_avg_5", "next_points"])

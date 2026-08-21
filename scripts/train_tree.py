@@ -13,6 +13,7 @@ import lightgbm as lgb
 import polars as pl
 
 from fpl.model.eval import baseline_mean, summarize
+from fpl.model.leakage import validate
 from fpl.model.train import assemble
 
 SEASONS = ["2024-2025", "2025-2026"]
@@ -22,15 +23,24 @@ TEST_GWS = (31, 38)
 
 def main() -> None:
     processed = "data/processed"
-    players = pl.read_parquet(f"{processed}/players_2025-2026.parquet")
 
     train_parts = []
     for season in SEASONS:
         feat = pl.read_parquet(f"{processed}/features_{season}.parquet")
+        players = pl.read_parquet(f"{processed}/players_{season}.parquet")
         gw_stats = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
         train_parts.append(assemble(feat, players, gw_stats, season))
 
     train_data, fit_data = train_parts
+
+    # leakage gate (journal "Data" section): run before any fitting
+    validate(
+        pl.read_parquet(f"{processed}/features_2025-2026.parquet"),
+        pl.read_parquet(f"{processed}/players_2025-2026.parquet"),
+        gw_train_max=30,
+        gw_test_min=31,
+    )
+    print("leakage validation: PASS")
 
     lgb_train = lgb.Dataset(
         train_data.X, label=train_data.y,
