@@ -107,6 +107,18 @@ QUALITY knee and scale time linearly:
 - Both were the "cross-process" and "parallel" levers from the earlier list;
   training round count + these are the practical wins.
 
+## Training time: before vs now
+
+| What | Before | Now |
+|---|---|---|
+| Raw LightGBM fit (200 rounds, 49k x 10) | ~6.5s | ~6.5s (expected; internals untouched) |
+| Same-config refit within one process | re-fits 6.5s every time | ~0 (in-process cache; matrix assembly skipped too) |
+| Same-config refit across CLI runs | re-fits 6.5s | ~0.1-1s Booster disk load (`fit_hits = 1`) |
+| Ranking config wall (3 experiment arms) | 30.9s sequential | 10.3s (parallel 3 throttled + warm disk) |
+
+Absolute single runs vary with machine load (6-26s for the same fit across
+this session); the durable wins are the workflow ones above.
+
 ## Inefficiencies found and addressed
 
 1. **The inference profile was re-fitting.** The diagnostic's "inference"
