@@ -1,0 +1,9 @@
+# Data-layer config: paths for the ingest job and the parquet dataset.
+# Paths are relative to the project root. YAML keeps config language-agnostic.
+
+fpl_core_root: external/fpl_core/data
+processed_dir: data/processed
+
+seasons:
+  available: ["2025-2026", "2026-2027"]
+  default: "2025-2026"   # latest season with played matches
