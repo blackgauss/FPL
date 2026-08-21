@@ -50,6 +50,40 @@ attaching the wrong players' positions/prices to every older-season row.
 ```
 scripts/ingest.py  -> parquet dataset
 scripts/features.py -> features_{season}.parquet
+src/fpl/model/train.py  assemble(features, players, gw_stats, season,
+                                  feature_columns=subset) -> TrainingData
+src/fpl/model/eval.py   mae/rmse + baselines
+scripts/train_tree.py   train + held-out eval (single model)
+scripts/run_experiments.py  fit multiple candidates on the same held-out GWs
+src/fpl/model/leakage.py    pre-training leakage gates
+```
+
+## Rapid experiments
+
+`config/experiments.yaml` declares candidates (model, params, feature subset);
+`scripts/run_experiments.py` scores them all on the shared held-out window
+(GW 31..38 of 2025-26). The harness rejects a leaky split (fit max >= test min)
+and the registry (`lgbm`, `hist_gb`, `ridge`) makes swapping estimators a dict
+change. Held-out results:
+
+| model | MAE | RMSE | features |
+|---|---|---|---|
+| hist_gb | 0.946 | 1.928 | ALL |
+| lgbm_all | 0.951 | 1.931 | ALL |
+| lgbm_basic | 1.058 | 2.053 | position, now_cost, pts_avg_3/5 |
+| ridge | 1.068 | 1.966 | ALL |
+| lgbm_no_ep | 1.069 | 2.069 | ALL minus ep_next |
+
+Reading: boosting > linear; `ep_next` is load-bearing (removing it costs
+~+0.12 MAE). Note `assemble(feature_columns=...)` ablate feature sets, and the
+NaN guard means a null `team_code` (legacy seasons, no team_history) is
+backfilled from `players.team_code`.
+
+# Pipeline
+
+```
+scripts/ingest.py  -> parquet dataset
+scripts/features.py -> features_{season}.parquet
 src/fpl/model/train.py  assemble(features, players, gw_stats, season) -> TrainingData
 src/fpl/model/eval.py   mae/rmse + baselines
 scripts/train_tree.py   train + held-out eval

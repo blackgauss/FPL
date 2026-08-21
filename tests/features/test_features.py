@@ -105,6 +105,21 @@ def test_columns_are_the_contract(data):
     ]
 
 
+def test_team_code_never_null():
+    # legacy seasons lack team_history; team_code must backfill from
+    # players.team_code, otherwise full-feature models hit NaN (Ridge, etc.)
+    root = _tree(Path(__import__("tempfile").mkdtemp()))
+    season = load_season(root.parent, "2025-2026")
+    empty_history = pl.DataFrame(
+        {"player_id": pl.Series([], dtype=pl.Int64),
+         "gw": pl.Series([], dtype=pl.Int64),
+         "team_code": pl.Series([], dtype=pl.Int64)}
+    )
+    feats = build_features(season.gw_stats, empty_history, season.matches, season.players)
+    assert feats.get_column("team_code").null_count() == 0
+    assert set(feats.filter(pl.col("player_id") == 100).get_column("team_code")) <= {3, 43}
+
+
 def test_haaland_gw2_opponent_and_venue(data):
     row = data.filter((pl.col("player_id") == 430) & (pl.col("gw") == 2))
     assert row.get_column("team_code").item() == 43

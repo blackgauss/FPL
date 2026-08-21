@@ -36,13 +36,18 @@ class TrainingData:
 
 
 def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
-             season: str | None = None) -> TrainingData:
+             season: str | None = None,
+             feature_columns: list[str] | None = None) -> TrainingData:
     """Prepare a model-ready matrix from feature-store + player + gw_stats rows.
 
     `players` MUST be the frame of the same season as `df` (it carries the
     season-local position codes). Joins happen on `player_code` and
     (player_id, gw) for price — the stable code never crosses seasons.
+    `feature_columns` selects a subset of the canonical features (for quick
+    ablations); categorical columns that are dropped are simply absent.
     """
+    if feature_columns is None:
+        feature_columns = FEATURE_COLUMNS
     # join player position on the stable cross-season code
     df = df.join(
         players.select("player_code", "position"),
@@ -70,14 +75,15 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
     else:
         df = df.with_columns(pl.lit("unknown").alias("season"))
 
-    X = df.select(FEATURE_COLUMNS).with_columns(
+    cat_selected = [c for c in CATEGORY_COLUMNS if c in feature_columns]
+    X = df.select(feature_columns).with_columns(
         # encode string categoricals into int codes; team_code is already int
         *[pl.col(c).cast(pl.Categorical).to_physical() if df.schema[c] == pl.String
           else pl.col(c).cast(pl.Int64)
-          for c in CATEGORY_COLUMNS]
+          for c in cat_selected]
     )
-    feature_names = FEATURE_COLUMNS
-    categorical = [feature_names.index(c) for c in CATEGORY_COLUMNS]
+    feature_names = list(feature_columns)
+    categorical = [feature_names.index(c) for c in cat_selected]
 
     return TrainingData(
         X=X.to_numpy(),

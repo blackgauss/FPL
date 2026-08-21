@@ -47,14 +47,20 @@ def build_features(
     base = (
         gw_stats.select("player_id", "gw", "total_points")
         .join(
-            players.select("player_id", "player_code"),
+            players.select("player_id", "player_code", "team_code"),
             on="player_id",
             how="left",
         )
+        # team_history may be absent (legacy layout); fall back to the club the
+        # player's season assigned — never leave team_code null (models choke).
         .join(
-            team_history.select("player_id", "gw", "team_code"),
+            team_history.select("player_id", "gw",
+                                pl.col("team_code").alias("th_team_code")),
             on=["player_id", "gw"],
             how="left",
+        )
+        .with_columns(
+            pl.coalesce("th_team_code", "team_code").alias("team_code")
         )
         .sort("player_id", "gw")
     )
