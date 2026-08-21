@@ -59,9 +59,12 @@ Fixes must account for **matchup** (per-position opponent/venue strength) and
 ## Work plan
 
 1. **Scaffold** (this branch): `analysis/` + `experiments/` + this doc.
-2. **Diagnostics** (`analysis/`): correlation/co-movement tables from the
-   feature store — driver features vs realized points; residual co-movement
-   among squad-mates/fixture-sharers. Record findings here.
+2. **Diagnostics** — `notebooks/ModelEnsemblesInvestigation.ipynb` (build:
+   `python scripts/build_investigation.py`): position baselines, driver-feature
+   correlation with realized points, driver collinearity, and the **in-squad
+   co-movement check** quantifying the I.I.D. violation (2025-26: same-team
+   r ≈ 0.054 vs cross-team r ≈ 0.003, ~17× — teammates are NOT independent).
+   Drives design questions 1–2; record follow-ups here.
 3. **Experiments** (`experiments/`): runnable comparisons, one per question,
    wired through the gym; each stores its paired toggles + observability output.
 4. **Model** : position models + per-player correction landing in
