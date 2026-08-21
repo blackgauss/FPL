@@ -8,6 +8,27 @@ conventions: synthetic or tracked data inputs, deterministic seeds, and —
 where model quality is being judged — evaluation through the **gym**
 (`fpl.gym.Eval`, paired toggles), never a bare training-loss number.
 
+Ran so far:
+
+- `ab_matchup_model.py` — matchup-feature A/B (baseline vs `+ opponent_team_code`
+  categorical); holdout MAE + gym forecast-vs-actual. Small but real gain on
+  calibration; raw ids are informative but weak.
+- `ab_team_covariance.py` — structural same-team/opponent covariance model
+  (low-rank, learned from train residuals) vs IID; gym arbitrated via squad-
+  week z-calibration. Covariance is second-order; the gap is variance scale.
+- `ab_match_state_factor.py` — match-state factor (conditional independence),
+  model-free + artifact-cached; vs IID. A weak state (final goals) loses:
+  conditioning sharpens past reality and fails to reproduce same-team r.
+
+Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
+run a *leakage gate + deterministic seed* first, prefer model-free arms and
+reuse the stored model for squads (no retraining), cache train-derived tables
+in `experiments/artifacts/` (keyed by season+window), keep `n_teams` small,
+and always grade paired toggles.
+
+Findings and conclusions are recorded in `analysis/Investigations.md`, and
+only experiment code + recorded outputs live here.
+
 Expected contents (as they land):
 
 - position-model variants (global vs global + per-player correction),

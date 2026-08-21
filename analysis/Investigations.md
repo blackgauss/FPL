@@ -98,6 +98,42 @@ covariance term for *selection* (penalising same-team stacks / pricing shared
 fixtures) and for correlated MC sampling — it changes re-ranking and
 diversification even where it barely moves a z-calibration number.
 
+## Experiment 3 — match-state factor model (conditional independence)
+
+`experiments/ab_match_state_factor.py`; leakage gate first. Tests the "cheat
+code": `P(state) × ∏ P(Xᵢ | state)` with state = (team goals, conceded) from
+TRAIN matches, permissions empirical per-position conditional tables
+(own-goals × conceded bins, plus a fresh state per draw so the shared factor
+varies). IID vs factor on 32 hold-out squad-weeks, 200 draws each.
+
+- **Gym arbitration:** factor is WORSE — mean|z| 6.62 / std(z) 3.59 vs IID
+  2.46 / 2.25. Conditioning on the goals state *sharpens* the predictive
+  distribution below reality; actual squad totals are dominated by heavy rare
+  tails (goals/cards/bonus) the final-score state barely carries.
+- **Co-movement reproduction:** same-team simulated r ≈ −0.005 (vs real ~0.05);
+  the goals factor does NOT reproduce our measured coupling. (A subtle trap
+  caught by the gym: the state must be re-sampled per draw or the covariance
+  vanishes entirely.)
+
+**Read:** the factor *approach* is the right cheat (no 22-dim/copula), but the
+*state* must actually carry the match variance — final goals alone is too thin
+and conditioning on it rushes past reality. The co-movement we measured
+(+0.42 own-team / −0.57 in-match) needs a richer shared state (team/opponent
+strength latents, form, defensive structure) and, before anything, per-player
+variance calibration (Experiment 2's dominant gap). Roadmap: calibrate σ² →
+stronger factor state / feature search → correlated sampling into the search.
+
+## Velocity notes (experiment loop)
+
+- **Model-free where possible**: experiment 3 needs no model fit — empirical
+  marginals/tables. Squads reuse the stored `points_lgbm.txt` (no training).
+- **Artifact caching**: train-derived tables cached to `experiments/artifacts/`
+  (keyed by season+window) so re-runs skip rebuild. Stale-cache risk is kept
+  to experiments (investigations), not inference code.
+- deltas/gates: leakage gate first, deterministic seeds (`SEED=42`), small
+  `n_teams` (greedy feasibility), paired-toggles only. Gym arbitration output
+  goes straight into this file.
+
 ## Work plan
 
 1. **Scaffold** (this branch): `analysis/` + `experiments/` + this doc.
