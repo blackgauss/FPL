@@ -68,13 +68,22 @@ injured/suspended/unavailable status, absence from the live roster
 GW2-4 basket: the best squad shows Bowen NOT IN LIVE ROSTER, Livramento
 INJURED, Lacroix + Bruno G. TRANSFERRED, and price moves on most others.
 
-## Tests (21 in `tests/live/`)
+## Tests
 
-- fetch/cache/TTL/fallback with a mocked session (no network, no rate-limit
-  pressure)
-- every filter's semantics on a synthetic payload
-- agreement vs an agreeing dataset, true price/team moves, decimal->tenths
-  conversion, and **the no-scale unit trap** (pinned as a test)
+- `tests/live/` (26) — fetch/cache/TTL/fallback with a mocked session; every
+  filter's semantics; `flag_squad_player`; hygiene agreement incl. the
+  no-scale unit trap.
+- `tests/integration/` (8) — black-box **stage-interface** tests: run the real
+  pipeline (features→assemble→score→filter→enumerate→reconcile→hygiene) on a
+  dense synthetic season and assert each interface's output contract:
+  - assemble(require_target=False) predicts a pre-season window (was 0 rows);
+  - enumerate yields only complete 15-man, in-budget, 4-position squads;
+  - greedy raises informatively on an infeasible pool;
+  - live reconcile updates transferred clubs + drops unavailable BEFORE
+    filter_pool;
+  - price units agree under price_scale=10.
+  These caught four real integration bugs during this work (null-target path,
+  units mismatch, empty-squad overflow, silent infeasible-pool failure).
 
 ## Follow-ons
 
