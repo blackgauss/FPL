@@ -104,6 +104,57 @@ GW1 squad score CDF (IID marginal proxy)</text>
     path.write_text(svg, encoding="utf-8")
 
 
+def write_histogram_svg(values: np.ndarray, path: Path) -> None:
+    """Write a dependency-free histogram as SVG."""
+    width, height, left, top = 900, 520, 70, 30
+    right, bottom = width - 30, height - 60
+    counts, edges = np.histogram(values, bins=24)
+    max_count = max(int(counts.max()), 1)
+    span = max(float(edges[-1] - edges[0]), 1.0)
+    bars = []
+    for i, count in enumerate(counts):
+        x = left + (edges[i] - edges[0]) / span * (right - left)
+        x2 = left + (edges[i + 1] - edges[0]) / span * (right - left)
+        y = bottom - count / max_count * (bottom - top)
+        bars.append(
+            f'<rect x="{x:.2f}" y="{y:.2f}" width="{max(x2 - x - 1, 1):.2f}" '
+            f'height="{bottom - y:.2f}" fill="#2563eb" opacity="0.75"/>'
+        )
+    ticks = []
+    for frac in np.linspace(0, 1, 6):
+        x = left + frac * (right - left)
+        value = edges[0] + frac * span
+        ticks.append(
+            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{bottom}" '
+            f'stroke="#e5e7eb"/><text x="{x:.2f}" y="{bottom + 23}" '
+            f'text-anchor="middle" font-family="sans-serif" font-size="12">'
+            f'{value:.1f}</text>'
+        )
+    for count in np.linspace(0, max_count, 5).astype(int):
+        y = bottom - count / max_count * (bottom - top)
+        ticks.append(
+            f'<line x1="{left}" y1="{y:.2f}" x2="{right}" y2="{y:.2f}" '
+            f'stroke="#e5e7eb"/><text x="{left - 10}" y="{y + 4:.2f}" '
+            f'text-anchor="end" font-family="sans-serif" font-size="12">'
+            f'{count}</text>'
+        )
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">
+<rect width="100%" height="100%" fill="white"/>
+{"".join(ticks)}
+<line x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="black"/>
+<line x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" stroke="black"/>
+{"".join(bars)}
+<text x="{left}" y="20" font-family="sans-serif" font-size="16">
+GW1 squad score histogram (IID marginal proxy)</text>
+<text x="{(left + right) / 2:.2f}" y="{height - 12}" text-anchor="middle"
+ font-family="sans-serif" font-size="13">settled squad points</text>
+<text x="18" y="{(top + bottom) / 2:.2f}" text-anchor="middle"
+ transform="rotate(-90 18 {(top + bottom) / 2:.2f})" font-family="sans-serif"
+ font-size="13">draw count</text>
+</svg>'''
+    path.write_text(svg, encoding="utf-8")
+
+
 def main() -> None:
     live, fetched = load_live_state(ROOT / "data/raw/fpl_api/live.json",
                                     max_age_seconds=3600)
@@ -183,11 +234,13 @@ def main() -> None:
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     report.write_csv(ARTIFACTS / "gw1_team_cdf.csv")
     write_cdf_svg(draws, ARTIFACTS / "gw1_team_cdf.svg")
+    write_histogram_svg(draws, ARTIFACTS / "gw1_team_histogram.svg")
     print(f"live={fetched} captain={squad.by_code()[squad.captain].name} "
           f"direct_quantiles={direct} position_fallback={fallback}")
     print(report)
     print(f"wrote {ARTIFACTS / 'gw1_team_cdf.csv'}")
     print(f"wrote {ARTIFACTS / 'gw1_team_cdf.svg'}")
+    print(f"wrote {ARTIFACTS / 'gw1_team_histogram.svg'}")
 
 
 if __name__ == "__main__":
