@@ -20,7 +20,7 @@ import argparse
 import polars as pl
 
 from fpl.domain import position_sort_key
-from fpl.live.current import reconcile_player_clubs
+from fpl.live.current import construction_input
 from fpl.live.filters import flag_squad, suggest
 from fpl.live.live import load_live_state
 from fpl.model.inference import load_model
@@ -64,7 +64,7 @@ def main() -> None:
     scored = scored.with_columns(pl.lit(1).alias("minutes_in_window"))
 
     # reconcile the current world BEFORE construction (clubs/injuries/missing)
-    scored_live = reconcile_player_clubs(scored, live)
+    scored_live = construction_input(scored, live, suggest(live))
     pool = filter_pool(scored_live, avail, top_k_per_position=25,
                        max_per_team=4, reserve_top=20)
     basket = greedy_teams(pool, n_teams=args.n_teams, seed=1)
