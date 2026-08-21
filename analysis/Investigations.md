@@ -76,6 +76,28 @@ id is too sparse to express them, and it cannot touch within-squad covariance
 (team attack/defence latents, position-gated interactions) — and, precisely, a
 feature search rather than hand-picking them.
 
+## Experiment 2 — team-flag covariance for squad evaluation
+
+`experiments/ab_team_covariance.py`; leakage gate first (train gw ≤ 29, holdout
+gw 31–38, nothing from the holdout touches any fit). Estimates from TRAIN
+residuals: pooled per-player `σ²`, `α` (same-team residual covariance), `β`
+(shared-fixture opponent covariance), then arbitrates via the gym with IID vs
+covariance-aware squad variance on 48 hold-out squad-weeks.
+
+- **Learned structure is sensible**: `α ≈ 0.042` (matches the §4 same-team
+  correlation r≈0.054); `β ≈ 0.006`.
+- **Gym arbitration (z = (actual − mean)/σ):** IID `mean|z| = 2.20, std(z) =
+  2.42` vs covariance-aware `2.20 / 2.41`. The covariance term is barely
+  detectable against the dominating problem.
+
+**Read:** acknowledging within-squad covariance is correct but *second-order*.
+The real calibration gap is the VARIANCE SCALE — hold-out prediction errors are
+~2.4× the in-sample residual σ² (std(z) ≈ 2.4 vs 1). Priorities: (1) calibrate
+per-player variance out-of-sample (scale σ² to hold-out), (2) keep the team-flag
+covariance term for *selection* (penalising same-team stacks / pricing shared
+fixtures) and for correlated MC sampling — it changes re-ranking and
+diversification even where it barely moves a z-calibration number.
+
 ## Work plan
 
 1. **Scaffold** (this branch): `analysis/` + `experiments/` + this doc.
