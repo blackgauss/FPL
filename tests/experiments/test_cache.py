@@ -62,3 +62,16 @@ def test_reset_clears_state():
     cache.reset_experiment_cache()
     counts = cache.cache_counts()
     assert counts == {k: 0 for k in counts}
+
+
+def test_fit_key_is_scoped_to_data_dir():
+    # same config on a different data directory must NOT share a fit
+    base = dict(seasons=("s",), fit_gw_max=30, model="lgbm", params={"seed": 42},
+                features=None, categorical=None)
+    a = cache.fit_cache_key(processed="/data/a", **base)
+    b = cache.fit_cache_key(processed="/data/b", **base)
+    assert a != b
+    cache.reset_experiment_cache()
+    cache.cached_fit(lambda: lambda x: 1, key=a)
+    second = cache.cached_fit(lambda: lambda x: 2, key=b)  # different store
+    assert second([1]) == 2

@@ -98,11 +98,11 @@ def run_experiment(
 
     x_train = np.vstack([train_data.X, fit_data.X[masks["train"]]])
     y_train = np.concatenate([train_data.y, fit_data.y[masks["train"]]])
-    fit_key = (
-        tuple(seasons), split.fit_gw_max, model_name,
-        tuple(sorted((params or {}).items())),
-        tuple(feats) if feats else None,
-        tuple(cats) if cats else None)
+    fit_key = cache.fit_cache_key(
+        processed=processed, seasons=tuple(seasons),
+        fit_gw_max=split.fit_gw_max, model=model_name, params=params,
+        features=tuple(feats) if feats else None,
+        categorical=tuple(cats) if cats else None)
     predict = cache.cached_fit(
         lambda: REGISTRY[model_name](params)(
             x_train, y_train, train_data.categorical),

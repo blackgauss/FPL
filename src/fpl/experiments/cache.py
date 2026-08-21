@@ -64,3 +64,24 @@ def cached_fit(
     predict = fitter()
     _FIT[key] = predict
     return predict
+
+
+def fit_cache_key(
+    *,
+    processed: str,
+    seasons: tuple[str, ...],
+    fit_gw_max: int,
+    model: str,
+    params: dict | None,
+    features: tuple[str, ...] | None,
+    categorical: tuple[str, ...] | None,
+) -> tuple:
+    """Deterministic identity of a model fit.
+
+    `processed` is deliberately part of the key: the same nominal config on a
+    different data directory must not reuse a fit from another store.
+    """
+    return (
+        processed, seasons, fit_gw_max, model,
+        tuple(sorted((params or {}).items())), features, categorical,
+    )
