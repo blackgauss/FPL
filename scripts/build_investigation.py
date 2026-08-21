@@ -251,8 +251,10 @@ own = pt.group_by(["team_code", "gw"]).agg(
 
 m = matches.select("gw", "home_team", "away_team")
 opp = pl.concat([
-    m.rename({"home_team": "team_code", "away_team": "opp_team"}).select("gw", "team_code", "opp_team"),
-    m.rename({"away_team": "team_code", "home_team": "opp_team"}).select("gw", "team_code", "opp_team"),
+    m.rename({"home_team": "team_code", "away_team": "opp_team"})
+    .select("gw", "team_code", "opp_team"),
+    m.rename({"away_team": "team_code", "home_team": "opp_team"})
+    .select("gw", "team_code", "opp_team"),
 ])
 opp_total = opp.join(
     own.rename({"team_code": "opp_team", "own_total": "opp_total"})
