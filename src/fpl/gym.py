@@ -272,3 +272,34 @@ class EvalResult:
             detail += f" vs pred {worst.predicted_points:.1f}"
         lines.append(f"  worst miss gw{worst.gw}{detail}")
         return "\n".join(lines)
+
+    def observability(self) -> dict:
+        """Canonical, machine-readable observability for a gym run.
+
+        Single source of the artifact schema for a gym evaluation. Keys are
+        stable snake_case; do not rename without updating tests.
+        """
+        totals = {
+            "settlement": self.settlement,
+            "squads": len(self.weeks),
+            "total_actual": float(self.total_actual),
+            "total_predicted": self.total_predicted,
+            "gap": self.gap,
+            "substitutions": int(self.substitutions),
+            "dnps": int(self.dnps),
+            "captain_weeks": int(self.captain_weeks),
+        }
+        weeks = [
+            {
+                "gw": w.gw,
+                "actual_points": float(w.actual_points),
+                "predicted_points": w.predicted_points,
+                "gap": w.gap,
+                "captain_doubled": w.captain_doubled,
+                "xi": [int(c) for c in w.xi],
+                "substituted_in": [int(c) for c in w.substituted_in],
+                "dnps": [int(c) for c in w.dnps],
+            }
+            for w in self.weeks
+        ]
+        return {"totals": totals, "weeks": weeks}

@@ -65,6 +65,14 @@ def compare_artifacts(*paths: str | Path) -> str:
                     if isinstance(value, (int, float)) and field not in (
                         "cohort", "n"):
                         row[f"{field}@{key}"] = float(value)
+            for run in (result.get("gym") or {}).get("runs", []):
+                for field, value in run.get("totals", {}).items():
+                    if isinstance(value, (int, float)) and field != "settlement":
+                        row[f"gym@{field}"] = float(value)
+            for section, prefix in (("ranking", "rank@"), ("calibration", "cal@")):
+                for field, value in result.get(section, {}).items():
+                    if isinstance(value, (int, float)) and field != "n":
+                        row[f"{prefix}{field}"] = float(value)
             rows.append((result.get("name", "?"), row))
             keys.update(row)
     header = ["experiment", *sorted(keys)]

@@ -16,7 +16,7 @@ import polars as pl
 from fpl.experiments.candidates import candidate_squads
 from fpl.experiments.cohorts import cohort_masks
 from fpl.experiments.forecast import normalize_forecast
-from fpl.experiments.metrics import point_metrics
+from fpl.experiments.metrics import calibration_metrics, point_metrics, ranking_metrics
 from fpl.experiments.splits import (
     TemporalSplit,
     source_masks,
@@ -112,11 +112,18 @@ def run_experiment(
          **point_metrics(actual[mask], pred[mask])}
         for cohort, mask in cohort_mask.items() if np.any(mask)
     ]
+    # model performance has two separable questions:
+    #   ranking    - does the model ORDER players correctly (scale-free)?
+    #   calibration - do the predicted MAGNITUDES mean what they claim?
+    ranking = ranking_metrics(actual, pred, source_gw)
+    calibration = calibration_metrics(actual, pred)
 
     result: dict = {
         "name": name, "model": model_name,
         "features": list(train_data.feature_names),
         "metrics": metrics,
+        "ranking": ranking,
+        "calibration": calibration,
         "gym": None,
     }
 
@@ -141,15 +148,12 @@ def run_experiment(
                  play_prob=play_prob, name=name).run()
             for squad in squads
         ]
+        # single gym run vis-a-vis multiple candidate squads: emit the canonical
+        # observability per squad, keyed by rank
         result["gym"] = {
-            "settlement": "predicted" if play_prob is not None else "actual",
+            "settlement": evals[0].settlement,
             "squads": len(evals),
-            "total_actual": float(sum(e.total_actual for e in evals)),
-            "total_predicted": float(sum(e.total_predicted or 0.0 for e in evals)),
-            "gap": float(sum((e.gap or 0.0) for e in evals)),
-            "substitutions": int(sum(e.substitutions for e in evals)),
-            "dnps": int(sum(e.dnps for e in evals)),
-            "captain_weeks": int(sum(e.captain_weeks for e in evals)),
+            "runs": [ev.observability() for ev in evals],
         }
     return result
 

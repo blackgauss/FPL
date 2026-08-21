@@ -106,6 +106,19 @@ point metrics, and optional gym metrics, and writes `complete` — or `failed`
 with a traceback if anything broke. A `play_prob(squad, gw)` hook (passed in
 `fpl.experiments.run`) switches the gym to predicted settlement.
 
+Every point result reports model performance as two separable stages:
+
+- **ranking** (`rank@...`): scale-free ordering quality — `spearman_rho`,
+  `topk_hit_rate` (actual top decile found in the predicted top decile per GW),
+  `pairwise_concordance`.
+- **calibration** (`cal@...`): magnitude trust — `mae`, `rmse`, `ece`, the
+  `actual ~ slope*pred + intercept` line (slope 1 / intercept 0 = calibrated),
+  and `variance_ratio`.
+
+Gym observability is a single canonical schema per candidate run
+(`EvalResult.observability()`): `totals` + per-week `weeks` rows, emitted
+verbatim into the artifact and surfaced by `compare_experiments.py`.
+
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.
 

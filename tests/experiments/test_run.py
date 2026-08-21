@@ -56,10 +56,16 @@ class TestPointRun:
             "season": "2025-2026", "gw_start": 2, "gw_end": 3,
             "n_teams": 2, "seed": 1, "top": 1})
         result = run_experiment(spec, processed=store)
+        run = result["gym"]["runs"][0]
         assert result["gym"]["settlement"] == "actual"
         assert result["gym"]["squads"] == 1
-        for key in ("total_actual", "gap", "captain_weeks"):
-            assert key in result["gym"]
+        totals = run["totals"]
+        for key in ("total_actual", "gap", "captain_weeks", "settlement"):
+            assert key in totals
+        assert len(run["weeks"]) == 2  # gw_start..gw_end
+        assert {"gw", "actual_points", "predicted_points", "gap",
+                "captain_doubled", "xi", "substituted_in", "dnps"} <= \
+            set(run["weeks"][0])
 
     def test_gym_predicted_settlement_with_play_prob(self, store):
         spec = _base_spec(gym={
@@ -67,7 +73,7 @@ class TestPointRun:
             "n_teams": 2, "seed": 1, "top": 1})
         stub = lambda squad, gw: {c: 0.9 for c in squad.codes()}  # noqa: E731
         result = run_experiment(spec, processed=store, play_prob=stub)
-        assert result["gym"]["settlement"] == "predicted"
+        assert result["gym"]["runs"][0]["totals"]["settlement"] == "predicted"
 
     def test_gym_with_custom_features_rejected(self, store):
         spec = _base_spec(features=["position", "now_cost"], gym={})
