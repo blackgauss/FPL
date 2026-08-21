@@ -44,6 +44,14 @@ hygiene shows genuine `price_moved=403`, `team_transferred=45`,
 `not_available=92` (dataset is a 2025-26 snapshot vs current live — the drift
 is real, which is the point of this layer).
 
+`scripts/live_check_team.py`: reproduces the candidate team basket and flags
+**per-squad live problems** — the "my candidate team had missing/injured
+players" case. Uses the shared `flag_squad_player` helper, which detects
+injured/suspended/unavailable status, absence from the live roster
+(missing/transferred out), a club transfer, and price moves. Real 2025-26
+GW2-4 basket: the best squad shows Bowen NOT IN LIVE ROSTER, Livramento
+INJURED, Lacroix + Bruno G. TRANSFERRED, and price moves on most others.
+
 ## Tests (21 in `tests/live/`)
 
 - fetch/cache/TTL/fallback with a mocked session (no network, no rate-limit

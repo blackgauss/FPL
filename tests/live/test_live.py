@@ -17,6 +17,7 @@ from fpl.live.agreement import hygiene_summary, price_diff_tenths, report_agreem
 from fpl.live.filters import (
     available,
     chance_of_playing,
+    flag_squad_player,
     in_league,
     no_news,
     not_injured_suspended,
@@ -175,6 +176,40 @@ class TestFilters:
         # exactly the i/s/u rows are excluded
         excluded = live.filter(~s.alias("p")).get_column("status").to_list()
         assert set(excluded) <= {"i", "s", "u"}
+
+
+class TestFlagSquadPlayer:
+    """Detect missing/injured players in a candidate team (the reported bug)."""
+
+    def test_healthy_ok(self):
+        assert flag_squad_player(
+            {"status": "a", "team_code": 1, "team_code_live": 1,
+             "price_diff_tenths": 0}) == "ok"
+
+    def test_injured_detected(self):
+        f = flag_squad_player(
+            {"status": "i", "team_code": 1, "team_code_live": 1,
+             "price_diff_tenths": 0})
+        assert "INJURED" in f and "UNAVAILABLE[i]" in f
+
+    def test_transferred_detected(self):
+        f = flag_squad_player(
+            {"status": "a", "team_code": 1, "team_code_live": 8,
+             "price_diff_tenths": 0})
+        assert "TRANSFERRED (ds 1 -> live 8)" in f
+
+    def test_price_move_detected(self):
+        f = flag_squad_player(
+            {"status": "a", "team_code": 1, "team_code_live": 1,
+             "price_diff_tenths": 30})
+        assert "price +30" in f
+
+    def test_missing_from_live_flagged(self):
+        # player absent from the live roster entirely = missing/transferred out
+        f = flag_squad_player(
+            {"status": None, "team_code": 1, "team_code_live": None,
+             "price_diff_tenths": None})
+        assert "NOT IN LIVE ROSTER" in f
 
 
 class TestHygieneAgreement:

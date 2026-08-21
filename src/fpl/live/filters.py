@@ -108,6 +108,33 @@ def suggest(live: pl.DataFrame, *, min_chance_pct: float = 75.0) -> pl.Series:
     ).alias("suggest_playable")
 
 
+def flag_squad_player(row: dict) -> str:
+    """One player's live-health problems as a human string, from a joined row
+    carrying live status/team/price vs dataset team/price.
+
+    Detects: injured/suspended/unavailable status, absence from the live
+    roster (missing/transferred out of the FPL game), a club transfer, and a
+    price move. Returns 'ok' when none apply. Always comparable.
+    """
+    status = row.get("status")
+    problems = []
+    if status in ("i", "s", "u", "n"):
+        problems.append(f"UNAVAILABLE[{status}]")
+    if status == "i":
+        problems.append("INJURED")
+    live_team = row.get("team_code_live")
+    ds_team = row.get("team_code")
+    if status is None and live_team is None:
+        # dataset player not present in the live roster at all
+        problems.append("NOT IN LIVE ROSTER (missing/transferred out)")
+    elif ds_team is not None and live_team is not None and ds_team != live_team:
+        problems.append(f"TRANSFERRED (ds {ds_team} -> live {live_team})")
+    pd = row.get("price_diff_tenths")
+    if pd is not None and abs(pd) > 0:
+        problems.append(f"price {pd:+.0f}")
+    return " | ".join(problems) if problems else "ok"
+
+
 def apply_filters(live: pl.DataFrame, **filters: pl.Series) -> pl.DataFrame:
     """Join any mask Series (aligned to `live`) back into a live frame, useful
     for reporting which players drop for which reason."""
