@@ -52,7 +52,7 @@ def main() -> None:
     test_mask = (t25.gw >= split.test_start) & (
         t25.gw <= split.test_end if split.test_end is not None else True)
 
-    def fit() :
+    def fit():
         x = np.vstack([t24.X, t25.X[train_mask]])
         y = np.concatenate([t24.y, t25.y[train_mask]])
         return REGISTRY["lgbm"]({})(x, y, t24.categorical)

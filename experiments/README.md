@@ -137,8 +137,9 @@ python scripts/profile_pipeline.py   # data prep / training / inference / harnes
 ```
 
 It prints a per-scope wall-clock table and function/module summaries, and
-writes `experiments/artifacts/profile/*.json`. (Reference pipeline: training
-dominates; data prep and candidate search are small.)
+writes generated `experiments/artifacts/profile/*.json` (gitignored,
+reproducible — regenerate on demand). Reference pipeline: training
+dominates; data prep and candidate search are small.
 
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.

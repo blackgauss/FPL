@@ -15,8 +15,11 @@ dependencies, and the output is agent/MCP-friendly JSON.
 python scripts/profile_pipeline.py
 
 # Outputs land in experiments/artifacts/profile/:
-#   *.json  structured reports (committed, agent-readable)  <- read these
-#   *.prof  raw cProfile dumps (git-ignored)                <- pstats only
+#   *.json  structured reports (agent-readable)  <- read these
+#   *.prof  raw cProfile dumps                    <- pstats only
+#
+# The directory is gitignored: reports are REPRODUCIBLE via the script, not
+# committed. Run the script to (re)generate them.
 ```
 
 Then open any report:
@@ -100,9 +103,10 @@ Each `*.json` has:
 - **"Compare two approaches fairly"** — profiles are not calibrated
   benchmarks; keep configurations identical and look at *relative* changes in
   `cumtime_s`, not the absolute wall time.
-- **Agent/MCP** — read `experiments/artifacts/profile/*.json` directly; the
-  schema above is stable. Binary `.prof` files are gitignored, JSON reports
-  are committed as the record.
+- **Agent/MCP** — read `experiments/artifacts/profile/*.json` directly (run
+  `scripts/profile_pipeline.py` first if the files are missing); the schema
+  above is stable. The whole profile directory is gitignored, so the JSON is
+  always generated, never stale in the repo.
 
 ## Caveats / gotchas
 

@@ -20,4 +20,4 @@ __pycache__/
 experiments/artifacts/.cache/
 
 # cProfile dumps (binary); JSON reports are committed
-experiments/artifacts/profile/*.prof
+experiments/artifacts/profile/
