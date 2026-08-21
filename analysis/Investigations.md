@@ -56,6 +56,26 @@ Fixes must account for **matchup** (per-position opponent/venue strength) and
    per-player correction; momentum on/off). The attributable delta of each
    change is the difference between paired runs — never a single gap.
 
+## Experiment 1 — matchup feature A/B (holdout + gym)
+
+`experiments/ab_matchup_model.py`; only difference is the feature set, same
+data split / params / seed / squads / actuals: baseline `FEATURE_COLUMNS` vs
+`+ opponent_team_code` (categorical).
+
+- **Holdout (GW 31–38, MAE):** baseline 1.008 vs matchup 1.010 — tied.
+  A bare opponent id adds nothing to per-player point prediction error.
+- **Gym (fixed squad, fixed actuals, forecast-only toggle):** matchup lands a
+  little closer to settled points — |gap| 86.6→85.7 and 105.7→103.0 over two
+  squads (still ~3–4% under). `opponent_team_code` ranks 5th by gain (between
+  `opponent_elo` and `home_elo`): the model uses it without it moving the
+  needle.
+
+**Read:** matchup effects are real (§5–6 diagnostics) but a single categorical
+id is too sparse to express them, and it cannot touch within-squad covariance
+(that lives in the selection/value layer). This motivates denser representation
+(team attack/defence latents, position-gated interactions) — and, precisely, a
+feature search rather than hand-picking them.
+
 ## Work plan
 
 1. **Scaffold** (this branch): `analysis/` + `experiments/` + this doc.
