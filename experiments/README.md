@@ -19,6 +19,9 @@ Ran so far:
 - `ab_match_state_factor.py` — match-state factor (conditional independence),
   model-free + artifact-cached; vs IID. A weak state (final goals) loses:
   conditioning sharpens past reality and fails to reproduce same-team r.
+- `ab_tail_calibration.py` — global residual quantiles vs position + predicted-
+  level residual quantiles. Tests q50/q90/q95 pinball loss and coverage on a
+  leakage-safe holdout; this is tail calibration, not mean accuracy.
 
 Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
 run a *leakage gate + deterministic seed* first, prefer model-free arms and

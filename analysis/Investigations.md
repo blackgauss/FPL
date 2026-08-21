@@ -150,6 +150,25 @@ predictive-distribution metric — mean|z| 2.55→2.12, std(z) 1.64→1.37, 1σ
 coverage 0.19→0.26, 2σ coverage 0.37→0.48, CRPS 22.5→21.7. Confirmed a real
 model-performance win, leakage-safe (k from gw 28–30 only).
 
+## Experiment 5 — position/prediction-bucket tail calibration
+
+`experiments/ab_tail_calibration.py`; same leakage discipline (fit mean model
+through source GW 27, residual quantiles on GWs 28–30, arbitrate GWs 31–38).
+The baseline adds one global residual quantile to the mean; the variant uses
+position × predicted-level residual quantiles.
+
+- q50 pinball: **0.495 → 0.475**
+- q90 pinball: **0.446 → 0.377**
+- q95 pinball: **0.328 → 0.274**
+- Coverage moved slightly down (q90 **0.902 → 0.892**, q95 **0.953 →
+  0.941**), so the improvement is proper tail loss, not yet perfectly
+  calibrated coverage.
+
+**Read:** stratifying residual tails by position and predicted level improves
+the proper scoring rule, especially q90/q95, without changing the mean model.
+Coverage needs a second calibration pass (or conformal adjustment); this is a
+useful tail layer before event-specific models.
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical
