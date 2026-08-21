@@ -55,6 +55,10 @@ the raw store — the domain constructs translate to polars/array operations
 applied in place (e.g. squad.codes() -> keyed feature rows -> an aggregate
 vector), never materialising a Player/Squad per row. Those one-directional
 lowering functions belong in the compute/model layer, never in the domain.
+Per-squad RIGID rules are the exception and live here WITH the entity —
+validate() and gw_settlement() are pure, tiny rule evaluations over one
+Squad (the FPL structure everyone must respect anyway); bulk stochastic work
+(MC sims, H2H) stays frames/arrays.
 
 Recipe — express "a squad's expected GW points", compute on the raw store.
 The domain names WHAT the program is about; the work happens in the frame
@@ -361,6 +365,74 @@ class Squad:
                 and by_code[self.captain].club == by_code[self.vice_captain].club):
             problems.append("captain and vice-captain should be different clubs")
         return problems
+
+    def gw_settlement(self, played: dict[int, bool],
+                      points: dict[int, float]) -> GwSettlement:
+        """Resolve this squad's scoring XI for one Gameweek (auto-subs + vc).
+
+        Applies the rigid FPL rule (docs/rules.md): a non-playing starter is
+        replaced in bench-priority order by the first playing, position-legal
+        bench player — GK slot only by a bench GK, outfield slot only by an
+        outfield — respecting the formation minimums; empty slots score 0.
+        The captain's points double if they played, else the vice-captain's,
+        else nobody's. Keys are player_code, matching the forecast/result
+        frames. Pure per-squad rule: 15 players in, one settlement out.
+        """
+        by_code = self.by_code()
+        starters = list(self.starters or [p.code for p in self.players[:11]])
+        bench = list(self.bench) or [
+            p.code for p in self.players if p.code not in starters]
+
+        out: list[int] = []
+        used: set[int] = set()
+        subs: list[int] = []
+        for code in starters:
+            if played.get(code, False):
+                out.append(code)
+                continue
+            for b in bench:
+                if b in used or not played.get(b, False):
+                    continue
+                # GK slot only by GK; outfield slot only by outfield
+                if (by_code[code].position == Position.GKP) != \
+                        (by_code[b].position == Position.GKP):
+                    continue
+                out.append(b)
+                used.add(b)
+                subs.append(b)
+                break
+            # no eligible sub: the empty slot contributes 0 points
+
+        if self.captain in out:
+            doubled = self.captain
+        elif self.vice_captain in out:
+            doubled = self.vice_captain
+        else:
+            doubled = None
+
+        total = 0.0
+        for code in out:
+            pts = points.get(code, 0.0)
+            total += pts * 2 if code == doubled else pts
+        return GwSettlement(playing=tuple(out), substituted_in=tuple(subs),
+                            captain_doubled=doubled, gw_total=total)
+
+
+@dataclass(frozen=True, slots=True)
+class GwSettlement:
+    """One squad's resolved Gameweek: which players actually scored points.
+
+    A rigid-rules answer (auto-substitutes, formation legality, captain/vice
+    activation) — not a forecast. `playing` is the effective scoring XI (may
+    be < 11 when no eligible bench player played); `substituted_in` names the
+    bench players who came on; `captain_doubled` is the code whose points
+    counted twice (captain, else vice, else None).
+    """
+
+    playing: tuple[int, ...]
+    substituted_in: tuple[int, ...]
+    captain_doubled: int | None
+    gw_total: float
 
 
 def players_from_frame(frame: pl.DataFrame) -> list[Player]:
