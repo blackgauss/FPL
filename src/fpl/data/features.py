@@ -34,6 +34,7 @@ def build_features(
     team_history: pl.DataFrame,
     matches: pl.DataFrame,
     players: pl.DataFrame,
+    carryover: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Return one feature row per (player_id, gw) for a single season.
 
@@ -41,6 +42,12 @@ def build_features(
     the stable cross-season `player_code`. Downstream training must join player
     metadata on `player_code` — never `player_id`, which is reused for different
     players across seasons.
+
+    `carryover` seeds the season's first GW with end-of-previous-season rolling
+    stats (`player_code -> pts_avg_3/5, prev_points`), so a GW1 row isn't
+    dropped for lacking current-season history — the "beginning of season"
+    case (e.g. 2026-27 GW1 from 2025-26 carryover). Players without a carryover
+    (new signings) keep null rolling features at GW1; those rows are dropped.
     """
     prem = matches.filter(pl.col("tournament") == "prem")
 
@@ -96,8 +103,31 @@ def build_features(
         pl.col("total_points").shift(-1).over("player_id").alias("next_points"),
     )
 
+    # season-start: seed the first GW's rolling features from prior-season
+    # carryover instead of dropping the row for lacking current-season history.
+    if carryover is not None and base.height:
+        first_gw = base.get_column("gw").min()
+        carry = carryover.select(
+            "player_code",
+            pl.col("pts_avg_3").alias("co_avg3"),
+            pl.col("pts_avg_5").alias("co_avg5"),
+            pl.col("prev_points").alias("co_prev"),
+        )
+        base = base.join(carry, on="player_code", how="left")
+        base = base.with_columns(
+            pl.when(pl.col("gw") == first_gw)
+            .then(pl.coalesce("prev_points", "co_prev")).otherwise(pl.col("prev_points"))
+            .alias("prev_points"),
+            pl.when(pl.col("gw") == first_gw)
+            .then(pl.coalesce("pts_avg_3", "co_avg3")).otherwise(pl.col("pts_avg_3"))
+            .alias("pts_avg_3"),
+            pl.when(pl.col("gw") == first_gw)
+            .then(pl.coalesce("pts_avg_5", "co_avg5")).otherwise(pl.col("pts_avg_5"))
+            .alias("pts_avg_5"),
+        ).drop(["co_avg3", "co_avg5", "co_prev"])
+
     return base.select(
         "player_id", "player_code", "gw", "team_code", "opponent_team_code",
         "was_home", "home_elo", "opponent_elo", "prev_points", "pts_avg_3",
         "pts_avg_5", "total_points", "next_points",
-    ).drop_nulls(subset=["prev_points", "pts_avg_3", "pts_avg_5", "next_points"])
+    ).drop_nulls(subset=["prev_points", "pts_avg_3", "pts_avg_5"])

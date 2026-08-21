@@ -66,10 +66,24 @@ class TestFiltering:
             "minutes_in_window": [90, 90, 90, 90, 90],
             "now_cost": [8.0, 5.0, 6.0, 9.0, 7.0],
         })
-        pool = filter_pool(scored, avail, top_k_per_position=10, max_per_team=1)
+        # reserve_top=0 disables the star-reserve, so the team cap is strict
+        pool = filter_pool(scored, avail, top_k_per_position=10, max_per_team=1,
+                           reserve_top=0)
         # max_per_team=1 -> at most one per club
         grouped = pool.group_by("team_code").len()
         assert (grouped["len"] <= 1).all()
+
+    def test_filter_pool_reserve_keeps_stars_across_club_cap(self, scored):
+        # with the reserve, the top-2 overall survive even if same club
+        avail = pl.DataFrame({
+            "player_code": [1, 2, 3, 4, 5],
+            "minutes_in_window": [90, 90, 90, 90, 90],
+            "now_cost": [8.0, 5.0, 6.0, 9.0, 7.0],
+        })
+        pool = filter_pool(scored, avail, top_k_per_position=10, max_per_team=1,
+                           reserve_top=2)
+        codes = set(pool["player_code"].to_list())
+        assert {1} <= codes  # top player (team 11) survives team cap via reserve
 
     def test_search_space_size(self):
         # exact C(avail, need) per position; pool sized so the comb is clean

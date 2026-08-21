@@ -97,6 +97,10 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
     else:
         df = df.with_columns(pl.lit("unknown").alias("season"))
 
+    # rows without a target are not trainable; the feature store keeps them
+    # (for scoring/inference at season start) but training drops them here
+    df = df.filter(pl.col("next_points").is_not_null())
+
     cat_selected = [c for c in CATEGORY_COLUMNS if c in feature_columns]
     X = df.select(feature_columns).with_columns(
         # encode string categoricals into int codes; team_code is already int

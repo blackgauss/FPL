@@ -84,23 +84,30 @@ def run_experiment(
     params: dict | None = None,
     fit_gw_max: int,
     test_gw_min: int,
+    test_gw_max: int | None = None,
 ) -> ExperimentResult:
     """Fit on (train_data + fit_data rows with gw <= fit_gw_max), score on the
-    held-out fit_data slice with gw >= test_gw_min. No leakage: test strictly
-    follows fit. `train_data`/`fit_data` are TrainingData objects; the feature
-    schema (a subset if ablated) is baked in already and read back from
+    held-out fit_data slice [test_gw_min, test_gw_max]. No leakage: test
+    strictly follows fit. `fit_gw_max=0` trains on train_data only — the
+    season-start (cold) setting where the test window is the NEXT season's
+    first gameweeks. `train_data`/`fit_data` are TrainingData objects; the
+    feature schema is baked in already and read back from
     `train_data.feature_names` for the report."""
     if model not in REGISTRY:
         raise ValueError(f"unknown model {model!r}; registry={sorted(REGISTRY)}")
 
-    X_tr = np.vstack([train_data.X, fit_data.X[fit_data.gw <= fit_gw_max]])
-    y_tr = np.concatenate([train_data.y, fit_data.y[fit_data.gw <= fit_gw_max]])
+    gw_max = test_gw_max if test_gw_max is not None else 10**6
+    if fit_gw_max > 0:
+        X_tr = np.vstack([train_data.X, fit_data.X[fit_data.gw <= fit_gw_max]])
+        y_tr = np.concatenate([train_data.y, fit_data.y[fit_data.gw <= fit_gw_max]])
+    else:  # season-start: train on the previous season only
+        X_tr, y_tr = train_data.X, train_data.y
 
     if fit_gw_max >= test_gw_min:
         raise ValueError(
             f"leaky split: fit max GW {fit_gw_max} >= test min GW {test_gw_min}")
 
-    mask = fit_data.gw >= test_gw_min
+    mask = (fit_data.gw >= test_gw_min) & (fit_data.gw <= gw_max)
     X_test, y_test = fit_data.X[mask], fit_data.y[mask]
     if X_test.shape[0] == 0:
         raise ValueError(
