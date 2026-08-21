@@ -123,6 +123,28 @@ strength latents, form, defensive structure) and, before anything, per-player
 variance calibration (Experiment 2's dominant gap). Roadmap: calibrate σ² →
 stronger factor state / feature search → correlated sampling into the search.
 
+## Experiment 4 — variance calibration (single scalar)
+
+`experiments/ab_variance_calibration.py`; leakage gate first. Tests the
+highest-value fix from Exps 2–3: is the over-confidence mostly a variance
+SCALE problem? A single scalar k is fitted on a validation window (gw 28..30)
+and applied to the sampled squad-total variance; the arbiter is the untouched
+gw 31..38 window. Same marginals/mean for both arms — only variance handling
+differs.
+
+- Validation (8 squad-weeks): calibration factor `k = 1.198`.
+- Gym arbitration (32 squad-weeks, gw 31..38): raw `mean|z| = 2.55, std(z) =
+  1.64` vs calibrated `mean|z| = 2.12, std(z) = 1.37`.
+
+**Read:** calibration works — a single scalar shrinks both metrics toward 1
+(std(z) 1.64 → 1.37, ~17%), confirming variance SCALE is the head of the
+house. It does not close the gap: the remainder is the mean drifting off on
+spike weeks plus heavy tails (rare 10+ point events we under-represent). So
+the calibration fix is cheap and worth taking; after it, the residual gap is
+fat/tail + mean fidelity, not scale. (k≈1.2 here — small, because the
+empirical-marginal sampler's variance is already nearer reality than the
+in-sample residual σ² used in Exp 2.)
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical
