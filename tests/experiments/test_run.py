@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from fpl.data.contract import load_season
@@ -72,3 +73,25 @@ class TestPointRun:
         spec = _base_spec(features=["position", "now_cost"], gym={})
         with pytest.raises(ValueError, match="default feature set"):
             run_experiment(spec, processed=store)
+
+
+class TestLeakageGateInEntryPoint:
+    def test_inverted_split_rejected_before_fit(self, store):
+        spec = _base_spec(
+            split={"fit_gw_max": 3, "cal_start": 2, "cal_end": 1,
+                   "test_start": 2, "test_end": 3})
+        with pytest.raises(ValueError, match="invalid temporal split"):
+            run_experiment(spec, processed=store)
+
+    def test_broken_target_shift_rejected(self, store, tmp_path):
+        # corrupt the feature store target, then run via run_experiment and
+        # expect the leakage gate (target-shift check) to reject it
+        import shutil
+
+        shutil.copytree(store, tmp_path / "s")
+        proc = str(tmp_path / "s")
+        busy = pl.read_parquet(f"{proc}/features_2025-2026.parquet")
+        busy = busy.with_columns((pl.col("next_points") + 1).alias("next_points"))
+        busy.write_parquet(f"{proc}/features_2025-2026.parquet")
+        with pytest.raises(ValueError, match="next_points"):
+            run_experiment(_base_spec(), processed=proc)

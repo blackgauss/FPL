@@ -17,7 +17,11 @@ from fpl.experiments.candidates import candidate_squads
 from fpl.experiments.cohorts import cohort_masks
 from fpl.experiments.forecast import normalize_forecast
 from fpl.experiments.metrics import point_metrics
-from fpl.experiments.splits import TemporalSplit, source_masks
+from fpl.experiments.splits import (
+    TemporalSplit,
+    source_masks,
+    validate_feature_leakage,
+)
 from fpl.gym import Eval
 from fpl.model.experiment import REGISTRY
 from fpl.model.train import load_training
@@ -61,6 +65,14 @@ def run_experiment(
     """
     seasons = spec["seasons"]
     split = TemporalSplit(**spec["split"])
+    # The leakage gate (identity join, target shift, split integrity) is part
+    # of the experiment contract, not just the CLI: any caller of this entry
+    # point gets the same guarantee before a single model is fitted.
+    latest = seasons[-1]
+    validate_feature_leakage(
+        pl.read_parquet(f"{processed}/features_{latest}.parquet"),
+        pl.read_parquet(f"{processed}/players_{latest}.parquet"),
+        split)
     name = spec["name"]
     model_name = spec["model"]
     params = spec.get("params") or {}
