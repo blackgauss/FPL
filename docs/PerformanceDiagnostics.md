@@ -22,6 +22,27 @@ Each stage is cProfiled into `experiments/artifacts/profile/*.json`
 | data prep        | ~0.2s          |
 | candidate search | ~0.5s          |
 
+## Training-time deep dive (is it expected?)
+
+Reproduce: `python scripts/train_time_analysis.py` (writes
+`experiments/artifacts/profile/train_time.json`, gitignored).
+
+Measured decomposition, raw wall-clock (no profiler), reference config:
+
+| component | time | note |
+|---|---|---|
+| assemble X/y | 0.016s | vstack of numpy matrices |
+| lgb.Dataset build | ~0s | lazy — cost is inside train |
+| **lgb.train 200 rounds** | **~6.5s** | 49,069 rows x 10 features, 63 leaves, MAE |
+| per round | ~26ms | |
+| without categoricals | ~5.9s | categoricals add ~10% |
+
+**Verdict: expected.** ~6.5s for 200 rounds on ~49k x 10 is normal LightGBM;
+it is the largest stage but not pathological. The earlier "13-35s" profile
+numbers were inflated by cProfile overhead (~2x) plus machine load. The real,
+addressable levers remain: fewer boosting rounds for exploration, and
+cross-process fit/forecast caching (the in-process cache already exists).
+
 ## Inefficiencies found and addressed
 
 1. **The inference profile was re-fitting.** The diagnostic's "inference"
