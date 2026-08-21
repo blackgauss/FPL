@@ -75,24 +75,59 @@ A valid FPL team: 15 players, budget <= £100m, position counts
    diverse subset` (73 players, 20 teams, 4 positions; drops 0-minute
    "never-features")
 3. ✅ `greedy_teams(pool, n_teams, seed)` + `search_space_size(pool)`:
-   - **Search space on the filtered pool: 5.1 × 10¹² teams, log10 = 12.71
-     OOM** — the explicit size before optimization (budget + club caps shrink
-     the feasible set below this bound)
-   - Greedy with per-team "missed star" jitter → a basket of 16 distinct
-     valid squads (real data), all 15 players, all ≤ £100m
-4. ⏳ `simulate_h2h(basket, gwhorizon) -> value + weaknesses report`
+   - **Search space on the filtered pool: ~10^13.3 OOM** — the explicit size
+     before optimization (budget + club caps shrink the feasible set below
+     this bound)
+   - Greedy with per-team "missed star" jitter → a basket of valid squads
+4. ✅ **Reusable harness** (`fpl/team/harness.py`): fixed skeleton score →
+   filter → enumerate → value; the enumeration and value strategies are
+   injected from a REGISTRY (greedy / h2h today; MCMC / utility later). This
+   is deliberately NOT tied to one algorithm — swap a stage to experiment.
+   `scripts/search_teams.py` runs it end-to-end.
+5. ✅ `simulate_h2h` + `weaknesses`: per-team win_ratio/avg_edge over the
+   round-robin field; worst-GW and star-dependence exposure per squad.
 
-Each step lands with black-box tests (101 total passing).
+Each step lands with black-box tests (106 total passing).
 
 ## Status
 
-Stages 1-3 done on this branch (real 2025-26 GW31-33 window). Stage 4 (H2H +
-value/weaknesses) and Stage 5 (captain/transfers) are next.
+All stages of this branch done. The harness exposes a real limitation worth
+eyeing: the greedy basket contains near-clones (identical per-GW totals), so
+H2H can't rank them — better enumeration diversity is the lever, and the
+harness lets us measure it.
+
+## Distributional layer (mean averaging ≠ value)
+
+Mean-only H2H makes teams look identical (both win_ratio AND avg_edge equal
+for near-clone squads). The journal's own critique: expected points average
+over the very variance (contextual factors) that separates teams.
+
+`src/fpl/dist.py` + `src/fpl/team/distribution.py` add distribution to the
+forecast:
+- residual CDFs from held-out model errors, **binned by position** (forwards
+  are far more volatile than defenders); `fit_residual_cdfs`
+- per-player-GW CDF = point prediction + position's residual quantiles
+  (`distributional_forecast`), stored as a 9-quantile struct per row —
+  a cheap CDF estimate; t-digest would be a drop-in if merging ever needs it
+- `scripts/fit_dist.py` writes `data/processed/dist_{season}.parquet`
+- `simulate_squad_distributions` MC-samples squad GW totals from player CDFs;
+  `simulate_h2h_dist` (registry `value.h2h_dist`) turns those into per-team
+  win_ratio / exp_wins / avg_edge
+
+Result on real data: distributional H2H separates **all 20 squads** into
+distinct win_ratios (0.49–0.56) where mean-only H2H collapsed to ~5 identical
+groups. Higher-variance squads (forwards-heavy, tail-dependent) are now
+distinguishable — the risk/return axis from the journal.
+
+Storage note: the per-player-GW CDF is a struct column (quantile vector). If
+we ever need to *merge* many distributions compactly (e.g. squad-total CDF
+without MC), a t-digest is the right drop-in, but the current vector is
+sufficient for MC sampling at these volumes.
 
 ## Open decisions
 
-- H2H value metric (win% vs field; expected edge; tail risk)
-- Whether to keep basket = top teams by enumeration + a few diverse roll-ups
-- Search-space OOM (12.7) is with the current filter knobs; widening the pool
-  grows it ~log-linearly — the tractability knob is `top_k_per_position` + the
-  enumeration method (greedy now; MCMC/beam later if we want to search wider)
+- H2H value metric — win_ratio today; variance/utility (risk-return from the
+  journal) to add as a `value` registry entry
+- Better basket diversity: swap in an MCMC/beam enumerator (REGISTRY entry)
+- Captain / free-transfer mechanics (Stage 5) — need per-GW, not just
+  window-sum, expected points (already kept in `per_gw` + now `dist`)

@@ -190,6 +190,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
+    { name = "scipy" },
 ]
 
 [package.optional-dependencies]
@@ -215,6 +216,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "scikit-learn", specifier = ">=1.4" },
+    { name = "scipy", specifier = ">=1.11" },
 ]
 provides-extras = ["dev", "notebook"]
 

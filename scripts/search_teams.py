@@ -20,18 +20,32 @@ def main() -> None:
     parser.add_argument("--gw", type=int, default=31)
     parser.add_argument("--gw-end", type=int, default=None)
     parser.add_argument("--enum", default="greedy", choices=sorted(REGISTRY["enumerate"]))
+    parser.add_argument("--value", default="h2h", choices=sorted(REGISTRY["value"]))
     parser.add_argument("--n-teams", type=int, default=20)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--n-samples", type=int, default=150)
+    parser.add_argument("--dist", default=None,
+                        help="path to dist_{season}.parquet (required for h2h_dist)")
     parser.add_argument("--processed", default="data/processed")
     parser.add_argument("--model", default="data/processed/points_lgbm.txt")
     args = parser.parse_args()
     gw_end = args.gw_end or args.gw
 
     model = load_model(args.model)
+    dist = None
+    if args.value == "h2h_dist":
+        import polars as pl
+
+        dist = pl.read_parquet(args.dist or
+                               f"{args.processed}/dist_{args.season}.parquet")
+
     res = run(
         processed=args.processed, season=args.season,
         gw_start=args.gw, gw_end=gw_end, model=model,
-        enum=args.enum, enum_kw={"n_teams": args.n_teams, "seed": args.seed},
+        enum=args.enum, value_fn=args.value,
+        enum_kw={"n_teams": args.n_teams, "seed": args.seed},
+        value_kw={"n_samples": args.n_samples, "seed": args.seed},
+        dist_forecast=dist,
     )
 
     n, lg = res.search_size
@@ -40,9 +54,11 @@ def main() -> None:
           f"search space (#teams) ~= 10^{lg:.2f}")
     print(f"basket: {res.basket['team_id'].n_unique()} squads\n")
 
-    print("=== H2H value ===")
-    print(res.value.select("team_id", "played", "wins", "losses", "draws",
-                           "win_ratio", "avg_edge").head(10))
+    print("=== value ===")
+    cols = ["team_id", "played", "wins", "losses", "draws", "exp_wins",
+            "win_ratio", "avg_edge"]
+    show = [c for c in cols if c in res.value.columns]
+    print(res.value.select(*show).head(10))
     print("\n=== weaknesses ===")
     print(res.weakness.head(10))
 
