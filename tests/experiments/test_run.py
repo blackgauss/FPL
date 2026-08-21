@@ -7,6 +7,7 @@ import pytest
 
 from fpl.data.contract import load_season
 from fpl.data.features import build_features
+from fpl.experiments import cache
 from fpl.experiments.run import run_experiment
 
 
@@ -79,6 +80,23 @@ class TestPointRun:
         spec = _base_spec(features=["position", "now_cost"], gym={})
         with pytest.raises(ValueError, match="default feature set"):
             run_experiment(spec, processed=store)
+
+    def test_rerun_same_config_skips_fit_and_forecast(self, store):
+        # cache reuse: a second identical experiment must not re-assemble,
+        # re-fit, or re-predict; fit/forecast counts stay at one
+        cache.reset_experiment_cache()
+        gym = {"season": "2025-2026", "gw_start": 2, "gw_end": 3,
+               "n_teams": 1, "seed": 1, "top": 1}
+        spec = _base_spec(gym=gym)
+        run_experiment(spec, processed=store)
+        counts_after_first = cache.cache_counts()
+        run_experiment(spec, processed=store)
+        counts = cache.cache_counts()
+        # counters count every call; HITS are what prove reuse
+        assert counts["fit_calls"] == 2 and counts["fit_hits"] == 1
+        assert counts["load_calls"] == 2 and counts["load_hits"] == 1
+        assert counts["forecast_calls"] == 2 and counts["forecast_hits"] == 1
+        assert counts_after_first["fit_hits"] == 0
 
 
 class TestLeakageGateInEntryPoint:

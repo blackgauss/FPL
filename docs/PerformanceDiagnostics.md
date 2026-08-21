@@ -43,6 +43,23 @@ numbers were inflated by cProfile overhead (~2x) plus machine load. The real,
 addressable levers remain: fewer boosting rounds for exploration, and
 cross-process fit/forecast caching (the in-process cache already exists).
 
+## Memory / copies: already handled by the libraries
+
+Moving data around less is mostly a solved problem at our layer:
+
+- `polars.to_numpy()` returns a **non-owning view** (measured 0.45ms,
+  `owndata=False`) — zero copy across the frame boundary.
+- `numpy` ops vectorize; LightGBM consumes our ndarray buffer directly and
+  does its own (optimized) histogram construction.
+- What *we* were copying unnecessarily was recompute-generated, not
+  memory-resident: the combined X/y `vstack` ran on every fit attempt, even
+  on cache hits. Fixed — matrix assembly now lives inside the cached fitter,
+  so a cache hit skips the stack AND the training. Forecast frames per
+  (fit, window) are also cached (skip re-prediction) with call/hit counters.
+
+Measured: assemble ~0.02s, vstack copy ~0.26ms for a few hundred rows — so
+even the avoided copies are small; the win is skipping LightGBM itself.
+
 ## Inefficiencies found and addressed
 
 1. **The inference profile was re-fitting.** The diagnostic's "inference"

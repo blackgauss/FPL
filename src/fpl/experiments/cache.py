@@ -16,13 +16,16 @@ from collections.abc import Callable
 
 _TRAINING: dict[tuple, dict] = {}
 _FIT: dict[tuple, Callable] = {}
-_COUNTS = {"load_calls": 0, "load_hits": 0, "fit_calls": 0, "fit_hits": 0}
+_FORECAST: dict[tuple, object] = {}
+_COUNTS = {"load_calls": 0, "load_hits": 0, "fit_calls": 0, "fit_hits": 0,
+           "forecast_calls": 0, "forecast_hits": 0}
 
 
 def reset_experiment_cache() -> None:
     """Clear in-process caches and counters (idempotent)."""
     _TRAINING.clear()
     _FIT.clear()
+    _FORECAST.clear()
     for key in _COUNTS:
         _COUNTS[key] = 0
 
@@ -85,3 +88,18 @@ def fit_cache_key(
         processed, seasons, fit_gw_max, model,
         tuple(sorted((params or {}).items())), features, categorical,
     )
+
+
+def cached_forecast(
+    builder: Callable[[], object],
+    *,
+    key: tuple,
+) -> object:
+    """Memoized per-(fit, window) forecast frame (skips re-prediction)."""
+    _COUNTS["forecast_calls"] += 1
+    if key in _FORECAST:
+        _COUNTS["forecast_hits"] += 1
+        return _FORECAST[key]
+    forecast = builder()
+    _FORECAST[key] = forecast
+    return forecast
