@@ -103,20 +103,25 @@ for near-clone squads). The journal's own critique: expected points average
 over the very variance (contextual factors) that separates teams.
 
 `src/fpl/dist.py` + `src/fpl/team/distribution.py` add distribution to the
-forecast:
-- residual CDFs from held-out model errors as **t-digests** (`tdigest`), one
-  per context bin — the standard, compact quantile store. It supports
-  `update()` to fold in new GW residuals over the season (no refitting) and
-  `merge()` across seasons/seasons, which is exactly the "refreshing players
-  weekly" use-case. The per-GW player CDF is read off the digest via
-  `.percentile()`.
-- **Binning = position by default.** Price-band binning (price × position)
-  was tried and reverted: the £9+ bins are structurally too thin (~2-3
-  premium FWD/MID players) for stable quantiles at current holdout sizes —
-  the earlier per-player CV table showed clear price separation over a full
-  season, but a ~3-GW holdout can't populate the expensive bins. `bins="position_price"` is supported and switches back once more seasons accrue.
-- per-player-GW CDF = point prediction + the context bin's residual digest;
-  `scripts/fit_dist.py` writes the quantile vector (`dist_{season}.parquet`)
+forecast — a **heteroskedastic model**, no binning:
+- fit the point model on fit GWs (leakage-clean), get held-out residuals
+- fit `sigma(X) ~ |actual - mu(X)|` — a second LightGBM regressor on the SAME
+  features (price, form, position, opponent...) predicts each context's noise
+  scale **continuously**; no price bins.
+- standardize z = residual / sigma(X) into a **single global t-digest** (the
+  shared tail shape; `update()` folds in GWs, `merge()` for seasons).
+- a player-GW points CDF = `mu(X) + sigma(X) * z_q` for each q in QS.
+  `scripts/fit_dist.py` writes the quantile vector to `dist_{season}.parquet`.
+
+Why binning was wrong (the question that caught it): price's *mean* drives the
+cheap-are-burstier effect (cheap players have low mu, so high CV), not the
+residual scale. Conditioning the residual on price repeats a feature the point
+model already used, and the £9+ bins are statistically empty (2-3 premium
+players). The sigma model showed this truthfully: once the mean is controlled,
+residual spread is nearly flat in price (~12.4-12.7 q99-q1) — the learned
+sigma carries the little real variance left, while position keeps its true
+difference (GKP 10.4 vs FWD 13.5). No bins, no sparse-star trap.
+
 - `simulate_squad_distributions` MC-samples squad GW totals from player CDFs;
   `simulate_h2h_dist` (registry `value.h2h_dist`) turns those into per-team
   win_ratio / exp_wins / avg_edge

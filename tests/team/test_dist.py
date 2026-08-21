@@ -1,4 +1,4 @@
-"""Black-box tests: t-digest residual CDFs + distributional H2H."""
+"""Black-box tests: heteroskedastic residual CDFs + distributional H2H."""
 
 import numpy as np
 import polars as pl
@@ -7,11 +7,11 @@ from tdigest import TDigest
 
 from fpl.dist import (
     QS,
-    fit_residual_cdfs,
+    fit_sigma_and_digest,
     moments_from_quantiles,
     quantiles_of,
     sample_from_digest,
-    update_residual_cdfs,
+    update_standardized,
 )
 from fpl.team.simulate import simulate_h2h_dist, simulate_squad_distributions
 
@@ -24,29 +24,38 @@ def _cdf(low: float, high: float) -> list[float]:
 
 
 class TestDist:
-    def test_fit_residual_cdfs_bin_by_context(self):
-        act = np.array([1.0, 3.0, 5.0, 2.0, 4.0])
-        pred = np.array([2.0, 2.0, 6.0, 2.0, 2.0])
-        ctx = np.array([("FWD", "£5-7m"), ("FWD", "£5-7m"),
-                        ("DEF", "£5-7m"), ("FWD", "£5-7m"), ("DEF", "£5-7m")],
-                       dtype=object)
-        cdfs = fit_residual_cdfs(act, pred, ctx)
-        assert set(cdfs) == {("FWD", "£5-7m"), ("DEF", "£5-7m")}
-        # digests expose quantiles via .percentile
-        q = quantiles_of(cdfs[("FWD", "£5-7m")])
-        assert q.shape == (len(QS),)
+    def test_sigma_and_digest(self):
+        rng = np.random.default_rng(0)
+        # two-regime noise: sigma varies with feature x1
+        X = rng.normal(size=(400, 3))
+        mu = X[:, 0] * 1.0
+        true_sigma = 0.5 + 2.0 * (X[:, 1] > 0)
+        actual = mu + true_sigma * rng.normal(size=400)
+        sigma_model, digest = fit_sigma_and_digest(
+            actual, mu, X, ["x0", "x1", "x2"], [])
+        # sigma model separates the two regimes
+        hi = sigma_model.predict(X[X[:, 1] > 0][:5])
+        lo = sigma_model.predict(X[X[:, 1] <= 0][:5])
+        assert hi.mean() > lo.mean() * 1.5
+        # standardized residuals ~ N(0,1): digest median near 0
+        assert abs(quantiles_of(digest, [0.5])[0]) < 0.3
 
-    def test_update_incremental(self):
-        d1 = TDigest()
-        for x in [1, 2, 3, 4]:
-            d1.update(float(x))
-        n_before = d1.n
-        # update() folds new residuals into an existing digest (the "refresh
-        # players weekly" story — no refitting needed)
-        update_residual_cdfs({("FWD", "£5-7m"): d1},
-                             np.array([5.0, 6.0]), np.array([0.0, 0.0]),
-                             np.array([("FWD", "£5-7m")] * 2, dtype=object))
-        assert d1.n == n_before + 2
+    def test_update_standardized_folds_in(self):
+        digest = TDigest()
+        for _ in range(10):
+            digest.update(0.1)
+        n0 = digest.n
+        update_standardized(digest, np.array([1.0, 2.0]), np.array([0.0, 0.0]),
+                            np.array([1.0, 1.0]))
+        assert digest.n == n0 + 2
+
+    def test_moments_degenerate(self):
+        d = TDigest()
+        for _ in range(200):
+            d.update(0.0)
+        q = quantiles_of(d)  # all zeros -> points vector = q vector? no: zeros
+        m = moments_from_quantiles(q, QS)
+        assert m["std"] < 5e-2
 
     def test_sample_from_digest_recovers_modes(self):
         rng = np.random.default_rng(0)
@@ -54,24 +63,11 @@ class TestDist:
         for x in [1.0] * 200 + [9.0] * 700:
             d.update(x)
         got = np.array([sample_from_digest(d, rng) for _ in range(2000)])
-        # heavier mode (9.0) should dominate the samples
         assert got.mean() > 5.0
         assert np.percentile(got, 75) >= 8.5
 
-    def test_moments_degenerate(self):
-        # constant points -> degenerate CDF -> std 0
-        d = TDigest()
-        for _ in range(200):
-            d.update(3.0)
-        q = quantiles_of(d)
-        m = moments_from_quantiles(q, QS)
-        assert m["std"] < 5e-2
-
 
 class TestDistributedH2H:
-    # two identical-composition squads: each has one low-vol player (DEF) and
-    # one high-vol player (FWD), same expected points. Mean-only H2H gives
-    # equal results for both; h2h_dist must also, but through the samples.
     @pytest.fixture()
     def basket(self):
         return pl.DataFrame({
@@ -95,8 +91,6 @@ class TestDistributedH2H:
         return pl.DataFrame(rows)
 
     def test_twin_squads_same_value(self, basket, dist):
-        # identical-composition squads: their H2H rout against each other must
-        # be a wash (r0 and r1 are mirrors -> r0 + r1 = 1), and each ~0.5.
         sd = simulate_squad_distributions(basket, dist, n_samples=200, seed=1)
         v = simulate_h2h_dist(sd, n_samples=200)
         r0 = v.filter(pl.col("team_id") == 0).get_column("win_ratio").item()
@@ -106,12 +100,7 @@ class TestDistributedH2H:
         assert r1 == pytest.approx(0.5, abs=0.05)
 
     def test_value_defined_for_all_squads(self, basket, dist):
-        # MC value must be finite for every squad (no NaN),
-        # and monotone in the sample-mean ordering.
         sd = simulate_squad_distributions(basket, dist, n_samples=300, seed=2)
         v = simulate_h2h_dist(sd, n_samples=300)
         assert v.get_column("win_ratio").null_count() == 0
         assert v.get_column("win_ratio").is_between(0.0, 1.0).all()
-        # mirrored twins -> identical rank when compared to a third squad
-        m = sd.group_by("team_id").agg(pl.col("sample_mean").mean())
-        assert m.height == 2

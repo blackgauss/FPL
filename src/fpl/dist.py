@@ -1,26 +1,30 @@
-"""Distributional player points: per-context t-digests of model residuals.
+"""Heteroskedastic distributional player points.
 
 Mean-only forecasts make many teams look alike (identical expected totals),
 which is exactly the failure the team H2H surfaced. This module captures the
 *shape* of each player's points distribution — not just the mean — using the
 model's residual structure.
 
-Two ideas:
-1. The model predicts E[points | context]. The noise around that is the
-   residual distribution, estimated on held-out data (no leakage) and binned
-   by a contextual factor tuple `(position, price_band)` — cheap players are
-   measurably burstier (higher coefficient-of-variation of points in every
-   position), so a cheap over-hyped pick gets a wider/tail-heavier posterior
-   than a premium star at the same predicted mean.
-2. The residual distribution is stored as a **t-digest** (`tdigest.TDigest`):
-   a standard, compact CDF estimate that supports positional accuracy at the
-   tails, `update()` to fold in new GW residuals over the season without
-   refitting, and `merge()` to combine digests across seasons. The quantile
-   vector a player's CDF needs is simply read off the digest via
-   `.percentile()` — no reinventing of quantile storage.
+Design (no binning):
 
-The team simulator MC-samples squad totals from these digests, so squads
-differ by variance and tail risk, not just mean.
+1. The point model predicts mu(X) = E[points | features]. The noise around it
+   is heteroskedastic: its scale is a continuous function of the features
+   (price, form, position, opponent strength...). We model that scale with a
+   second regressor  sigma(X) ~= |actual - mu(X)| fit on held-out residuals
+   — expensive players and value picks get different widths *continuously*,
+   never bucketed into bins where stars would be too few to populate.
+
+2. The standardized residuals z = (actual - mu(X)) / sigma(X) are pooled into
+   a single **t-digest** — a standard, compact CDF estimate with `update()`
+   (fold in new GW residuals without refitting) and `merge()` across seasons.
+
+3. A player-GW's points CDF is then  pred(X) + sigma(X) * z_q  for each
+   quantile q — the mean from the point model, the shape from the shared
+   residual digest, scaled by that context's own variance.
+
+This avoids two failure modes binning had: double-counting features already
+in the model, and statistically-empty premium-price bins (the very players
+team selection cares about).
 """
 
 from __future__ import annotations
@@ -30,63 +34,55 @@ from tdigest import TDigest
 
 QS = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
 
-# price bands (£m) — cheap players are measurably more volatile (higher CV of
-# points) in every position, so binning residuals by price captures a real
-# contextual variance difference, not just a modeling artifact.
-PRICE_BANDS = [(0, 5.0), (5.0, 7.0), (7.0, 9.0), (9.0, 100.0)]
 
-
-def price_band(now_cost: float) -> str:
-    for lo, hi in PRICE_BANDS:
-        if lo <= now_cost < hi:
-            return f"£{lo:.0f}-{hi:.0f}m"
-    return "£9+m"
-
-
-def fit_residual_cdfs(
+def fit_sigma_and_digest(
     actual: np.ndarray,
     predicted: np.ndarray,
-    context: np.ndarray,
-) -> dict[object, TDigest]:
-    """Per-context-bin residual distribution as a t-digest.
+    X: np.ndarray,
+    feature_names: list[str],
+    categorical: list[int],
+    learning_params: dict | None = None,
+) -> tuple[object, TDigest]:
+    """Learned per-row sigma + a global t-digest of standardized residuals.
 
-    actual/predicted are the held-out pairs; `context` gives each row's bin
-    (e.g. a position code, or a (position, price_band) tuple). Returns
-    {bin: TDigest} of residuals (actual - predicted). Each digest can be
-    `update`d later with new GW residuals or `merge`d across seasons.
+    - sigma_model: regressor predict |residual| from the model's features.
+    - digest: t-digest of z = residual / sigma(X) (the common noise shape).
 
-    Binning choice: position-only is stable at small holdout sizes; price
-    bands (see PRICE_BANDS) show real separation but need more held-out GWs
-    before per-position price bins have enough samples.
+    Both are fit on held-out material only (no leakage). Returns
+    (sigma_model, digest).
     """
-    residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
-    cdfs: dict[object, TDigest] = {}
-    keys = {tuple(k) if isinstance(k, (tuple, list)) else k for k in context.tolist()}
-    for b in keys:
-        mask = np.asarray(
-            [(tuple(k) if isinstance(k, (tuple, list)) else k) == b
-             for k in context.tolist()])
-        digest = TDigest()
-        for e in residuals[mask]:
-            digest.update(float(e))
-        cdfs[b] = digest
-    return cdfs
+    import lightgbm as lgb
+
+    residual = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
+    ds = lgb.Dataset(X, label=np.abs(residual),
+                     feature_name=feature_names,
+                     categorical_feature=categorical)
+    params = dict(learning_params or {}) or {
+        "objective": "regression", "metric": "mae", "num_leaves": 31,
+        "learning_rate": 0.05, "min_child_samples": 30, "verbosity": -1,
+    }
+    sigma_model = lgb.train(params, ds, num_boost_round=100)
+
+    sigma = np.maximum(sigma_model.predict(X), 1e-4)
+    z = residual / sigma
+
+    digest = TDigest()
+    for zi in z:
+        digest.update(float(zi))
+    return sigma_model, digest
 
 
-def update_residual_cdfs(
-    cdfs: dict[object, TDigest],
+def update_standardized(
+    digest: TDigest,
     actual: np.ndarray,
     predicted: np.ndarray,
-    context: np.ndarray,
-) -> dict[object, TDigest]:
-    """Fold new residuals into existing per-bin digests (incremental refresh)."""
-    residuals = np.asarray(actual, dtype=float) - np.asarray(predicted, dtype=float)
-    for b in {tuple(k) for k in context.tolist()}:
-        digest = cdfs.setdefault(b, TDigest())
-        mask = np.asarray([tuple(k) == b for k in context.tolist()])
-        for e in residuals[mask]:
-            digest.update(float(e))
-    return cdfs
+    sigma: np.ndarray,
+) -> TDigest:
+    """Fold new standardized residuals into the digest (incremental refresh)."""
+    z = (np.asarray(actual, float) - np.asarray(predicted, float)) / sigma
+    for zi in z:
+        digest.update(float(zi))
+    return digest
 
 
 def quantiles_of(digest: TDigest, qs: list[float] | None = None) -> np.ndarray:
