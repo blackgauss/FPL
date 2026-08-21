@@ -24,6 +24,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from fpl.domain import Squad, squad_from_frame
 from fpl.team.enumerate import greedy_teams, search_space_size
 from fpl.team.filtering import availability_from_gw_stats, filter_pool
 from fpl.team.scoring import score_players
@@ -53,9 +54,36 @@ class SearchResult:
     gw_end: int
     pool: pl.DataFrame
     basket: pl.DataFrame            # long: team_id, player_code, ...
+    squads: list[Squad]             # typed teams, ordered by window_total desc
+    team_ids: tuple[int, ...]       # aligned with squads
     value: pl.DataFrame             # team value from the value strategy
     weakness: pl.DataFrame          # window_total, worst_gw, star_dependence
     search_size: tuple[int, float]  # (n possibilities, log10)
+
+    def squad(self, team_id: int) -> Squad | None:
+        """The typed team behind a search team_id (None if not in the basket)."""
+        for tid, s in zip(self.team_ids, self.squads, strict=False):
+            if tid == team_id:
+                return s
+        return None
+
+    def best(self, kind: str = "weakness") -> tuple[int, Squad]:
+        """(team_id, Squad) of the top-ranked team.
+
+        kind="weakness": highest expected window total; kind="value": best per
+        the value strategy (win_ratio). Consumers never need to touch team_id
+        bookkeeping for "give me the best team".
+        """
+        if kind == "weakness":
+            return self.team_ids[0], self.squads[0]
+        if kind == "value":
+            tid = int(self.value.sort("win_ratio", descending=True)
+                      ["team_id"].head(1).item())
+            s = self.squad(tid)
+            if s is None:
+                raise ValueError(f"value ranks team {tid} outside the basket")
+            return tid, s
+        raise ValueError(f"unknown best kind {kind!r}")
 
 
 def _load(processed: str, season: str):
@@ -65,6 +93,33 @@ def _load(processed: str, season: str):
     players = pl.read_parquet(f"{processed}/players_{season}.parquet")
     gw_stats = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
     return td, players, gw_stats
+
+
+def basket_squads(
+    basket: pl.DataFrame, names: pl.DataFrame, *, gw: int,
+) -> list[tuple[int, Squad]]:
+    """Hydrate the basket (long team_id frame) into typed Squad objects.
+
+    `names` (player_code, web_name, team_code) carries the club semantics the
+    pool was built on — typically the scored/reconciled frame, so squad clubs
+    are current-world and greedy's ≤3/club caps hold. Price is already tenths
+    in the basket. Callers (inspect_teams, live check, the weekly optimizers)
+    read Squad/Player objects and never see the search internals: team_id
+    bookkeeping, column names, or dataset price units.
+
+    Returns [(team_id, Squad)] in basket row order.
+    """
+    if basket.height == 0:
+        return []
+    denorm = basket.join(
+        names.select("player_code", "web_name", "team_code"),
+        on="player_code", how="left",
+    )
+    need = ["player_code", "web_name", "position", "team_code", "price_tenths"]
+    squads: list[tuple[int, Squad]] = []
+    for (tid,), g in denorm.group_by("team_id", maintain_order=True):
+        squads.append((int(tid), squad_from_frame(g.select(need), gw=gw)))
+    return squads
 
 
 def run(
@@ -120,9 +175,26 @@ def run(
     value = _value(value_fn, basket, totals, dist_forecast, value_kw or {})
     weak = weaknesses(basket, totals)
 
+    if players is None:
+        players = pl.read_parquet(f"{processed}/players_{season}.parquet")
+    # hydrate from the frame whose team_code the pool was built on: an injected
+    # `scored` already carries live-reconciled clubs (greedy's club caps are
+    # live-aware), so re-joining the stale players table would break the ≤3/club
+    # invariant on the squads; otherwise the players table is the source.
+    names = scored if (scored is not None and "team_code" in scored.columns) \
+        else players
+    squads = basket_squads(basket, names, gw=gw_start)
+    by_id = {tid: sq for tid, sq in squads}
+    # order typed squads by window total (weakness order) so consumers just
+    # iterate best-first without touching team_id bookkeeping
+    order_ids = weak.sort("window_total", descending=True)["team_id"].to_list()
+    team_ids = tuple(int(t) for t in order_ids)
+    squads = [by_id[t] for t in order_ids]
+
     return SearchResult(
         season=season, gw_start=gw_start, gw_end=gw_end,
-        pool=pool, basket=basket, value=value, weakness=weak,
+        pool=pool, basket=basket, squads=squads, team_ids=team_ids,
+        value=value, weakness=weak,
         search_size=search_space_size(pool),
     )
 

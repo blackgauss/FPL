@@ -2,8 +2,11 @@
 
 Prints each squad as 15 named players (position / club / £cost / window
 expected points), with a validity summary (counts, budget, positions,
-max-per-club). Use it to eyeball whether the enumerated squads are
-reasonable FPL teams before trusting the value stage.
+max-per-club). The harness now returns typed `SearchResult.squads`, so this
+script reads only Squad objects: no team_id bookkeeping, no manual table
+joins, and no price-unit math (Player stores tenths; `to_millions` formats).
+
+This is the interface the weekly optimizers will be built against.
 
 Run:  python scripts/inspect_teams.py --season 2025-2026 --gw 31 --gw-end 33
 """
@@ -14,13 +17,10 @@ import argparse
 
 import polars as pl
 
+from fpl.domain import position_sort_key
 from fpl.model.inference import load_model
 from fpl.team.harness import run
-
-
-def _club_of(team_code, teams) -> str:
-    row = teams.filter(pl.col("code") == team_code)
-    return row.get_column("name").item() if row.height else f"#{team_code}"
+from fpl.units import to_millions
 
 
 def main() -> None:
@@ -42,38 +42,28 @@ def main() -> None:
         gw_start=args.gw, gw_end=gw_end, model=model,
         enum_kw={"n_teams": args.n_teams, "seed": 1},
     )
-    players = pl.read_parquet(f"{args.processed}/players_{args.season}.parquet")
     teams = pl.read_parquet(f"{args.processed}/teams_{args.season}.parquet")
     teams_names = dict(zip(teams["code"], teams["name"], strict=False))
+    expected = dict(zip(res.pool["player_code"], res.pool["expected_total"],
+                        strict=False))
 
-    players_names = players.select("player_code", "web_name", "team_code")
-    basket = (
-        res.basket.join(players_names, on="player_code", how="left")
-        .with_columns(pl.col("team_code").cast(pl.Int64).replace_strict(
-            teams_names, default="?").alias("club"))
-        .sort(["team_id", "position", "expected_total"], descending=[True, False, True])
-    )
-
-    order = (
-        basket.group_by("team_id").agg(pl.col("expected_total").sum().alias("tot"))
-        .sort("tot", descending=True)["team_id"].to_list()
-    )
-
-    print(f"\nbasket: {basket['team_id'].n_unique()} squads | "
+    print(f"\nbasket: {len(res.squads)} squads | "
           f"search space log10 ~= {res.search_size[1]:.2f}")
     print("=" * 88)
-    for tid in order[args.min_team: args.min_team + args.top]:
-        sq = basket.filter(pl.col("team_id") == tid)
-        cost = sq["price_tenths"].sum() / 10
-        exp = sq["expected_total"].sum()
-        print(f"\n### squad {tid} | cost £{cost:.1f}m | 15 players | "
+    for i, squad in enumerate(res.squads[args.min_team: args.min_team + args.top],
+                              start=args.min_team):
+        cost = to_millions(squad.cost_tenths())
+        exp = sum(expected.get(p.code, 0.0) for p in squad.players)
+        print(f"\n### squad {i} | cost £{cost:.1f}m | 15 players | "
               f"expected {exp:.1f} pts (window)")
-        for pos in ["GKP", "DEF", "MID", "FWD"]:
-            by_pos = sq.filter(pl.col("position") == pos).sort(
-                "expected_total", descending=True)
-            for row in by_pos.iter_rows(named=True):
-                print(f"  {pos:<3} {row['web_name']:<28} {row['club']:<16} "
-                      f"£{row['now_cost']:>4.1f}m  exp {row['expected_total']:>5.1f}")
+        ordered = sorted(squad.players,
+                         key=lambda p: (position_sort_key(p.position),
+                                        -expected.get(p.code, 0.0)))
+        for p in ordered:
+            club = teams_names.get(p.club, f"#{p.club}")
+            print(f"  {p.position:<3} {p.name:<28} {club:<16} "
+                  f"£{to_millions(p.cost_tenths):>4.1f}m  "
+                  f"exp {expected.get(p.code, 0.0):>5.1f}")
 
 
 if __name__ == "__main__":

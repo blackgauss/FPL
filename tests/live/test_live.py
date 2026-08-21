@@ -13,6 +13,7 @@ import time
 import polars as pl
 import pytest
 
+from fpl.domain import Player, PlayerIdentity, PlayerState, Position, Squad
 from fpl.live.agreement import hygiene_summary, price_diff_tenths, report_agreement, to_tenths
 from fpl.live.filters import (
     available,
@@ -260,6 +261,110 @@ class TestFlagSquadPlayer:
             {"status": None, "team_code": 1, "team_code_live": None,
              "price_diff_tenths": None})
         assert "NOT IN LIVE ROSTER" in f
+
+
+def _make_player(code, name, position, club, cost):
+        return Player(identity=PlayerIdentity(code, name, Position(position)),
+                      state=PlayerState(club, cost))
+
+
+class TestFlagSquad:
+    """Squad-level live flags from the typed interface (no column joining)."""
+
+    def _squad(self, players):
+        return Squad(players=tuple(players),
+                     starters=tuple(p.code for p in players))
+
+    @staticmethod
+    def _p(code, name, position, club, cost):
+        return Player(identity=PlayerIdentity(code, name, Position(position)),
+                      state=PlayerState(club, cost))
+
+    def test_healthy_all_ok(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([
+            self._p(223001, "P0", "MID", 10, 50),   # team_code 10, £5.0
+            self._p(223002, "P1", "MID", 20, 60),   # team_code 20, £6.0
+            self._p(223008, "P7", "DEF", 30, 120),  # team_code 30, £12.0
+        ])
+        out = flag_squad(squad, live)
+        assert all(flag == "ok" for flag in out.values())
+
+    def test_injured_detected(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223005, "P4", "MID", 50, 90)])
+        f = flag_squad(squad, live)[223005]
+        assert "UNAVAILABLE[i]" in f and "INJURED" in f
+
+    def test_transferred_detected(self, live):
+        # squad records old club (99); live says 10
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223001, "P0", "MID", 99, 50)])
+        f = flag_squad(squad, live)[223001]
+        assert "TRANSFERRED (ds 99 -> live 10)" in f
+
+    def test_price_move_detected(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223001, "P0", "MID", 10, 45)])
+        f = flag_squad(squad, live)[223001]
+        assert "price +5" in f  # live 50 tenths - squad 45 tenths
+
+    def test_missing_from_live_flagged(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(999999, "ghost", "MID", 10, 50)])
+        assert "NOT IN LIVE ROSTER" in flag_squad(squad, live)[999999]
+
+
+class TestPlayersToReplace:
+    """Typed reconcile-apply: which Squad players must be swapped, and why."""
+
+    def _squad(self, players):
+        return Squad(players=tuple(players),
+                     starters=tuple(p.code for p in players))
+
+    def test_healthy_playable_not_replaced(self, live):
+        from fpl.live.current import players_to_replace
+
+        squad = self._squad([
+            _make_player(223001, "P0", "MID", 10, 50),   # status a
+            _make_player(223004, "P3", "DEF", 40, 80),   # status d (doubtful ok)
+            _make_player(223008, "P7", "DEF", 30, 120),  # status a
+        ])
+        assert players_to_replace(squad, live) == {}
+
+    def test_unavailable_replaced_with_reason(self, live):
+        from fpl.live.current import players_to_replace
+
+        squad = self._squad([
+            _make_player(223005, "P4", "MID", 50, 90),   # status i
+            _make_player(223006, "P5", "DEF", 10, 100),  # status s
+            _make_player(223007, "P6", "FWD", 20, 110),  # status u
+        ])
+        out = players_to_replace(squad, live)
+        assert out == {223005: "UNAVAILABLE[i]", 223006: "UNAVAILABLE[s]",
+                       223007: "UNAVAILABLE[u]"}
+
+    def test_missing_from_roster_replaced(self, live):
+        from fpl.live.current import players_to_replace
+
+        squad = self._squad([_make_player(999999, "ghost", "MID", 10, 50)])
+        out = players_to_replace(squad, live)
+        assert out[999999].startswith("NOT IN LIVE ROSTER")
+
+    def test_explicit_mask_overrides_default(self, live):
+        from fpl.live.current import players_to_replace
+        from fpl.live.filters import available
+
+        squad = self._squad([_make_player(223004, "P3", "DEF", 40, 80)])
+        # 'd' doubtful passes suggest() but fails the stricter available() mask
+        assert players_to_replace(squad, live) == {}
+        out = players_to_replace(squad, live, mask=available(live))
+        assert out == {223004: "below availability bar"}
 
 
 class TestHygieneAgreement:

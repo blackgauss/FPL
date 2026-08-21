@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import polars as pl
 
+from fpl.domain import Squad
+
 
 def status_mask(live: pl.DataFrame, statuses: list[str]) -> pl.Series:
     """True where the player's live status is in `statuses`."""
@@ -133,6 +135,36 @@ def flag_squad_player(row: dict) -> str:
     if pd is not None and abs(pd) > 0:
         problems.append(f"price {pd:+.0f}")
     return " | ".join(problems) if problems else "ok"
+
+
+def flag_squad(squad: Squad, live: pl.DataFrame) -> dict[int, str]:
+    """Per-player live problems for a whole Squad, keyed by player_code.
+
+    The row-level `flag_squad_player` forces the caller to hand-join live/
+    dataset columns into a dict row. `flag_squad` builds those rows from the
+    typed Squad (Player carries club + tenths price) so nothing downstream
+    recalls live column names or converts price units. 'ok' when none apply.
+    """
+    live_idx = {
+        code: (status, now_cost, team)
+        for code, status, now_cost, team in live.select(
+            "player_code", "status", "now_cost", "team_code").iter_rows()
+    }
+    out: dict[int, str] = {}
+    for p in squad.players:
+        rec = live_idx.get(p.code)
+        if rec is None:
+            out[p.code] = "NOT IN LIVE ROSTER (missing/transferred out)"
+            continue
+        status, live_now_cost, live_team = rec
+        out[p.code] = flag_squad_player({
+            "status": status,
+            "team_code": p.club,
+            "team_code_live": live_team,
+            "price_diff_tenths": (int(live_now_cost) - p.cost_tenths)
+            if live_now_cost is not None else None,
+        })
+    return out
 
 
 def apply_filters(live: pl.DataFrame, **filters: pl.Series) -> pl.DataFrame:

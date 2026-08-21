@@ -109,3 +109,67 @@ def test_run_basket_live_reconcile_filters_team(store):
     p1 = pool.filter(pl.col("player_code") == 223001)
     if p1.height:
         assert p1["team_code"].item() == 43
+
+
+def test_domain_feed_from_training_and_forecast(store):
+    """Training -> forecast -> domain objects, with units handled exactly once.
+
+    The seam captains/transfers will stand on: score_players + filter_pool ->
+    players_frame (canonical price_tenths) -> the domain builders -> a valid
+    Squad, with numpy consumption and per-player forecast lookup all keyed by
+    player_code. No algorithm re-derives the tenths conversion.
+    """
+    import numpy as np
+
+    from fpl.domain import Position, players_from_frame
+    from fpl.model.train import load_training
+    from fpl.team.enumerate import greedy_teams, squad_for_price
+    from fpl.team.filtering import (
+        availability_from_gw_stats,
+        filter_pool,
+        players_frame,
+    )
+    from fpl.team.harness import basket_squads
+    from fpl.team.scoring import score_players
+
+    out, data = store
+    td = load_training(str(out), ["2025-2026"])["2025-2026"]
+    scored, per_gw = score_players(td, ToyModel(), gw_start=2, gw_end=4,
+                                   players=data.players, detail=True)
+    avail = availability_from_gw_stats(data.gw_stats, data.players,
+                                       gw_start=2, gw_end=4)
+    pool = filter_pool(scored, avail, top_k_per_position=25, max_per_team=4)
+
+    # canonical domain frame: the exact _FRAME_PLAYER_COLUMNS contract
+    pf = players_frame(pool)
+    assert set(pf.columns) == {"player_code", "web_name", "position",
+                               "team_code", "price_tenths"}
+    # agrees with the existing canonical tenths producer (no re-derived math)
+    cross = pf.select("player_code", "price_tenths").join(
+        squad_for_price(pool).select("player_code", "price_tenths"),
+        on="player_code", how="inner", suffix="_ref")
+    assert cross.filter(
+        pl.col("price_tenths") != pl.col("price_tenths_ref")).height == 0
+
+    players = players_from_frame(pf)
+    assert all(isinstance(p.position, Position) for p in players)
+
+    # forward into the domain and check a valid Squad carries those prices
+    basket = greedy_teams(pool, n_teams=1, seed=1)
+    _, squad = basket_squads(basket, pf, gw=2)[0]
+    assert squad.validate() == []
+    assert all(p.cost_tenths == pf.filter(
+        pl.col("player_code") == p.code)["price_tenths"].item()
+        for p in squad.players)
+
+    # numpy consumption and the captain primitive both key on player_code
+    costs = pf.filter(pl.col("player_code").is_in(squad.codes()))[
+        "price_tenths"].to_numpy()
+    assert isinstance(costs, np.ndarray)
+    assert int(costs.sum()) == squad.cost_tenths()
+    # captain primitive: every squad player has a per-player-GW forecast
+    # (the dense fixture's feature rows start at gw=2, so forecasts begin at 3)
+    target_gw = int(per_gw["gw"].min())
+    forecast_codes = set(per_gw.filter(pl.col("gw") == target_gw)[
+        "player_code"].to_list())
+    assert not [c for c in squad.codes() if c not in forecast_codes]

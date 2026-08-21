@@ -52,7 +52,7 @@ def main() -> None:
     print(f"\nseason={res.season} GW {res.gw_start}..{res.gw_end} | "
           f"pool={res.pool.height} players | "
           f"search space (#teams) ~= 10^{lg:.2f}")
-    print(f"basket: {res.basket['team_id'].n_unique()} squads\n")
+    print(f"\nbasket: {len(res.squads)} squads\n")
 
     print("=== value ===")
     cols = ["team_id", "played", "wins", "losses", "draws", "exp_wins",

@@ -107,3 +107,25 @@ class TestHarness:
         assert res.basket["team_id"].n_unique() <= 5
         assert "win_ratio" in res.value.columns
         assert "worst_gw" in res.weakness.columns
+
+        # typed squads: hydrated, valid, ordered by window_total descending
+        from fpl.team.harness import basket_squads
+
+        assert len(res.squads) == res.basket["team_id"].n_unique()
+        assert all(s.validate() == [] for s in res.squads)
+        weak_order = res.weakness.sort("window_total",
+                                       descending=True)["team_id"].to_list()
+        by_id = dict(basket_squads(res.basket, players, gw=2))
+        assert [by_id[t].cost_tenths() for t in weak_order] == \
+            [s.cost_tenths() for s in res.squads]
+        # price normalised to tenths at the boundary (5.0 decimal = 50 tenths)
+        assert all(p.cost_tenths == 50 for p in res.squads[0].players)
+
+        # team-id helpers: aligned squads, lookup, and best-team access
+        assert len(res.team_ids) == len(res.squads) == \
+            res.basket["team_id"].n_unique()
+        tid0, best_weak = res.best("weakness")
+        assert tid0 == res.team_ids[0] and best_weak is res.squads[0]
+        tid_v, best_val = res.best("value")
+        assert best_val is res.squad(tid_v) and best_val.validate() == []
+        assert all(res.squad(tid) is not None for tid in res.team_ids)

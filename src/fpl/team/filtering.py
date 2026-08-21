@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import polars as pl
 
+from fpl.units import now_cost_to_tenths
+
 
 def availability_from_gw_stats(
     gw_stats: pl.DataFrame,
@@ -40,6 +42,25 @@ def availability_from_gw_stats(
         pl.col("now_cost").last().alias("now_cost"),
     )
     return agg
+
+
+def players_frame(pool: pl.DataFrame) -> pl.DataFrame:
+    """Canonical domain-ready player frame from a scored pool.
+
+    Produces exactly the domain's _FRAME_PLAYER_COLUMNS contract
+    (player_code, web_name, position, team_code, price_tenths) so the domain
+    builders (players_from_frame / squad_from_frame) consume a scored pool
+    directly. The decimal `now_cost` is converted to tenths HERE — the single
+    place that unit math happens when building Players outside full
+    enumeration (captain/transfer algorithms assemble their own Squads).
+    """
+    return pool.select(
+        pl.col("player_code").cast(pl.Int64),
+        pl.col("web_name").cast(pl.String),
+        pl.col("position").cast(pl.String),
+        pl.col("team_code").cast(pl.Int64),
+        now_cost_to_tenths(pl.col("now_cost")).alias("price_tenths"),
+    )
 
 
 def drop_never_featuring(
