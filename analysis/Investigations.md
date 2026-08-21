@@ -197,6 +197,24 @@ shared shocks are too small / too weakly identified to improve uncertainty on
 12 squad-weeks. Keep this as an experimental seam; do not wire it into team
 ranking until it beats IID on a larger, rolling holdout.
 
+## Experiment 7 — first-team regularity features
+
+`experiments/ab_first_team_regularity.py` tests the corrected availability
+hypothesis: retain all players in training, but add leakage-safe trailing
+role context (`appear_rate_5`, `start_rate_5`, `minutes_share_5`) calculated
+from GWs through the source row. A first-team regular is a role cohort, not
+simply someone who appeared in the target GW.
+
+- Baseline vs role features on all holdout rows: MAE **0.991 → 0.988**.
+- On pre-GW first-team regulars: MAE **2.287 → 2.351**.
+- On non-regulars: MAE **0.537 → 0.511**.
+
+**Read:** this first three-feature definition is not a win for the relevant
+regular cohort. Filtering training data to regulars was also slightly worse
+in the earlier check. Keep all players; investigate a better role/selection
+representation (starts, expected lineup role, team depth, and shrinkage)
+before adopting it.
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical

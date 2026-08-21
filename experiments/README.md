@@ -26,6 +26,9 @@ Ran so far:
   learned shared team/fixture shocks, integrated through `fpl.gym.Eval`.
   Current result is not a production win (tiny mean|z| gain, slightly worse
   dispersion); keep it experimental until larger rolling holdouts improve it.
+- `ab_first_team_regularity.py` — all-player training vs adding leakage-safe
+  trailing appearance/start/minutes features. The first definition slightly
+  improves overall MAE but worsens the regular-player cohort; not a win yet.
 
 Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
 run a *leakage gate + deterministic seed* first, prefer model-free arms and
