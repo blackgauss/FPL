@@ -92,12 +92,15 @@ print(f"season={season}  players={players.height}  "
     ),
     md("## 1. Position baselines — realized points per position"),
     code(
-        """gw_stats.join(players.select("player_id", "position"), on="player_id")
+        """baseline = (
+    gw_stats.join(players.select("player_id", "position"), on="player_id")
     .filter(pl.col("minutes") > 0)
     .group_by("position")
     .agg(pl.col("total_points").mean().alias("mean"),
          pl.col("total_points").count().alias("played_gw"))
-    .sort("position")"""
+    .sort("position")
+)
+print(baseline)"""
     ),
     md("""## 2. Which driver features correlate with realized points?
 
@@ -140,8 +143,10 @@ print(by_position.pivot(index="position", on="feature", values="r"))"""
 Correlated drivers (form fields especially) mean a global model allocates
 credit incorrectly; per-player corrections must not double-count them."""),
     code(
-        """pl.DataFrame({a: [float(ff.select(pl.corr(a, b)).item()) for b in drivers]
-                    for a in drivers})"""
+        """collin = pl.DataFrame({a: [float(ff.select(pl.corr(a, b)).item())
+                              for b in drivers]
+                    for a in drivers})
+print(collin)"""
     ),
     md("""## 4. In-squad co-movement — the I.I.D. check
 
