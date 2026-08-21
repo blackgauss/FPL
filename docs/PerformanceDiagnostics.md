@@ -82,6 +82,20 @@ QUALITY knee and scale time linearly:
 - Guidance: default experiments at ~100 rounds; exploration at ~50; reserve
   200 for final calibrations.
 
+## Cross-process + parallel levers (implemented)
+
+- **Cross-process disk cache**: `scripts/run_experiments.py --cache-dir
+  experiments/artifacts/.cache` persists each fitted LightGBM Booster as
+  `fit-<content-id>.txt` (stable content-hash filename, NOT builtin `hash()`
+  which is per-process randomized). A later CLI run loads instead of
+  re-fitting the same config. Same-config second process shows `fit_hits = 1`.
+- **Parallel arms**: `--parallel N` runs declared experiments in a
+  `ThreadPoolExecutor`, which helps because LightGBM releases the GIL during
+  training. Heavy imports (lightgbm/scipy) are warmed before the pool to
+  avoid a circular-import race on first lazy import.
+- Both were the "cross-process" and "parallel" levers from the earlier list;
+  training round count + these are the practical wins.
+
 ## Inefficiencies found and addressed
 
 1. **The inference profile was re-fitting.** The diagnostic's "inference"

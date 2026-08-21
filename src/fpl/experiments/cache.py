@@ -13,6 +13,7 @@ Callers must ``reset_experiment_cache()`` between logically separate runs
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 _TRAINING: dict[tuple, dict] = {}
 _FIT: dict[tuple, Callable] = {}
@@ -54,18 +55,61 @@ def cached_training(
     return result
 
 
+def cache_id(key: tuple) -> str:
+    """Stable, cross-process content id for a cache key.
+
+    Uses a content hash (not builtin ``hash()``, which is randomized per
+    process) so a config names the same disk file in every run.
+    """
+    import hashlib
+
+    return hashlib.sha256(repr(key).encode()).hexdigest()[:16]
+
+
 def cached_fit(
     fitter: Callable[[], Callable],
     *,
     key: tuple,
+    disk_dir: str | Path | None = None,
+    model_kind: str = "lgbm",
 ) -> Callable:
-    """Memoized model fit (returns a predict callable) keyed on config."""
+    """Memoized model fit (returns a predict callable) keyed on config.
+
+    With `disk_dir` and `model_kind="lgbm"` this adds a cross-process cache:
+    the LightGBM Booster is persisted to ``<disk_dir>/fit-<id>.txt`` and a
+    fresh process loads it instead of re-fitting. Any disk failure falls back
+    to fitting (never raises for cache reasons).
+    """
     _COUNTS["fit_calls"] += 1
     if key in _FIT:
         _COUNTS["fit_hits"] += 1
         return _FIT[key]
+
+    disk_path = None
+    if disk_dir is not None:
+        disk_path = Path(disk_dir) / f"fit-{cache_id(key)}.txt"
+        if model_kind == "lgbm" and disk_path.exists():
+            try:
+                import lightgbm as lgb
+
+                booster = lgb.Booster(model_file=str(disk_path))
+                predict = booster.predict
+                _COUNTS["fit_hits"] += 1
+                _FIT[key] = predict
+                return predict
+            except Exception:  # noqa: BLE001 - corrupted cache -> refit
+                pass
+
     predict = fitter()
     _FIT[key] = predict
+    if disk_path is not None and model_kind == "lgbm":
+        try:
+            booster = getattr(predict, "__self__", None)
+            if booster is not None and hasattr(booster, "save_model"):
+                disk_path.parent.mkdir(parents=True, exist_ok=True)
+                booster.save_model(str(disk_path))
+        except Exception:  # noqa: BLE001 - persistence best-effort
+            pass
     return predict
 
 

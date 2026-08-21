@@ -58,6 +58,7 @@ def run_experiment(
     processed: str = "data/processed",
     git_sha: str | None = None,
     play_prob: Callable | None = None,
+    cache_dir: str | None = None,
 ) -> dict:
     """Execute one declared experiment dict and return a serializable result.
 
@@ -108,7 +109,7 @@ def run_experiment(
         fit_gw_max=split.fit_gw_max, model=model_name, params=params,
         features=tuple(feats) if feats else None,
         categorical=tuple(cats) if cats else None)
-    predict = cache.cached_fit(_build_predict, key=fit_key)
+    predict = cache.cached_fit(_build_predict, key=fit_key, disk_dir=cache_dir)
     model = _AsModel(predict)
 
     pred = predict(fit_data.X[masks["test"]])

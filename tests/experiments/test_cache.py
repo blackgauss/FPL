@@ -75,3 +75,37 @@ def test_fit_key_is_scoped_to_data_dir():
     cache.cached_fit(lambda: lambda x: 1, key=a)
     second = cache.cached_fit(lambda: lambda x: 2, key=b)  # different store
     assert second([1]) == 2
+
+
+def test_disk_cache_survives_memory_reset(tmp_path):
+    # simulate a cross-process run: reset clears memory, disk provides the fit
+    import numpy as np
+
+    from fpl.model.experiment import REGISTRY
+
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(100, 4))
+    y = (x[:, 0] + x[:, 2]).ravel()
+    fits = []
+
+    def fitter():
+        fits.append(1)
+        return REGISTRY["lgbm"]({"num_boost_round": 5, "num_leaves": 8,
+                                 "min_child_samples": 5, "seed": 42,
+                                 "verbosity": -1})(x, y, [])
+
+    key = cache.fit_cache_key(processed="p", seasons=("s",), fit_gw_max=30,
+                              model="lgbm", params={"seed": 42},
+                              features=None, categorical=None)
+    cache.reset_experiment_cache()
+    predict1 = cache.cached_fit(fitter, key=key, disk_dir=tmp_path)
+    pred = predict1(x[:5])
+    assert len(fits) == 1
+    assert (tmp_path / f"fit-{cache.cache_id(key)}.txt").exists()
+
+    cache.reset_experiment_cache()          # new "process"
+    predict2 = cache.cached_fit(fitter, key=key, disk_dir=tmp_path)
+    assert len(fits) == 1                   # fitter NOT invoked (disk hit)
+    assert np.allclose(predict2(x[:5]), pred)
+    counts = cache.cache_counts()
+    assert counts["fit_hits"] == 1
