@@ -73,6 +73,16 @@ def build_season_tree(base: Path, season: str = "2025-2026") -> Path:
     season_dir.mkdir(parents=True, exist_ok=True)
     (season_dir / "players.csv").write_text(PLAYERS_CSV, encoding="utf-8")
     (season_dir / "teams.csv").write_text(TEAMS_CSV, encoding="utf-8")
+    # player 100 transfers from Arsenal (3) to Man City (43) after GW1;
+    # player 101 (Anderson) also on 3 and does not transfer.
+    (season_dir / "team_history.csv").write_text(
+        "player_id,gw,team_code\n"
+        "430,1,43\n430,2,43\n"
+        "239,1,43\n239,2,43\n"
+        "100,1,3\n100,2,43\n"
+        "101,1,3\n101,2,3\n",
+        encoding="utf-8",
+    )
 
     # matches in both folders; m1 repeats in GW2 (postponed -> dedupe on match_id)
     gw1_matches = (

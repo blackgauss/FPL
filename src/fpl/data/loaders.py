@@ -173,8 +173,25 @@ def load_matches_csv(path: str | Path) -> pl.DataFrame:
             pl.col("home_score").cast(pl.Int64),
             pl.col("away_score").cast(pl.Int64),
             pl.col("finished").cast(pl.Boolean),
+            pl.col("home_team_elo").cast(pl.Float64),
+            pl.col("away_team_elo").cast(pl.Float64),
         )
         .select(
             "match_id", "gw", "kickoff_time", "home_team", "away_team",
-            "home_score", "away_score", "tournament", "finished")
+            "home_score", "away_score", "home_team_elo", "away_team_elo",
+            "tournament", "finished")
+    )
+
+
+def load_team_history_csv(path: str | Path) -> pl.DataFrame:
+    """Load team_history.csv (player_id, gw, team_code) — player's club per GW.
+
+    Needed because players can change clubs mid-season (27 did in 2025-26);
+    opponent/venue features must use the club the player actually played for
+    that gameweek, not their final one.
+    """
+    return pl.read_csv(path).with_columns(
+        pl.col("player_id").cast(pl.Int64),
+        pl.col("gw").cast(pl.Int64),
+        pl.col("team_code").cast(pl.Int64),
     )

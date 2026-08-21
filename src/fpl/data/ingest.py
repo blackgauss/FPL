@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fpl.data.contract import load_season
 
-TABLES = ("players", "teams", "gw_stats", "match_stats", "matches")
+TABLES = ("players", "teams", "gw_stats", "match_stats", "matches", "team_history")
 
 
 def run(root: str | Path, season: str, processed_dir: str | Path) -> list[Path]:

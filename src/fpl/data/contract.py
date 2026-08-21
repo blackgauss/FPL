@@ -26,6 +26,7 @@ from fpl.data.loaders import (
     load_match_stats_csv,
     load_matches_csv,
     load_players_csv,
+    load_team_history_csv,
     load_teams_csv,
 )
 
@@ -42,6 +43,7 @@ class SeasonData:
     gw_stats: pl.DataFrame
     match_stats: pl.DataFrame
     matches: pl.DataFrame
+    team_history: pl.DataFrame
 
 
 def _gw_folders(gw_root: Path) -> list[tuple[int, Path]]:
@@ -79,7 +81,13 @@ def detect_layout(season_dir: str | Path) -> str:
 
 
 def _build(season: str, players: pl.DataFrame, teams: pl.DataFrame,
-           gw_frames: list, match_stat_frames: list, match_frames: list) -> SeasonData:
+           gw_frames: list, match_stat_frames: list, match_frames: list,
+           team_history: pl.DataFrame | None = None) -> SeasonData:
+    th = (
+        team_history.with_columns(pl.lit(season).alias("season"))
+        if team_history is not None
+        else _empty_season_team_history(season)
+    )
     return SeasonData(
         season=season,
         players=players.with_columns(pl.lit(season).alias("season")),
@@ -87,12 +95,25 @@ def _build(season: str, players: pl.DataFrame, teams: pl.DataFrame,
         gw_stats=_concat(gw_frames, ["season", "player_id", "gw"]),
         match_stats=_concat(match_stat_frames, ["season", "player_id", "match_id"]),
         matches=_concat(match_frames, ["season", "match_id"]),
+        team_history=th,
+    )
+
+
+def _empty_season_team_history(season: str) -> pl.DataFrame:
+    return pl.DataFrame(
+        {"player_id": pl.Series([], dtype=pl.Int64),
+         "gw": pl.Series([], dtype=pl.Int64),
+         "team_code": pl.Series([], dtype=pl.Int64),
+         "season": pl.Series([], dtype=pl.String)}
     )
 
 
 def _load_season_modern(season_dir: Path, season: str) -> SeasonData:
     players = load_players_csv(season_dir / "players.csv")
     teams = load_teams_csv(season_dir / "teams.csv")
+    team_history = _read_optional(season_dir / "team_history.csv", load_team_history_csv)
+    if team_history is None:
+        team_history = _empty_season_team_history(season)
     gw_frames: list[pl.DataFrame] = []
     match_stat_frames: list[pl.DataFrame] = []
     match_frames: list[pl.DataFrame] = []
@@ -116,12 +137,14 @@ def _load_season_modern(season_dir: Path, season: str) -> SeasonData:
         if matches is not None:
             match_frames.append(matches.with_columns(pl.lit(season).alias("season")))
 
-    return _build(season, players, teams, gw_frames, match_stat_frames, match_frames)
+    return _build(season, players, teams, gw_frames, match_stat_frames, match_frames,
+                  team_history)
 
 
 def _load_season_legacy(season_dir: Path, season: str) -> SeasonData:
     players = load_players_csv(season_dir / "players" / "players.csv")
     teams = load_teams_csv(season_dir / "teams" / "teams.csv")
+    team_history = _empty_season_team_history(season)
     gw_frames: list[pl.DataFrame] = []
     match_stat_frames: list[pl.DataFrame] = []
     match_frames: list[pl.DataFrame] = []
@@ -145,7 +168,8 @@ def _load_season_legacy(season_dir: Path, season: str) -> SeasonData:
     if gw_stats is not None:
         gw_frames.append(gw_stats.with_columns(pl.lit(season).alias("season")))
 
-    return _build(season, players, teams, gw_frames, match_stat_frames, match_frames)
+    return _build(season, players, teams, gw_frames, match_stat_frames, match_frames,
+                  team_history)
 
 
 def load_season(root: str | Path, season: str) -> SeasonData:

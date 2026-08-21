@@ -12,6 +12,22 @@
 This plan supersedes `DataQuery.md` (Phase 1, complete). The loaders/casts and
 unification semantics built there carry forward into the ingest job.
 
+**Modeling-pipeline foundation (2026-08-20):** added a `team_history` table to the
+dataset (player's club per GW — 27 players transferred mid-season in 2025-26, so
+opponent/venue features must not use the final club) and a feature-store job:
+
+- `scripts/features.py` writes `data/processed/features_{season}.parquet`
+- feature per (player_id, gw): `team_code`, `opponent_team_code`, `was_home`,
+  `home_elo`, `opponent_elo`, `prev_points`, `pts_avg_3`, `pts_avg_5`,
+  `total_points`, `next_points` (the training target; final GW row null)
+- rolling features use the previous GWs only (shift-then-rolling, no leakage);
+  FPL points/opponent are Premier-League only; a GW with no PL match keeps its
+  row with null opponent/venue
+- `matches` loader now also exposes `home_team_elo`/`away_team_elo`
+
+Real feature stores: 2024-25 → 26,052 rows; 2025-26 → 28,297 rows; 2026-27 → 0
+(no played matches yet — expected).
+
 ## Decisions (2026-08-20)
 
 - **Delete the query functions** (`find_player`, `performance_with_without`,

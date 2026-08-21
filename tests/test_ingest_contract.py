@@ -30,7 +30,9 @@ EXPECTED_COLUMNS = {
     "match_stats": ["player_id", "match_id", "minutes_played", "goals", "assists", "xg",
                     "xa", "gw", "season"],
     "matches": ["match_id", "gw", "kickoff_time", "home_team", "away_team", "home_score",
-                "away_score", "tournament", "finished", "season"],
+                "away_score", "home_team_elo", "away_team_elo", "tournament", "finished",
+                "season"],
+    "team_history": ["player_id", "gw", "team_code", "season"],
 }
 
 
@@ -85,6 +87,14 @@ class TestSchema:
         assert schema["gw"] == pl.Int64
         assert schema["finished"] == pl.Boolean
         assert schema["home_score"] == pl.Int64
+        assert schema["home_team_elo"] == pl.Float64
+        assert schema["away_team_elo"] == pl.Float64
+
+    def test_team_history_dtypes(self, frames):
+        schema = frames["team_history"].schema
+        assert schema["player_id"] == pl.Int64
+        assert schema["gw"] == pl.Int64
+        assert schema["team_code"] == pl.Int64
 
 
 class TestReferentialIntegrity:
@@ -121,6 +131,9 @@ class TestUniqueness:
     def test_matches_unique(self, frames):
         assert_frames_unique(frames["matches"], ["season", "match_id"])
 
+    def test_team_history_unique(self, frames):
+        assert_frames_unique(frames["team_history"], ["season", "player_id", "gw"])
+
 
 class TestSpotValues:
     def test_haaland_gw1_discrete_points(self, frames):
@@ -153,6 +166,11 @@ class TestSpotValues:
     def test_tournament_mixing_preserved(self, frames):
         tournaments = set(frames["matches"].get_column("tournament"))
         assert tournaments == {"prem", "europa-league"}
+
+    def test_team_history_captures_transfer(self, frames):
+        # player 100 moved Arsenal (3) -> Man City (43) after GW1
+        moved = frames["team_history"].filter(pl.col("player_id") == 100).sort("gw")
+        assert moved.get_column("team_code").to_list() == [3, 43]
 
 
 class TestDataQuality:
@@ -284,3 +302,10 @@ class TestLegacyLayout:
         assert ms.filter(
             (pl.col("player_id") == 239) & (pl.col("match_id") == "m2")
         ).get_column("minutes_played").item() == 0.0
+
+    def test_legacy_team_history_empty_with_schema(self, legacy):
+        # legacy layout has no team_history file -> empty frame, correct schema
+        th = legacy["team_history"]
+        assert th.height == 0
+        assert th.columns == ["player_id", "gw", "team_code", "season"]
+        assert th.schema["player_id"] == pl.Int64
