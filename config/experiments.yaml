@@ -1,0 +1,27 @@
+# Rapid-experiment registry: run candidates on the same held-out slice.
+# Each experiment: model (registry name), features (feature-store subset),
+# fit_gw_max / test_gw_min (the shared held-out window).
+
+fit_gw_max: 30
+test_gw_min: 31
+seasons: ["2024-2025", "2025-2026"]
+
+experiments:
+  lgbm_all:
+    model: lgbm
+    note: full feature set
+  lgbm_no_ep:
+    model: lgbm
+    features: [team_code, position, now_cost, had_match, was_home, opponent_elo,
+               home_elo, pts_avg_3, pts_avg_5]
+    note: drop FPL's own forecast (ep_next)
+  lgbm_basic:
+    model: lgbm
+    features: [position, now_cost, pts_avg_3, pts_avg_5]
+    note: only form + price
+  hist_gb:
+    model: hist_gb
+    note: sklearn gradient boosting on full set
+  ridge:
+    model: ridge
+    note: linear baseline on full set

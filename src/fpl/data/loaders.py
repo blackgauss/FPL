@@ -17,8 +17,10 @@ Canonical schemas (the contract):
     match_stats: player_id Int64, match_id str, minutes_played Float64,
                  goals/assists/xg/xa Float64
     matches:     match_id str, gw Int64, kickoff_time str, home_team/away_team Int64
-                 (team codes), home_score/away_score Int64|null, tournament str,
+                 (team codes), home_score/away_score Int64|null,
+                 home_team_elo/away_team_elo Float64|null, tournament str,
                  finished bool
+    team_history: player_id Int64, gw Int64, team_code Int64 (club per GW)
 """
 
 from __future__ import annotations
@@ -97,8 +99,14 @@ def load_teams_csv(path: str | Path) -> pl.DataFrame:
 
 
 def load_gw_stats_csv(path: str | Path) -> pl.DataFrame:
-    """Load player_gameweek_stats.csv (discrete per-GW) with renamed, cast columns."""
-    return (
+    """Load player_gameweek_stats.csv (discrete per-GW) with renamed, cast columns.
+
+    Fixes a known FPL-Core artifact: `ep_next` is sometimes scraped as 0.0 even
+    though `ep_this` shows the player is expected to feature (910 rows in
+    2025-26, concentrated in later GWs). For available players with a healthy
+    `ep_this`, that zero is clearly broken — substitute this-GW's expectation.
+    """
+    df = (
         pl.read_csv(path, schema_overrides={col: pl.Float64 for col in (
             "now_cost", "form", "ep_next", "ep_this", "selected_by_percent")})
         .rename(_GW_STATS_COLUMNS)
@@ -108,20 +116,31 @@ def load_gw_stats_csv(path: str | Path) -> pl.DataFrame:
             *[pl.col(c).cast(pl.Int64) for c in (
                 "total_points", "minutes", "goals_scored", "assists",
                 "bonus", "bps", "saves", "starts")],
+            pl.when(
+                (pl.col("status") == "a")
+                & (pl.col("ep_this") > 0)
+                & (pl.col("ep_next") == 0)
+            )
+            .then(pl.col("ep_this"))
+            .otherwise(pl.col("ep_next"))
+            .alias("ep_next"),
         )
         .select(*_GW_STATS_COLUMNS.values())
     )
+    return df
 
 
 def load_legacy_gw_stats_csv(path: str | Path) -> pl.DataFrame:
     """Load legacy (2024-25) long-table playerstats.csv into the shared gw_stats schema.
 
     The legacy table records one row per player per GW (has its own `gw` column)
-    but lacks several columns of the modern contract; those are emitted as
-    typed-null so the downstream schema is identical regardless of layout.
+    and a cumulative `total_points` (confirmed: sums of per-GW `event_points`
+    equal the season-end total). `total_points` is therefore recomputed as the
+    per-GW `event_points` so the shared, discrete-per-GW contract holds across
+    layouts. Several modern columns are absent and emitted as typed-null.
     """
     float_cols = ["now_cost", "form", "ep_next", "ep_this", "selected_by_percent"]
-    int_cols = ["total_points", "bonus", "bps"]
+    int_cols = ["bonus", "bps"]
 
     df = (
         pl.read_csv(path)
@@ -131,6 +150,7 @@ def load_legacy_gw_stats_csv(path: str | Path) -> pl.DataFrame:
             pl.col("gw").cast(pl.Int64),
             *[pl.col(c).cast(pl.Float64) for c in float_cols],
             *[pl.col(c).cast(pl.Int64) for c in int_cols],
+            pl.col("event_points").cast(pl.Int64).alias("total_points"),
         )
     )
     # emit missing contract columns as typed-null; select in canonical order
