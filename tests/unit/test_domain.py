@@ -281,6 +281,20 @@ class TestValidate:
 class TestLiveIntegrationShape:
     """Interface documentation-by-example: the columns optimizers depend on."""
 
+    def test_domain_docstrings_execute(self):
+        """The documented recipe is not aspirational — doctests run in-suite.
+
+        This exercises the module-docstring recipe (express a squad GW total,
+        captain, form transition — each lowered onto the raw store) and fails
+        if the model's documented usage drifts from reality.
+        """
+        import doctest
+
+        import fpl.domain
+
+        results = doctest.testmod(fpl.domain)
+        assert results.failed == 0, results
+
     def test_boundary_adapter_columns(self):
         squad = make_squad()
         p = squad.players[0]

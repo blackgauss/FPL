@@ -46,6 +46,56 @@ applied in place (e.g. squad.codes() -> keyed feature rows -> an aggregate
 vector), never materialising a Player/Squad per row. Those one-directional
 lowering functions belong in the compute/model layer, never in the domain.
 
+Recipe — express "a squad's expected GW points", compute on the raw store.
+The domain names WHAT the program is about; the work happens in the frame
+layer keyed by player_code. Build the team from the store, then lower every
+read onto store data — no per-player conversion loop. (Executed by the test
+suite via tests/unit/test_domain.py::test_domain_docstrings_execute.)
+
+    >>> import polars as pl
+    >>> from fpl.domain import squad_from_frame
+    >>> n = 0
+    >>> rows = []
+    >>> for pos, cnt in [("GKP", 2), ("DEF", 5), ("MID", 5), ("FWD", 3)]:
+    ...     for _ in range(cnt):
+    ...         rows.append({"player_code": 100 + n, "web_name": f"P{n}",
+    ...                      "position": pos, "team_code": 1 + n % 12,
+    ...                      "price_tenths": 50 + (n % 3) * 5})
+    ...         n += 1
+    >>> squad = squad_from_frame(pl.DataFrame(rows), gw=1)
+    >>> squad.codes()[:3]
+    (100, 101, 102)
+    >>> squad.validate()
+    []
+
+    Per-player GW forecast — the model's output, keyed by player_code:
+
+    >>> forecast = pl.DataFrame({
+    ...     "player_code": list(range(100, 115)),
+    ...     "expected_points": [6.0, 5.0, 4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 9.0,
+    ...                         0.5, 4.0, 3.5, 3.0, 2.5, 2.0]})
+
+    Squad GW total — the program reads the domain (`codes`) and evaluates on
+    the store, never materialising a Player per row:
+
+    >>> (forecast
+    ...  .filter(pl.col("player_code").is_in(squad.codes()))
+    ...  .get_column("expected_points").sum())
+    52.0
+
+    Captain = best starter (expression in domain terms + the same store):
+
+    >>> codes = dict(zip(forecast["player_code"].to_list(),
+    ...                  forecast["expected_points"].to_list()))
+    >>> max(squad.starters, key=codes.get)
+    108
+
+    "What if" without mutation — form changes are a NEW value, identity shared:
+
+    >>> moved = squad.players[0].with_state(club=5, cost_tenths=80)
+    >>> moved.identity is squad.players[0].identity and moved.club == 5
+    True
+
 Public/private surface: the public API is exactly the types (PlayerIdentity,
 PlayerState, Player, Squad, Position, POSITION_ORDER, position_sort_key) plus
 the two frame->domain builders (players_from_frame, squad_from_frame).
