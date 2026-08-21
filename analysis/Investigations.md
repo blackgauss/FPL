@@ -59,7 +59,7 @@ Fixes must account for **matchup** (per-position opponent/venue strength) and
 ## Work plan
 
 1. **Scaffold** (this branch): `analysis/` + `experiments/` + this doc.
-2. **Diagnostics** — `notebooks/ModelEnsemblesInvestigation.ipynb` (build:
+2. **Diagnostics** — `analysis/ModelEnsemblesInvestigation.ipynb` (build:
    `python scripts/build_investigation.py`): position baselines, driver-feature
    correlation with realized points, driver collinearity, and the **in-squad
    co-movement check** quantifying the I.I.D. violation (2025-26: same-team

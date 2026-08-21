@@ -1,13 +1,14 @@
-"""Build notebooks/ModelEnsemblesInvestigation.ipynb.
+"""Build analysis/ModelEnsemblesInvestigation.ipynb.
 
-Diagnostics for analysis/Investigations.md, run on the existing polars
-dataset: position baselines, which driver features correlate with realized
-points, driver collinearity, and the in-squad co-movement check that
-quantifies the I.I.D. violation motivating the model-ensembles work.
+The investigation notebook: the model-ensembles narrative (markdown) plus the
+diagnostics (python) in one place — position baselines, driver-feature
+correlation with realized points, driver collinearity, and the in-squad
+co-movement check quantifying the I.I.D. violation.
 
 Pattern mirrors scripts/build_notebook.py: pure Polars against
 data/processed, config-sourced paths, nbformat generation (not executed —
-run `notebooks/ModelEnsemblesInvestigation.ipynb` with Run All).
+run `analysis/ModelEnsemblesInvestigation.ipynb` with Run All). The plain
+markdown lives alongside in analysis/Investigations.md.
 """
 
 from pathlib import Path
@@ -26,22 +27,40 @@ code = nbf.v4.new_code_cell
 
 nb.cells = [
     md(
-        """# Model Ensembles — Investigation Notebook (part 1: diagnostics)
+        """# Model Ensembles — Investigation Notebook
 
-Purpose: quantify the assumptions behind the model-ensembles work
-(`analysis/Investigations.md`).
+The narrative (`analysis/Investigations.md`) and its diagnostics, combined.
+Pure Polars over `data/processed/*_<season>.parquet` (season from
+`config/data.yaml`). Run **Kernel → Restart & Run All**.
 
-1. Per-position realized-points baselines.
-2. Which driver features correlate most with realized points (overall + by
-   position).
-3. Mutual collinearity of the driver features.
-4. **In-squad co-movement**: do squad-mates' points co-move more than random
-   pairs? If yes, per-player forecasts are NOT I.I.D., and summing them (the
-   team-search assumption) accumulates the co-movement — the destructive-
-   interference / catastrophic-collapse risk.
+## Goal
 
-Pure Polars over `data/processed/*_2025-2026.parquet` (change the season in
-`config/data.yaml`). Run **Kernel → Restart & Run All**."""
+Player models per position, each producing **per-player, per-GW predictions**:
+
+    prediction(player) = global(position model) + correction(player)
+
+## Why per-player forecasts are NOT I.I.D.
+
+Team search sums per-player expected totals into a squad score. If individual
+forecasts are treated as independent but realized outcomd co-move within a
+squad, the correlated errors accumulate:
+
+- **Destructive interference / catastrophic collapse** — loading up on one
+  fixture cluster/team double-counts a shared risk; when the shared factor
+  misses, the squad collapses below the sum of its parts.
+- **False diversification** — mean-only scoring over-weights spread across
+  co-moving teammates over a single star.
+
+So we must account for **matchup** (per-position opponent/venue) and
+**within-squad covariance**, and capitalize on **team momentum**. The
+diagnostics below are step 1: measure the co-movement before modelling it.
+
+## Evaluation discipline
+
+The gym (`fpl.gym.Eval`) is the judge, and only as **paired toggles**: fix
+everything, vary one thing (I.I.D. baseline vs covariance-aware, global vs
+global+correction, momentum on/off). The attributable delta of each change is
+the difference between paired runs — never a single gap."""
     ),
     code(
         """from pathlib import Path
@@ -84,8 +103,9 @@ print(f"season={season}  players={players.height}  "
 
 `features.next_points` is the realized points a row predicts. Compare each
 driver's Pearson correlation with it, overall and per position. Form features
-(`pts_avg_5/3`, `prev_points`) are expected to dominate; matchup fields
-(home/opponent elo) should show up per-position."""),
+(`pts_avg_5/3`, `prev_points`) should dominate; matchup fields (home/opponent
+elo) should show up per-position. This informs the per-player *correction*
+and the per-position matchup terms."""),
     code(
         """f = features.join(players.select("player_code", "position"), on="player_code")
 ff = f.with_columns(pl.col("was_home").cast(pl.Float64))
@@ -118,8 +138,7 @@ print(by_position.pivot(index="position", on="feature", values="r"))"""
     md("""## 3. Mutual collinearity of the drivers
 
 Correlated drivers (form fields especially) mean a global model allocates
-credit incorrectly; per-player correction must be careful not to double-count
-them."""),
+credit incorrectly; per-player corrections must not double-count them."""),
     code(
         """pl.DataFrame({a: [float(ff.select(pl.corr(a, b)).item()) for b in drivers]
                     for a in drivers})"""
@@ -128,9 +147,9 @@ them."""),
 
 For each pair of squad-mates (same club) with enough gameweeks, Pearson
 correlate their per-GW point series across the season; compare with random
-cross-team pairs (size-matched). If same-team mean r >> cross-team mean r,
+cross-team pairs (size-matched). Same-team mean r >> cross-team mean r ⇒
 teammates co-move far beyond independent draws — the squad-scoring sum then
-accumulates shared (not independent) risk, the core motivation."""),
+accumulates shared risk, the core motivation for covariance-aware models."""),
     code(
         """pr = (gw_stats
       .join(players.select("player_id", "player_code"), on="player_id")
@@ -186,19 +205,21 @@ print(f"=> teammates co-move {same_m / cross_m:.1f}x the random baseline "
     ),
     md("""## Takeaways → next steps
 
-- Expect position-specific models: baselines differ per position (§1).
+- Position-specific models are justified: baselines differ per position (§1).
 - Form dominates realized points (§2); form fields are mutually collinear (§3)
-  — corrections need to avoid double-counting.
+  — corrections must avoid double-counting them.
 - **§4 is the crux**: teammates' points co-move ~17× random pairs in 2025-26.
-  Any per-player model summed into a squad score must either (a) carry the
-  within-team correlation (e.g. team-latent factor / hierarchical player plus
-  team offsets) or (b) be evaluated through the gym as a paired toggle so the
-  co-movement's cost is measured — see `analysis/Investigations.md` and the
-  `experiments/` folder."""
+  Per-player models summed into squad scores must carry the within-team
+  correlation (team-latent factor / hierarchical player + team offsets) or be
+  judged through the gym as a paired toggle so the co-movement's real cost is
+  measured.
+
+Open design questions and the work plan live in `analysis/Investigations.md`;
+runnable model-variant comparisons land in `experiments/`."""
     ),
 ]
 
-out = Path(__file__).resolve().parents[1] / "notebooks" / "ModelEnsemblesInvestigation.ipynb"
+out = Path(__file__).resolve().parents[1] / "analysis" / "ModelEnsemblesInvestigation.ipynb"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(nbf.writes(nb), encoding="utf-8")
 print(f"wrote {out}")
