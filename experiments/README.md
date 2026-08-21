@@ -121,6 +121,10 @@ verbatim into the artifact and surfaced by `compare_experiments.py`.
 
 ## Infra profiling
 
+Focused, project-specific guidance on how to profile this codebase is in
+[`docs/Profiling.md`](../docs/Profiling.md) — quickstart, the two APIs, the
+JSON report schema, and which workflow to use when.
+
 `fpl.profiling` makes any workload observable with stdlib cProfile:
 
 - `time_phases(...)` - labelled wall-clock per stage.
