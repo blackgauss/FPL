@@ -6,11 +6,22 @@ who transferred clubs moves in the pool (so `max_per_club` uses their current
 club), a player no longer in the live roster (transferred abroad, de-listed,
 retired) drops out, and injured/suspended players are excluded — all before
 scoring/filtering/enumeration runs.
+
+Two modes use the same rules:
+  * frame mode (construction_input) — adjusts a scored *pool* before
+    filtering/enumeration, the integer-code layer.
+  * typed mode (players_to_replace) — speaks in Squad/Player (fpl.domain):
+    which players a candidate team must swap, with reasons. This is the
+    action-side of fpl.live.filters.flag_squad (report) and the input the
+    weekly transfer step consumes.
 """
 
 from __future__ import annotations
 
 import polars as pl
+
+from fpl.domain import Squad
+from fpl.live.filters import suggest
 
 
 def reconcile_player_clubs(
@@ -60,3 +71,39 @@ def construction_input(
     out = reconcile_player_clubs(scored, live)
     out = reconcile_availability(out, live, live_mask)
     return out
+
+
+def players_to_replace(
+    squad: Squad,
+    live: pl.DataFrame,
+    mask: pl.Series | None = None,
+) -> dict[int, str]:
+    """Which Squad players must be swapped before the next GW, code -> reason.
+
+    The typed action-side of the reconcile rules: a player goes when they are
+    absent from the live roster (missing/transferred out of FPL) or excluded
+    by the availability mask (default suggest(): injured/suspended/unavailable,
+    below the chance-of-playing bar, or not selectable). Players who are
+    present and playable are absent from the returned dict.
+
+    `mask` defaults to fpl.live.filters.suggest(live) — the same rule
+    construction_input applies to the pool, expressed on a Squad so the weekly
+    transfer optimizer knows exactly who to replace and why.
+    """
+    mask = mask if mask is not None else suggest(live)
+    live_status = {
+        code: status
+        for code, status in live.select("player_code", "status").iter_rows()
+    }
+    playable = set(live.filter(mask).get_column("player_code").to_list())
+    reasons: dict[int, str] = {}
+    for p in squad.players:
+        if p.code not in live_status:
+            reasons[p.code] = "NOT IN LIVE ROSTER (missing/transferred out)"
+        elif p.code not in playable:
+            status = live_status[p.code]
+            if status in ("i", "s", "u", "n"):
+                reasons[p.code] = f"UNAVAILABLE[{status}]"
+            else:
+                reasons[p.code] = "below availability bar"
+    return reasons

@@ -83,6 +83,7 @@ driver; each step logs its metadata so the season history is auditable.
 team-search basket  ──►  Squad
 forecast (h2h/dist) ──►  per-player per-GW distribution
 live reconcile      ──►  candidate transfer pool (current clubs / availability)
+live state          ──►  players_to_replace(squad, live)  → who must be swapped
 captain optimizer   ──►  (captain, vice)
 transfer optimizer  ──►  (out, in) + updated Squad
 plan_horizon        ──►  list[Squad snapshot] over upcoming GWs
