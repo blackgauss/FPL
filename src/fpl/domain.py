@@ -36,6 +36,16 @@ do NOT subclass them — compose them, exactly as Player is composed from
 Identity+State and Squad is composed from Players + configuration. The core
 types stay final; richer objects own them as fields.
 
+Computation contract — the domain is for EXPRESSION, not execution: no
+algorithm loops over these value objects to do work. Bulk computation stays
+in the frame layer (score/filter/enumerate/simulate/model), keyed on
+player_code/gw over the feature store. When a program STARTS from domain
+objects (squad-level scoring, weekly optimizers), lower it as a RECIPE over
+the raw store — the domain constructs translate to polars/array operations
+applied in place (e.g. squad.codes() -> keyed feature rows -> an aggregate
+vector), never materialising a Player/Squad per row. Those one-directional
+lowering functions belong in the compute/model layer, never in the domain.
+
 Public/private surface: the public API is exactly the types (PlayerIdentity,
 PlayerState, Player, Squad, Position, POSITION_ORDER, position_sort_key) plus
 the two frame->domain builders (players_from_frame, squad_from_frame).
