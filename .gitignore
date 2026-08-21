@@ -1,0 +1,18 @@
+# External data (repo clones, downloaded datasets)
+external/
+
+# Data snapshots and processed outputs (project-root data/ only)
+/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
