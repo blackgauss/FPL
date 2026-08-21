@@ -87,6 +87,16 @@ class TestRunExperiment:
     def test_registry_has_core_models(self):
         assert {"lgbm", "hist_gb", "ridge"} <= set(REGISTRY)
 
+    def test_deterministic_across_runs(self, pairs):
+        # fair comparison requires reproducibility: identical inputs -> same
+        # metrics. (hist_gb was nondeterministic until random_state was set.)
+        train, fit = pairs
+        a = run_experiment(train, fit, name="a", model="hist_gb",
+                           fit_gw_max=2, test_gw_min=3)
+        b = run_experiment(train, fit, name="b", model="hist_gb",
+                           fit_gw_max=2, test_gw_min=3)
+        assert a.mae == b.mae and a.rmse == b.rmse
+
     def test_test_min_equal_fit_max_is_leak_and_errors(self, pairs):
         # overlapping windows must be rejected early
         train, fit = pairs

@@ -49,11 +49,12 @@ def model_and_td(tmp_path_factory):
 
 def test_predicts_target_gameweek_rows_only(model_and_td):
     # gw=3 rows have target == points of GW4 (shift semantics).
-    # expected_points(gw=4) must predict on rows where gw == 3.
+    # expected_points(gw=4) must predict on source rows where gw == 3, and
+    # the report's `gw` column labels the predicted gameweek (4).
     model, td, players = model_and_td
     rep = expected_points(td, model, gw=4, players=players)
-    assert set(rep.get_column("gw")) == {3}  # source rows are gw-1
-    assert rep.height == 2  # both players have a gw=3 row
+    assert set(rep.get_column("gw")) == {4}  # predicted gameweek, not source
+    assert rep.height == 2  # both players have a gw=3 source row
     assert "expected_points" in rep.columns
 
 
@@ -63,6 +64,18 @@ def test_code_filter_restricts(model_and_td):
                           code_filter=[223094])
     assert rep.height == 1
     assert rep.get_column("player_code").item() == 223094
+
+
+def test_horizon_across_two_gameweeks(model_and_td):
+    from fpl.model.inference import expected_points_horizon
+
+    model, td, players = model_and_td
+    rep = expected_points_horizon(td, model, gw_start=3, gw_end=4,
+                                  players=players)
+    # gw=3 uses source rows gw-1=2; gw=4 uses source rows gw-1=3
+    assert set(rep.get_column("gw")) == {3, 4}
+    assert rep.height == 4
+    assert sorted(rep.get_column("gw").unique()) == [3, 4]
 
 
 def test_missing_gw_raises(model_and_td):

@@ -16,7 +16,7 @@ import polars as pl
 from fpl.model.eval import baseline_mean, summarize
 from fpl.model.inference import save_model
 from fpl.model.leakage import validate
-from fpl.model.train import assemble
+from fpl.model.train import load_training
 
 SEASONS = ["2024-2025", "2025-2026"]
 FIT_GWS = (1, 30)
@@ -26,14 +26,8 @@ TEST_GWS = (31, 38)
 def main() -> None:
     processed = "data/processed"
 
-    train_parts = []
-    for season in SEASONS:
-        feat = pl.read_parquet(f"{processed}/features_{season}.parquet")
-        players = pl.read_parquet(f"{processed}/players_{season}.parquet")
-        gw_stats = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
-        train_parts.append(assemble(feat, players, gw_stats, season))
-
-    train_data, fit_data = train_parts
+    by_season = load_training(processed, SEASONS)
+    train_data, fit_data = by_season[SEASONS[0]], by_season[SEASONS[1]]
 
     # leakage gate (journal "Data" section): run before any fitting
     validate(

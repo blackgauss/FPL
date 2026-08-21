@@ -38,7 +38,7 @@ def _hist_gb(params: dict):
 
     def make(X, y, categorical=None):
         cfg = {"max_iter": 300, "learning_rate": 0.05, "max_leaf_nodes": 63,
-               "min_samples_leaf": 20}
+               "min_samples_leaf": 20, "random_state": 0}
         cfg.update(params)
         return HistGradientBoostingRegressor(**cfg).fit(X, y).predict
 

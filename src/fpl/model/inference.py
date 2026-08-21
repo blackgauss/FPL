@@ -83,32 +83,42 @@ def load_model(path: str | Path):
     return SERIALIZERS[key][1](path)
 
 
-def expected_points(
+def expected_points_horizon(
     td,
     model,
     *,
-    gw: int,
+    gw_start: int,
+    gw_end: int,
     players: pl.DataFrame,
     code_filter: list[int] | None = None,
 ) -> pl.DataFrame:
-    """Predict next-GW points for the gameweek `gw`.
+    """Expected points for gameweeks [gw_start, gw_end], one row per player-GW.
 
-    `td` is a TrainingData whose rows have `gw` values; we predict on the rows
-    with gw == gw-1 (their target IS gw's points). `players` carries names for
-    the report; `code_filter` optionally restricts to a list of player codes.
-
-    Returns: (player_code, web_name, team, position, gw, expected_points).
+    Row semantics: the feature-store row at gw=k predicts points in gw=k+1, so
+    gameweek G uses rows where gw == G-1. `code_filter` restricts player_codes.
+    Returns (player_code, web_name, position, team_code, gw, expected_points).
     """
-    mask = td.gw == (gw - 1)
-    if mask.sum() == 0:
-        raise ValueError(
-            f"no feature rows for gw={gw} (need training rows at gw={gw - 1})")
+    rows = []
+    for gw in range(gw_start, gw_end + 1):
+        source_gw = gw - 1
+        mask = td.gw == source_gw
+        if mask.sum() == 0:
+            continue  # no data for this GW (e.g. beyond a season's end)
+        pred = np.asarray(model.predict(td.X[mask])).round(3)
+        meta = td.meta.filter(pl.col("gw") == source_gw)
+        frame = (
+            meta.with_columns(pl.Series("expected_points", pred))
+            .with_columns(pl.lit(gw).alias("gw"))
+        )
+        rows.append(frame)
 
-    pred = np.asarray(model.predict(td.X[mask])).round(3)
-    meta = td.meta.filter(pl.col("gw") == (gw - 1),)
+    if not rows:
+        raise ValueError(
+            f"no feature rows for gameweeks {gw_start}..{gw_end} "
+            f"(need rows at gw-1 for each)")
 
     report = (
-        meta.with_columns(pl.Series("expected_points", pred))
+        pl.concat(rows)
         .join(
             players.select("player_id", "player_code", "web_name", "position",
                            "team_code"),
@@ -120,7 +130,29 @@ def expected_points(
     )
     if code_filter is not None:
         report = report.filter(pl.col("player_code").is_in(code_filter))
-    return report.sort("expected_points", descending=True)
+    return report.sort(["gw", "expected_points"], descending=[False, True])
+
+
+def expected_points(
+    td,
+    model,
+    *,
+    gw: int,
+    players: pl.DataFrame,
+    code_filter: list[int] | None = None,
+) -> pl.DataFrame:
+    """Predict next-GW points for the single gameweek `gw`.
+
+    `td` is a TrainingData whose rows have `gw` values; we predict on the rows
+    with gw == gw-1 (their target IS gw's points). `players` carries names for
+    the report; `code_filter` optionally restricts to a list of player codes.
+
+    Returns: (player_code, web_name, team, position, gw, expected_points).
+    """
+    return expected_points_horizon(
+        td, model, gw_start=gw, gw_end=gw,
+        players=players, code_filter=code_filter,
+    )
 
 
 # (serializers defined above; module ends cleanly after load_model)

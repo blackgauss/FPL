@@ -12,6 +12,7 @@ an explicit `had_match` flag — absence of a match is itself signal (0 points).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import polars as pl
@@ -33,6 +34,27 @@ class TrainingData:
     feature_names: list[str]
     categorical: list[int]    # column indices LightGBM should treat as categorical
     meta: pl.DataFrame        # (player_id, gw, season) per row for later joins
+
+
+def load_training(processed: str | Path, seasons: list[str],
+                  feature_columns: list[str] | None = None,
+                  players: dict[str, pl.DataFrame] | None = None
+                  ) -> dict[str, TrainingData]:
+    """Read the feature store for each season and assemble a TrainingData.
+
+    `processed` is data/processed (per config), `seasons` a list of labels.
+    Returns {season: TrainingData}. This is the single read path for training,
+    experiments, and serving — scripts should not hand-roll the 3-file load.
+    """
+    result: dict[str, TrainingData] = {}
+    for season in seasons:
+        feat = pl.read_parquet(f"{processed}/features_{season}.parquet")
+        gw_stats = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
+        plr = players[season] if players is not None else \
+            pl.read_parquet(f"{processed}/players_{season}.parquet")
+        result[season] = assemble(feat, plr, gw_stats, season,
+                                  feature_columns=feature_columns)
+    return result
 
 
 def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,

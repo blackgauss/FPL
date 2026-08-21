@@ -11,11 +11,10 @@ from __future__ import annotations
 
 import argparse
 
-import polars as pl
 import yaml
 
 from fpl.model.experiment import print_results, run_experiment
-from fpl.model.train import assemble
+from fpl.model.train import load_training
 
 
 def main() -> None:
@@ -31,20 +30,11 @@ def main() -> None:
     test_gw_min = spec.get("test_gw_min", 31)
     root = "data/processed"
 
-    seasons_data = {}
-    for season in seasons:
-        feat = pl.read_parquet(f"{root}/features_{season}.parquet")
-        players = pl.read_parquet(f"{root}/players_{season}.parquet")
-        gw = pl.read_parquet(f"{root}/gw_stats_{season}.parquet")
-        seasons_data[season] = (feat, players, gw)
-
     results = []
     for name, exp in spec["experiments"].items():
         feats = exp.get("features")  # None => full set
-        train, fit = (
-            assemble(*seasons_data[s], s, feature_columns=feats)
-            for s in seasons
-        )
+        by_season = load_training(root, seasons, feature_columns=feats)
+        train, fit = by_season[seasons[0]], by_season[seasons[-1]]
         results.append(run_experiment(
             train, fit, name=name, model=exp["model"], params=exp.get("params"),
             fit_gw_max=fit_gw_max, test_gw_min=test_gw_min,
