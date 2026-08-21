@@ -17,8 +17,10 @@ Canonical schemas (the contract):
     match_stats: player_id Int64, match_id str, minutes_played Float64,
                  goals/assists/xg/xa Float64
     matches:     match_id str, gw Int64, kickoff_time str, home_team/away_team Int64
-                 (team codes), home_score/away_score Int64|null, tournament str,
+                 (team codes), home_score/away_score Int64|null,
+                 home_team_elo/away_team_elo Float64|null, tournament str,
                  finished bool
+    team_history: player_id Int64, gw Int64, team_code Int64 (club per GW)
 """
 
 from __future__ import annotations
