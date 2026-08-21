@@ -158,7 +158,7 @@ def run_experiment(
         forecast = normalize_forecast(cache.cached_forecast(
             lambda: _source_forecast(td_gym, predict, gw_start=gw_start,
                                      gw_end=gw_end),
-            key=fit_key + (gw_start, gw_end)), kind="point")
+            key=fit_key + (season_gym, gw_start, gw_end)), kind="point")
         pack = candidate_squads(
             processed=processed, season=season_gym, gw_start=gw_start,
             gw_end=gw_end, model=model, n_teams=gym_cfg.get("n_teams", 4),

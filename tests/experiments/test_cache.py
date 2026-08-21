@@ -55,6 +55,17 @@ def test_fit_cache_reuses_predict():
     assert counts["fit_calls"] == 2 and counts["fit_hits"] == 1
 
 
+def test_forecast_keys_separated_by_season():
+    # the run-level fix: forecast cache keys include the gym season so two
+    # (fit, window) forecasts on different seasons never collide
+    cache.reset_experiment_cache()
+    a = cache.cached_forecast(lambda: "A", key=("fit-1", "2025-2026", 31, 33))
+    b = cache.cached_forecast(lambda: "B", key=("fit-1", "2024-2025", 31, 33))
+    assert a == "A" and b == "B"
+    counts = cache.cache_counts()
+    assert counts["forecast_calls"] == 2 and counts["forecast_hits"] == 0
+
+
 def test_reset_clears_state():
     cache.cached_fit(lambda: lambda x: 0, key=("k",))
     cache.cached_training(lambda: {}, processed="p", seasons=("s",),
