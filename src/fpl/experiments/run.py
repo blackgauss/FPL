@@ -13,6 +13,7 @@ from dataclasses import replace
 import numpy as np
 import polars as pl
 
+from fpl.experiments import cache
 from fpl.experiments.candidates import candidate_squads
 from fpl.experiments.cohorts import cohort_masks
 from fpl.experiments.forecast import normalize_forecast
@@ -86,15 +87,26 @@ def run_experiment(
             "`features` + `gym` is not supported (candidate scoring uses the "
             "default set)")
 
-    by_season = load_training(processed, seasons, feature_columns=feats,
-                              categorical_columns=cats)
+    by_season = cache.cached_training(
+        lambda: load_training(processed, seasons, feature_columns=feats,
+                              categorical_columns=cats),
+        processed=processed, seasons=tuple(seasons),
+        features=tuple(feats) if feats else None,
+        categorical=tuple(cats) if cats else None)
     train_data, fit_data = by_season[seasons[0]], by_season[seasons[-1]]
     masks = source_masks(split, fit_data.gw)
 
     x_train = np.vstack([train_data.X, fit_data.X[masks["train"]]])
     y_train = np.concatenate([train_data.y, fit_data.y[masks["train"]]])
-    predict = REGISTRY[model_name](params)(
-        x_train, y_train, train_data.categorical)
+    fit_key = cache.fit_cache_key(
+        processed=processed, seasons=tuple(seasons),
+        fit_gw_max=split.fit_gw_max, model=model_name, params=params,
+        features=tuple(feats) if feats else None,
+        categorical=tuple(cats) if cats else None)
+    predict = cache.cached_fit(
+        lambda: REGISTRY[model_name](params)(
+            x_train, y_train, train_data.categorical),
+        key=fit_key)
     model = _AsModel(predict)
 
     pred = predict(fit_data.X[masks["test"]])

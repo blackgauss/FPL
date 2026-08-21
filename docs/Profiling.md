@@ -7,6 +7,8 @@ inference, the declared-run experiment harness, and candidate search).
 Everything is stdlib `cProfile` + `pstats` behind `fpl.profiling` — no new
 dependencies, and the output is agent/MCP-friendly JSON.
 
+Latest findings and what's been fixed: [`docs/PerformanceDiagnostics.md`](PerformanceDiagnostics.md).
+
 ## Quickstart (read this first)
 
 ```bash
