@@ -60,6 +60,28 @@ Moving data around less is mostly a solved problem at our layer:
 Measured: assemble ~0.02s, vstack copy ~0.26ms for a few hundred rows — so
 even the avoided copies are small; the win is skipping LightGBM itself.
 
+## Rounds lever (profiled) — the cheap win
+
+Reproduce: `python scripts/rounds_sensitivity.py` (writes
+`experiments/artifacts/profile/rounds_sensitivity.json`, gitignored).
+
+Sweep on the same split (learning_rate 0.05, 63 leaves); timings are
+machine-load dependent (earlier clean run: ~26ms/round), so read the
+QUALITY knee and scale time linearly:
+
+| rounds | mae | top10_mae | spearman | rank_topk |
+|---|---|---|---|---|
+| 25 | 1.115 | 2.80 | **0.704** | 0.355 |
+| 50 | 1.028 | 2.97 | **0.705** | 0.346 |
+| **100** | **1.001** | 3.05 | 0.683 | **0.355** |
+| 200 | 1.009 | 3.11 | 0.680 | 0.343 |
+
+- **100 rounds is the knee**: best bulk MAE, ~half the training time of 200.
+- 200 adds nothing (marginal overfit); 25–50 give better ranking/top10 but
+  pay ~0.1 MAE.
+- Guidance: default experiments at ~100 rounds; exploration at ~50; reserve
+  200 for final calibrations.
+
 ## Inefficiencies found and addressed
 
 1. **The inference profile was re-fitting.** The diagnostic's "inference"
