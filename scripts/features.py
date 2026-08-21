@@ -33,8 +33,7 @@ def main() -> None:
         gw_stats = pl.read_parquet(root / f"gw_stats_{season}.parquet")
         team_history = pl.read_parquet(root / f"team_history_{season}.parquet")
         matches = pl.read_parquet(root / f"matches_{season}.parquet")
-        teams = pl.read_parquet(root / f"teams_{season}.parquet")
-        features = build_features(gw_stats, team_history, matches, teams)
+        features = build_features(gw_stats, team_history, matches)
         out = root / f"features_{season}.parquet"
         features.write_parquet(out)
         print(f"{out}: {features.height} rows")

@@ -13,8 +13,9 @@ Produced features (per player_id, gw, season):
     opponent_elo       opponent's elo at kickoff (from matches)
     home_elo           player's club's elo that GW
     prev_points        total_points of previous GW (shift 1)
-    pts_avg_3          mean points over the previous 3 GWs (null < 3 played)
-    pts_avg_5          mean points over the previous 5 GWs (null < 5 played)
+    pts_avg_3          mean points over previous GWs, window 3 (from the very
+                       first available previous GW — no waiting period)
+    pts_avg_5          mean points over previous GWs, window 5 (same)
     next_points        TARGET — next GW total_points (shift -1); null on the
                        final GW (not part of training)
 
@@ -32,7 +33,6 @@ def build_features(
     gw_stats: pl.DataFrame,
     team_history: pl.DataFrame,
     matches: pl.DataFrame,
-    teams: pl.DataFrame,
 ) -> pl.DataFrame:
     """Return one feature row per (player_id, gw) for a single season."""
     prem = matches.filter(pl.col("tournament") == "prem")
