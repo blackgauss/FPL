@@ -58,7 +58,6 @@ def main() -> None:
     # warm the lazy heavy imports BEFORE the worker pool so parallel arms do
     # not race a circular-importing first `import lightgbm` / scipy
     import lightgbm  # noqa: F401
-
     from scipy import stats  # noqa: F401  (used by metrics.spearman)
 
     if args.season_start:
