@@ -144,7 +144,7 @@ def build_season_tree(base: Path, season: str = "2025-2026") -> Path:
 
 LEGACY_PLAYERSTATS_CSV = """id,gw,status,total_points,event_points,bonus,bps,now_cost,form,ep_next,ep_this,selected_by_percent
 430,1,a,13,13,2,35,15.0,5.0,5.5,5.5,73.0
-430,2,a,2,2,0,10,14.1,3.5,8.0,7.0,70.0
+430,2,a,15,2,0,10,14.1,3.5,8.0,7.0,70.0
 239,1,a,9,9,3,30,11.0,4.0,4.5,4.5,50.0
 """
 

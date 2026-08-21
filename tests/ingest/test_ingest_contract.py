@@ -293,6 +293,15 @@ class TestLegacyLayout:
         )
         assert row.get_column("total_points").item() == 13
 
+    def test_legacy_points_are_discrete_not_cumulative(self, legacy):
+        # legacy playerstats total_points is CUMULATIVE (row for 430 GW2 = 15);
+        # the loader must emit discrete per-GW event_points (2), matching the
+        # modern contract. Guard against the cumulative-total trap.
+        row = legacy["gw_stats"].filter(
+            (pl.col("player_id") == 430) & (pl.col("gw") == 2)
+        )
+        assert row.get_column("total_points").item() == 2
+
     def test_legacy_matches_default_prem(self, legacy):
         assert set(legacy["matches"].get_column("tournament")) == {"prem"}
 

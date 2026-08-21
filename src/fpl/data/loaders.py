@@ -119,11 +119,13 @@ def load_legacy_gw_stats_csv(path: str | Path) -> pl.DataFrame:
     """Load legacy (2024-25) long-table playerstats.csv into the shared gw_stats schema.
 
     The legacy table records one row per player per GW (has its own `gw` column)
-    but lacks several columns of the modern contract; those are emitted as
-    typed-null so the downstream schema is identical regardless of layout.
+    and a cumulative `total_points` (confirmed: sums of per-GW `event_points`
+    equal the season-end total). `total_points` is therefore recomputed as the
+    per-GW `event_points` so the shared, discrete-per-GW contract holds across
+    layouts. Several modern columns are absent and emitted as typed-null.
     """
     float_cols = ["now_cost", "form", "ep_next", "ep_this", "selected_by_percent"]
-    int_cols = ["total_points", "bonus", "bps"]
+    int_cols = ["bonus", "bps"]
 
     df = (
         pl.read_csv(path)
@@ -133,6 +135,7 @@ def load_legacy_gw_stats_csv(path: str | Path) -> pl.DataFrame:
             pl.col("gw").cast(pl.Int64),
             *[pl.col(c).cast(pl.Float64) for c in float_cols],
             *[pl.col(c).cast(pl.Int64) for c in int_cols],
+            pl.col("event_points").cast(pl.Int64).alias("total_points"),
         )
     )
     # emit missing contract columns as typed-null; select in canonical order
