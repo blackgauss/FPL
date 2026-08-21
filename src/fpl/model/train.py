@@ -38,6 +38,7 @@ class TrainingData:
 
 def load_training(processed: str | Path, seasons: list[str],
                   feature_columns: list[str] | None = None,
+                  categorical_columns: list[str] | None = None,
                   players: dict[str, pl.DataFrame] | None = None,
                   require_target: bool = True,
                   ) -> dict[str, TrainingData]:
@@ -46,9 +47,10 @@ def load_training(processed: str | Path, seasons: list[str],
     `processed` is data/processed (per config), `seasons` a list of labels.
     Returns {season: TrainingData}. This is the single read path for training,
     experiments, and serving — scripts should not hand-roll the 3-file load.
-    `require_target=False` keeps rows without a next-points label (used for
-    scoring a season-start / pre-season window where the target doesn't exist
-    yet).
+    `feature_columns`/`categorical_columns` select the model's feature set
+    (ablations, experiments); `require_target=False` keeps rows without a
+    next-points label (used for scoring a season-start / pre-season window
+    where the target doesn't exist yet).
     """
     result: dict[str, TrainingData] = {}
     for season in seasons:
@@ -58,6 +60,7 @@ def load_training(processed: str | Path, seasons: list[str],
             pl.read_parquet(f"{processed}/players_{season}.parquet")
         result[season] = assemble(feat, plr, gw_stats, season,
                                   feature_columns=feature_columns,
+                                  categorical_columns=categorical_columns,
                                   require_target=require_target)
     return result
 
@@ -65,6 +68,7 @@ def load_training(processed: str | Path, seasons: list[str],
 def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
              season: str | None = None,
              feature_columns: list[str] | None = None,
+             categorical_columns: list[str] | None = None,
              require_target: bool = True) -> TrainingData:
     """Prepare a model-ready matrix from feature-store + player + gw_stats rows.
 
@@ -78,6 +82,8 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
     """
     if feature_columns is None:
         feature_columns = FEATURE_COLUMNS
+    cat_cols = CATEGORY_COLUMNS if categorical_columns is None \
+        else categorical_columns
     # join player position on the stable cross-season code
     df = df.join(
         players.select("player_code", "position"),
@@ -110,7 +116,7 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
     if require_target:
         df = df.filter(pl.col("next_points").is_not_null())
 
-    cat_selected = [c for c in CATEGORY_COLUMNS if c in feature_columns]
+    cat_selected = [c for c in cat_cols if c in feature_columns]
     X = df.select(feature_columns).with_columns(
         # encode string categoricals into int codes; team_code is already int
         *[pl.col(c).cast(pl.Categorical).to_physical() if df.schema[c] == pl.String
