@@ -87,13 +87,17 @@ There's some care to be taken in how to do this so it makes sense but i also thi
 #### Captain
 
 
-### Transfers
+#### Transfers
 
+
+### Squad Priority
+I wonder how to model substitutions. Probably an easy way is to just have decaying weights in order of priority and also maybe have a simple probability of player. But these are probably same thing. what we really what is probability of playing and also probability of being in my first team and maybe even probability of being captain?
 
 ### Observability
 Another important lesson from industry work is that ML projects be extremely observable across their entire lifecycle. We need some kind of way for each model to capture what its training data was, what it's experiment lifecycle was like, etc but this is a lot of data and we need to get a minimal working thing first. mainly anything needed for documenting experiments almost like a model registry or something.
 
 ## Some SWE Considerations
+### Domain Modeling
 As I vibe-code this 0-1 software. I am reminded of domain modeling and its importance. We did not start with a domain model but we should have. I have since added some basic entities. I think for these we should be clear about what data an entity has that is immutable and what is mutable. And also strongly type and make clear what is public or private.
 
 Okay so what we want from our domain models is really to make the expression of programs easier to reason about. We don't actually want the computation to happen rigidily within the domain model. We want performance. So we should be able to have translations or converters into things like arrays or row-based formats from our models so we can read data to abstraction. But I think it'd be even cooler if we can just use the abstract programs to create recipes that can be applied directly to the raw data so we dont have to move data through. It's really the ease of expression of algorithms that the domain model will provide.
@@ -101,3 +105,32 @@ Okay so what we want from our domain models is really to make the expression of 
 I guess ultimately we want something like a tensor flow where we can specify computation graphs quickly that are compatible with our domain model so all of its rigid structure is carried by the domain model and doesnt have to be reimplemented everytime. It doesn't have to reinvent the wheel just be compatible with the wheel.
 
 We want to design in our model but execute in a well maintained computational framework (JAX, numpy, scikitlearn, etc).
+
+Anything rigid or not subject to change in the FPL rules should be reflected in the domain model. But it also needs to have its respective implementation for the array translation and so on.
+
+### How to specify algorithms
+#### Multi Week Planning
+We want our models to be able to plan and reason through the consequences of choosing a certain squad. It reminds me a bit of the AlphaGo planning situation but we dont need that example. I mean more just like a way to say okay, if we choose this squad what can happen? Like what transfer paths and captain paths are available. We need a way to incorporate this into the Squad score when comparing.
+
+We need to set up a gym first. At this point, it is assumed our domain model is made. We should be able to taken chosen squad at a certain game week and replay how what happened in the next few weeks. This will allows us to test our baseline model predictions and how htey interact with the unlearned features of captains, transfers, and who plays. Once we have this gym it will act as our evaluation on actual squads. Later we can model probability of playing and so on and then ad captain and transfer models.
+
+I wonder if it is work abstracting the gym to make it very rigid and explicity what it needs to run an eval. I guess its better to say what an eval is. Observability will come back here because that is what will tell us more qualitative information about our model and its performance which will allow rapid iteration.
+
+
+### Model Ensembles
+We will need player models for each position. These will be responsible for per player predictions (something like global model + correction per player). It is very important we account for matchup and covariance within squad. Our player models cannot assume I.I.D. because it will cause catastrophic collapse in our teams if we have destructive interference. ALso we want ot be able to capitilize on team momentum. We should really do an analysis (which our infra shoould support) on which fields are most correlated among players and then determine what we should do to account for this. We need an analysis and experiments folder where we will have our investigations document.
+
+What we need is some kind of feature that lets a model know how to adjust. There is probably a common one that doesn't need as much player-player interaciton that can be captured in team matchup. So when we make a squad we need to take into account the covariance among teamate as well as the fact that some players are competing against eachother. Probably not a big deal for attackers but mixing attackers and defneders likely has diffferent outcome. How do we account for this in features?
+
+# August 21, 2026
+It is now only a few hours until the first match. We have some skeleton of tooling but the code has gotten a bit disorganized in the final push so I am request a refactor to stay aligned with our design goals
+
+## On Model Performance
+I think it is good break down performance into different dimensions. For example it is well known to consider ranking seperately from calibration. If we are giving player scores, its one type of performance to correctly order (rank) players by their score. But the model could be miscalibrated. But a good ranking model can still be useful for selecting a top candidate when we don't need to know exact points.
+
+In the spiring of having observability we should choose some metrics which evaluate the ranking and calibration respectively.
+
+## On Comparing two models
+Given a fixed data set [t | X | y] with t timestamps, X features, and y label we want to standardize the evaluation setup. The timestamps are important because they establish a causal ordering on data. That means you should not use anything from the future to predict the past (leakage). The labels are used to understand the ranking and calibration. But the features shouldn't matter so much if it is clear that the function being passed can properly ingest it. Because we are comparing functions. Would it be fun to make a model evalation framework in rust specifically for FPL? But why rust? Well actually we should understand where Python introduces delay. I think it's mainly that we want 0 cost abstraction. Also I think the baseline should at least be whatever the best linear function of X to approximate y is.
+
+This reminds me that not only our modeling should be observable but also our infa. We need to know where time time is being spent. is it on data prep, model training, inference and comparison, etc? 
