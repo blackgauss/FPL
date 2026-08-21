@@ -26,7 +26,8 @@ def _lgbm(params: dict):
         cfg = {"objective": "regression", "metric": "mae", "learning_rate": 0.05,
                "num_leaves": 63, "min_child_samples": 20, "verbosity": -1}
         cfg.update(params)
-        fitted = lgb.train(cfg, ds, num_boost_round=200)
+        num_round = cfg.pop("num_boost_round", 200)
+        fitted = lgb.train(cfg, ds, num_boost_round=num_round)
         return fitted.predict
 
     return make
@@ -81,14 +82,14 @@ def run_experiment(
     name: str,
     model: str,
     params: dict | None = None,
-    feature_columns: list[str] | None = None,
     fit_gw_max: int,
     test_gw_min: int,
 ) -> ExperimentResult:
     """Fit on (train_data + fit_data rows with gw <= fit_gw_max), score on the
     held-out fit_data slice with gw >= test_gw_min. No leakage: test strictly
-    follows fit. `train_data`/`fit_data` are TrainingData objects; they must
-    share the same feature schema (feature subset is applied beforehand)."""
+    follows fit. `train_data`/`fit_data` are TrainingData objects; the feature
+    schema (a subset if ablated) is baked in already and read back from
+    `train_data.feature_names` for the report."""
     if model not in REGISTRY:
         raise ValueError(f"unknown model {model!r}; registry={sorted(REGISTRY)}")
 
@@ -112,7 +113,7 @@ def run_experiment(
     return ExperimentResult(
         name=name,
         model=model,
-        features=feature_columns or [],
+        features=list(train_data.feature_names),
         mae=float(np.abs(resid).mean()),
         rmse=float(np.sqrt(np.mean(resid**2))),
         fit_gw_max=fit_gw_max,

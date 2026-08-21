@@ -64,11 +64,12 @@ src/fpl/model/leakage.py    pre-training leakage gates
 `scripts/run_experiments.py` scores them all on the shared held-out window
 (GW 31..38 of 2025-26). The harness rejects a leaky split (fit max >= test min)
 and the registry (`lgbm`, `hist_gb`, `ridge`) makes swapping estimators a dict
-change. Held-out results (GW31..38, all comparable):
+change. Held-out results (GW31..38, all comparable; `features` reflects the actual
+assembled set):
 
 | model | MAE | RMSE | features |
 |---|---|---|---|
-| hist_gb | 0.950 | 1.920 | ALL |
+| hist_gb | 0.942 | 1.924 | ALL |
 | lgbm_all | 0.951 | 1.931 | ALL |
 | lgbm_basic | 1.058 | 2.053 | position, now_cost, pts_avg_3/5 |
 | ridge | 1.068 | 1.966 | ALL |

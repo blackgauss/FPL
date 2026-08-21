@@ -47,7 +47,7 @@ def main() -> None:
         )
         results.append(run_experiment(
             train, fit, name=name, model=exp["model"], params=exp.get("params"),
-            feature_columns=feats, fit_gw_max=fit_gw_max, test_gw_min=test_gw_min,
+            fit_gw_max=fit_gw_max, test_gw_min=test_gw_min,
         ))
 
     print_results(results)
