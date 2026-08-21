@@ -93,47 +93,85 @@ def greedy_teams(
                  .sort("expected_total", descending=True)
         for pos in SQUAD_COUNTS
     }
+    # order positions by budget demand first (FWD/MID spend most) so expensive
+    # slots aren't starved after cheaper positions consume the budget
+    fill_order = ["FWD", "MID", "DEF", "GKP"]
+
+    # cheapest possible cost per position (club-agnostic lower bound) — used
+    # as a safety margin so the greedy never starves a later position
+    cheapest_pos: dict[str, int] = {}
+    for pos, need in SQUAD_COUNTS.items():
+        cheapest_pos[pos] = int(
+            by_pos[pos].sort("price_tenths")["price_tenths"].head(need).sum()
+        )
+
     rng = random.Random(seed)
 
     for team_id in range(n_teams):
         picks: list[pl.DataFrame] = []
         budget_left = budget_tenths
         club_counts: dict[int, int] = {}
-        for pos, need in SQUAD_COUNTS.items():
+        remaining = list(fill_order)
+        frame_columns = pool.columns
+
+        def reserve_for_remaining(remaining_list: list[str],
+                                  except_pos: str) -> int:
+            return sum(cheapest_pos[p] for p in remaining_list if p != except_pos)
+
+        def fill_one(pos: str, row_dict: dict, budget: int, reserve: int,
+                     counts: dict[int, int], stack: list,
+                     max_club: int) -> tuple[bool, int]:
+            """If affordable and club-ok, take the player; return (taken, budget)."""
+            if row_dict["price_tenths"] > budget - reserve:
+                return False, budget
+            tc = row_dict["team_code"]
+            if counts.get(tc, 0) >= max_club:
+                return False, budget
+            counts[tc] = counts.get(tc, 0) + 1
+            stack.append(pl.DataFrame([row_dict]))
+            return True, budget - row_dict["price_tenths"]
+
+        for pos in fill_order:
+            remaining.remove(pos)
+            need = SQUAD_COUNTS[pos]
             frame = by_pos[pos]
             n_candidates = min(need + 8, frame.height)
             candidate_idx = list(range(n_candidates))
-            # drop 0..2 of the best, so lineups differ per team
             rng.shuffle(candidate_idx)
             exclude = candidate_idx[: rng.randint(0, 2)]
             keep = [i for i in range(n_candidates) if i not in exclude]
             keep.sort(key=lambda i: -frame[i, "expected_total"])
+            # try the diverse truncated window; if it can't fill, use the full
+            # candidate list (guarantee a valid squad when one exists)
             taken = 0
-            for i in keep:
+            reserve = reserve_for_remaining(remaining, pos)
+            for cand in (keep +
+                         sorted((i for i in range(frame.height)
+                                 if i not in keep),
+                                key=lambda i: -frame[i, "expected_total"])):
                 if taken >= need:
                     break
-                row = frame.row(i)  # tuple; keys via SQUAD_COUNTS frame columns
-                row_dict = dict(zip(frame.columns, row, strict=False))
-                if row_dict["price_tenths"] > budget_left:
-                    continue
-                if row_dict["team_code"] in club_counts and \
-                        club_counts[row_dict["team_code"]] >= max_per_club:
-                    continue
-                club_counts[row_dict["team_code"]] = club_counts.get(
-                    row_dict["team_code"], 0) + 1
-                budget_left -= row_dict["price_tenths"]
-                taken += 1
-                picks.append(pl.DataFrame([row_dict]))
+                row_dict = dict(zip(frame_columns, frame.row(cand), strict=False))
+                ok, budget_left = fill_one(pos, row_dict, budget_left, reserve,
+                                   club_counts, picks, max_per_club)
+                if ok:
+                    taken += 1
             if taken < need:
-                raise ValueError(
-                    f"team {team_id}: could not fill {pos} (need {need}, took {taken}) "
-                    "under budget/club limits — enlarge the pool or budget")
+                # this team can't complete under budget+club caps (tight pools);
+                # skip it rather than abort the whole basket
+                picks.clear()
+                break
+        if not picks:
+            continue
         squad = (pl.concat(picks)
                  .with_columns(pl.lit(team_id).alias("team_id"))
                  .select("team_id", "position", "player_code",
                          "expected_total", "now_cost", "price_tenths"))
         teams.append(squad)
 
+    if not teams:
+        raise ValueError(
+            "could not fill any squad under budget/club limits — enlarge pool/budget")
     return pl.concat(teams)
 
 
