@@ -36,6 +36,19 @@ reuse the stored model for squads (no retraining), cache train-derived tables
 in `experiments/artifacts/` (keyed by season+window), keep `n_teams` small,
 and always grade paired toggles.
 
+For standard player-model comparisons, use the declared YAML registry:
+
+```bash
+python scripts/run_experiments.py \
+  --config config/experiments.yaml \
+  --output experiments/artifacts/model_experiments.json
+```
+
+The runner validates leakage before fitting, reuses assembled training data
+for duplicate feature sets, and writes a `status: complete` JSON artifact only
+after every declared experiment finishes. Printed tables are for humans;
+the JSON artifact is the reproducible result contract.
+
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.
 

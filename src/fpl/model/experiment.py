@@ -13,7 +13,9 @@ The registry holds the estimators we can swap; add one to try a new family.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -136,3 +138,28 @@ def print_results(results: list[ExperimentResult]) -> None:
         feats = ",".join(r.features) if r.features else "ALL"
         print(f"{r.name:<26}{r.model:<10}{r.mae:>8.3f}{r.rmse:>8.3f}{r.n_test:>6}  {feats}")
     print("-" * 88)
+
+
+def write_results(
+    results: list[ExperimentResult],
+    path: str | Path,
+    *,
+    metadata: dict | None = None,
+) -> Path:
+    """Write a completed, machine-readable experiment result artifact.
+
+    The artifact is written only after every declared experiment completes;
+    callers can therefore treat its presence and ``status=complete`` as proof
+    that the comparison actually ran. Metadata carries the declared config,
+    split, data fingerprint, git SHA, and any runner-specific context.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": "complete",
+        "results": [asdict(result) for result in results],
+        "metadata": metadata or {},
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+    return path

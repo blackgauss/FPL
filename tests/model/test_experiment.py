@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from fpl.model.experiment import REGISTRY, run_experiment
+from fpl.model.experiment import REGISTRY, run_experiment, write_results
 from fpl.model.train import assemble
 
 FEAT = {
@@ -108,3 +108,15 @@ class TestRunExperiment:
 class TestFiniteMatrix:
     def test_no_nan_in_full_assemble(self, pairs):
         assert not np.isnan(pairs[0].X).any()
+
+
+class TestResultArtifact:
+    def test_writes_completed_machine_readable_artifact(self, pairs, tmp_path):
+        result = run_experiment(pairs[0], pairs[1], name="artifact", model="ridge",
+                                fit_gw_max=2, test_gw_min=3)
+        path = write_results([result], tmp_path / "result.json",
+                             metadata={"git_sha": "test", "seed": 42})
+        payload = __import__("json").loads(path.read_text())
+        assert payload["status"] == "complete"
+        assert payload["metadata"]["git_sha"] == "test"
+        assert payload["results"][0]["name"] == "artifact"
