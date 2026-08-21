@@ -29,6 +29,9 @@ Ran so far:
 - `ab_first_team_regularity.py` — all-player training vs adding leakage-safe
   trailing appearance/start/minutes features. The first definition slightly
   improves overall MAE but worsens the regular-player cohort; not a win yet.
+- `ab_position_shrinkage.py` — global model plus validation-fitted position
+  corrections. Independent position models overfit; shrinkage keeps global
+  strength while allowing position-specific behavior.
 
 Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
 run a *leakage gate + deterministic seed* first, prefer model-free arms and
