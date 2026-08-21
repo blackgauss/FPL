@@ -57,8 +57,31 @@ def write_cdf_svg(values: np.ndarray, path: Path) -> None:
         points.append(f"{x:.2f},{y:.2f}")
     mean_x = left + (float(values.mean()) - lo) / span * (right - left)
     median_x = left + (float(np.median(values)) - lo) / span * (right - left)
+    x_ticks, y_ticks = [], []
+    for frac in np.linspace(0, 1, 6):
+        x = left + frac * (right - left)
+        value = lo + frac * span
+        x_ticks.append(
+            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{bottom}" '
+            f'stroke="#e5e7eb"/><line x1="{x:.2f}" y1="{bottom}" '
+            f'x2="{x:.2f}" y2="{bottom + 6}" stroke="black"/>'
+            f'<text x="{x:.2f}" y="{bottom + 23}" text-anchor="middle" '
+            f'font-family="sans-serif" font-size="12">{value:.1f}</text>'
+        )
+    for frac in np.linspace(0, 1, 5):
+        y = bottom - frac * (bottom - top)
+        value = frac
+        y_ticks.append(
+            f'<line x1="{left}" y1="{y:.2f}" x2="{right}" y2="{y:.2f}" '
+            f'stroke="#e5e7eb"/><line x1="{left - 6}" y1="{y:.2f}" '
+            f'x2="{left}" y2="{y:.2f}" stroke="black"/>'
+            f'<text x="{left - 10}" y="{y + 4:.2f}" text-anchor="end" '
+            f'font-family="sans-serif" font-size="12">{value:.2f}</text>'
+        )
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">
 <rect width="100%" height="100%" fill="white"/>
+{"".join(x_ticks)}
+{"".join(y_ticks)}
 <line x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="black"/>
 <line x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" stroke="black"/>
 <polyline points="{' '.join(points)}" fill="none" stroke="#2563eb" stroke-width="2"/>
@@ -68,9 +91,15 @@ def write_cdf_svg(values: np.ndarray, path: Path) -> None:
       stroke="#16a34a" stroke-dasharray="2,4"/>
 <text x="{left}" y="20" font-family="sans-serif" font-size="16">
 GW1 squad score CDF (IID marginal proxy)</text>
-<text x="{left}" y="{height - 18}" font-family="sans-serif" font-size="12">
-score {lo:.1f}..{hi:.1f}</text>
-<text x="{right - 90}" y="{top + 18}" font-family="sans-serif" font-size="12">CDF</text>
+<text x="{(left + right) / 2:.2f}" y="{height - 12}" text-anchor="middle"
+ font-family="sans-serif" font-size="13">settled squad points</text>
+<text x="18" y="{(top + bottom) / 2:.2f}" text-anchor="middle"
+ transform="rotate(-90 18 {(top + bottom) / 2:.2f})" font-family="sans-serif"
+ font-size="13">CDF</text>
+<text x="{right - 180}" y="{top + 18}" font-family="sans-serif" font-size="12"
+ fill="#dc2626">dashed: mean</text>
+<text x="{right - 180}" y="{top + 34}" font-family="sans-serif" font-size="12"
+ fill="#16a34a">dotted: median</text>
 </svg>'''
     path.write_text(svg, encoding="utf-8")
 
