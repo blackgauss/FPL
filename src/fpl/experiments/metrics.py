@@ -61,14 +61,14 @@ def topk_hit_rate(
 
 def pairwise_concordance(actual: np.ndarray, predicted: np.ndarray) -> float:
     """Fraction of player pairs whose model ordering matches the actual ordering."""
-    count = 0
-    concordant = 0
     n = len(actual)
-    for i in range(n):
-        for j in range(i + 1, n):
-            count += 1
-            concordant += (actual[i] - actual[j]) * (predicted[i] - predicted[j]) > 0
-    return concordant / count if count else 1.0
+    if n < 2:
+        return 1.0
+    a = actual[:, None] - actual[None, :]
+    p = predicted[:, None] - predicted[None, :]
+    agree = (a * p) > 0
+    np.fill_diagonal(agree, 0)
+    return float(agree.sum()) / (n * (n - 1))
 
 
 def ranking_metrics(

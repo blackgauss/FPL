@@ -119,6 +119,23 @@ Gym observability is a single canonical schema per candidate run
 (`EvalResult.observability()`): `totals` + per-week `weeks` rows, emitted
 verbatim into the artifact and surfaced by `compare_experiments.py`.
 
+## Infra profiling
+
+`fpl.profiling` makes any workload observable with stdlib cProfile:
+
+- `time_phases(...)` - labelled wall-clock per stage.
+- `profile_call(fn, name=..., out_dir=...)` - cProfile a callable, persist
+  `*.prof` (git-ignored) and a structured `*.json` (per-function + per-module)
+  an agent can read directly.
+
+```bash
+python scripts/profile_pipeline.py   # data prep / training / inference / harness / candidates
+```
+
+It prints a per-scope wall-clock table and function/module summaries, and
+writes `experiments/artifacts/profile/*.json`. (Reference pipeline: training
+dominates; data prep and candidate search are small.)
+
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.
 

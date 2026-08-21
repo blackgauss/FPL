@@ -1,0 +1,1382 @@
+{
+  "function_rows": [
+    {
+      "cumtime_s": 0.15328760200000002,
+      "function": "<lambda>",
+      "ncalls": 1,
+      "percall_cum_s": 0.15328760200000002,
+      "tottime_s": 8.3046e-05,
+      "where": "profile_pipeline.py:80"
+    },
+    {
+      "cumtime_s": 0.15320455600000002,
+      "function": "load_training",
+      "ncalls": 1,
+      "percall_cum_s": 0.15320455600000002,
+      "tottime_s": 0.000939742,
+      "where": "train.py:39"
+    },
+    {
+      "cumtime_s": 0.133046104,
+      "function": "wrapper",
+      "ncalls": 28,
+      "percall_cum_s": 0.004751646571428571,
+      "tottime_s": 0.000275052,
+      "where": "deprecation.py:84"
+    },
+    {
+      "cumtime_s": 0.132771052,
+      "function": "wrapper",
+      "ncalls": 28,
+      "percall_cum_s": 0.004741823285714286,
+      "tottime_s": 0.0007843500000000001,
+      "where": "opt_flags.py:345"
+    },
+    {
+      "cumtime_s": 0.131619235,
+      "function": "collect",
+      "ncalls": 28,
+      "percall_cum_s": 0.004700686964285715,
+      "tottime_s": 0.000619752,
+      "where": "frame.py:2411"
+    },
+    {
+      "cumtime_s": 0.13002212600000002,
+      "function": "<method 'collect' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 28,
+      "percall_cum_s": 0.004643647357142858,
+      "tottime_s": 0.13002212600000002,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.111803755,
+      "function": "wrapper",
+      "ncalls": 32,
+      "percall_cum_s": 0.00349386734375,
+      "tottime_s": 0.000635348,
+      "where": "deprecation.py:127"
+    },
+    {
+      "cumtime_s": 0.08250293,
+      "function": "read_parquet",
+      "ncalls": 6,
+      "percall_cum_s": 0.013750488333333333,
+      "tottime_s": 0.000133911,
+      "where": "functions.py:53"
+    },
+    {
+      "cumtime_s": 0.06944945000000001,
+      "function": "assemble",
+      "ncalls": 2,
+      "percall_cum_s": 0.034724725000000005,
+      "tottime_s": 0.001205749,
+      "where": "train.py:68"
+    },
+    {
+      "cumtime_s": 0.028889891,
+      "function": "join",
+      "ncalls": 4,
+      "percall_cum_s": 0.00722247275,
+      "tottime_s": 0.00019089200000000001,
+      "where": "frame.py:8250"
+    },
+    {
+      "cumtime_s": 0.009971466,
+      "function": "sort",
+      "ncalls": 2,
+      "percall_cum_s": 0.004985733,
+      "tottime_s": 0.000132626,
+      "where": "frame.py:6077"
+    },
+    {
+      "cumtime_s": 0.007762715000000001,
+      "function": "select",
+      "ncalls": 8,
+      "percall_cum_s": 0.0009703393750000001,
+      "tottime_s": 0.000288548,
+      "where": "frame.py:10449"
+    },
+    {
+      "cumtime_s": 0.00678235,
+      "function": "with_columns",
+      "ncalls": 6,
+      "percall_cum_s": 0.0011303916666666667,
+      "tottime_s": 0.000168772,
+      "where": "frame.py:10570"
+    },
+    {
+      "cumtime_s": 0.005053154000000001,
+      "function": "filter",
+      "ncalls": 2,
+      "percall_cum_s": 0.0025265770000000003,
+      "tottime_s": 5.1540000000000005e-05,
+      "where": "frame.py:5391"
+    },
+    {
+      "cumtime_s": 0.004389418,
+      "function": "to_numpy",
+      "ncalls": 2,
+      "percall_cum_s": 0.002194709,
+      "tottime_s": 2.2104e-05,
+      "where": "frame.py:1932"
+    },
+    {
+      "cumtime_s": 0.004367314000000001,
+      "function": "<method 'to_numpy' of 'builtins.PyDataFrame' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 0.0021836570000000003,
+      "tottime_s": 0.004367314000000001,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.0027232560000000003,
+      "function": "parse_into_list_of_expressions",
+      "ncalls": 22,
+      "percall_cum_s": 0.00012378436363636366,
+      "tottime_s": 0.000290356,
+      "where": "expr.py:86"
+    },
+    {
+      "cumtime_s": 0.0021186,
+      "function": "<method 'astype' of 'numpy.ndarray' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 0.00052965,
+      "tottime_s": 0.0021186,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.001831373,
+      "function": "_parse_positional_inputs",
+      "ncalls": 24,
+      "percall_cum_s": 7.630720833333333e-05,
+      "tottime_s": 0.00032442,
+      "where": "expr.py:211"
+    },
+    {
+      "cumtime_s": 0.0017783800000000002,
+      "function": "scan_parquet",
+      "ncalls": 6,
+      "percall_cum_s": 0.0002963966666666667,
+      "tottime_s": 0.00021499100000000002,
+      "where": "functions.py:465"
+    },
+    {
+      "cumtime_s": 0.001628747,
+      "function": "parse_into_expression",
+      "ncalls": 84,
+      "percall_cum_s": 1.9389845238095237e-05,
+      "tottime_s": 0.00037415,
+      "where": "expr.py:22"
+    },
+    {
+      "cumtime_s": 0.001522993,
+      "function": "select",
+      "ncalls": 8,
+      "percall_cum_s": 0.000190374125,
+      "tottime_s": 7.638000000000001e-05,
+      "where": "frame.py:5232"
+    },
+    {
+      "cumtime_s": 0.001133274,
+      "function": "__call__",
+      "ncalls": 68,
+      "percall_cum_s": 1.666579411764706e-05,
+      "tottime_s": 0.000236073,
+      "where": "col.py:210"
+    },
+    {
+      "cumtime_s": 0.000909355,
+      "function": "join",
+      "ncalls": 4,
+      "percall_cum_s": 0.00022733875,
+      "tottime_s": 0.00011781500000000001,
+      "where": "frame.py:6321"
+    },
+    {
+      "cumtime_s": 0.000897201,
+      "function": "_create_col",
+      "ncalls": 68,
+      "percall_cum_s": 1.3194132352941177e-05,
+      "tottime_s": 0.00033884700000000003,
+      "where": "col.py:40"
+    },
+    {
+      "cumtime_s": 0.0008629140000000001,
+      "function": "<built-in method builtins.isinstance>",
+      "ncalls": 568,
+      "percall_cum_s": 1.5192147887323945e-06,
+      "tottime_s": 0.000575809,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000833713,
+      "function": "get",
+      "ncalls": 28,
+      "percall_cum_s": 2.9775464285714287e-05,
+      "tottime_s": 0.000197011,
+      "where": "<frozen _collections_abc>:804"
+    },
+    {
+      "cumtime_s": 0.0007384920000000001,
+      "function": "schema",
+      "ncalls": 4,
+      "percall_cum_s": 0.00018462300000000002,
+      "tottime_s": 9.0752e-05,
+      "where": "frame.py:981"
+    },
+    {
+      "cumtime_s": 0.00071803,
+      "function": "_init_credential_provider_builder",
+      "ncalls": 6,
+      "percall_cum_s": 0.00011967166666666667,
+      "tottime_s": 6.5493e-05,
+      "where": "_builder.py:345"
+    },
+    {
+      "cumtime_s": 0.0006367020000000001,
+      "function": "__getitem__",
+      "ncalls": 28,
+      "percall_cum_s": 2.2739357142857145e-05,
+      "tottime_s": 0.000384695,
+      "where": "<frozen os>:680"
+    },
+    {
+      "cumtime_s": 0.0005944370000000001,
+      "function": "lazy",
+      "ncalls": 26,
+      "percall_cum_s": 2.2862961538461543e-05,
+      "tottime_s": 0.00012331,
+      "where": "frame.py:10412"
+    },
+    {
+      "cumtime_s": 0.000580123,
+      "function": "_eager",
+      "ncalls": 22,
+      "percall_cum_s": 2.636922727272727e-05,
+      "tottime_s": 0.00026755100000000004,
+      "where": "opt_flags.py:156"
+    },
+    {
+      "cumtime_s": 0.000537673,
+      "function": "wrap_expr",
+      "ncalls": 108,
+      "percall_cum_s": 4.978453703703704e-06,
+      "tottime_s": 0.000237569,
+      "where": "wrap.py:24"
+    },
+    {
+      "cumtime_s": 0.0005300820000000001,
+      "function": "lit",
+      "ncalls": 12,
+      "percall_cum_s": 4.4173500000000007e-05,
+      "tottime_s": 0.00021419400000000002,
+      "where": "lit.py:31"
+    },
+    {
+      "cumtime_s": 0.000526965,
+      "function": "wrap_df",
+      "ncalls": 28,
+      "percall_cum_s": 1.882017857142857e-05,
+      "tottime_s": 0.000301783,
+      "where": "wrap.py:12"
+    },
+    {
+      "cumtime_s": 0.000507322,
+      "function": "with_columns",
+      "ncalls": 6,
+      "percall_cum_s": 8.455366666666667e-05,
+      "tottime_s": 5.2843e-05,
+      "where": "frame.py:6821"
+    },
+    {
+      "cumtime_s": 0.000479794,
+      "function": "to_numpy",
+      "ncalls": 4,
+      "percall_cum_s": 0.0001199485,
+      "tottime_s": 3.1708e-05,
+      "where": "series.py:4924"
+    },
+    {
+      "cumtime_s": 0.00047138800000000005,
+      "function": "__init__",
+      "ncalls": 4,
+      "percall_cum_s": 0.00011784700000000001,
+      "tottime_s": 0.00032871100000000003,
+      "where": "schema.py:117"
+    },
+    {
+      "cumtime_s": 0.00044808600000000005,
+      "function": "<method 'to_numpy' of 'builtins.PySeries' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 0.00011202150000000001,
+      "tottime_s": 0.00044808600000000005,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000445646,
+      "function": "f",
+      "ncalls": 6,
+      "percall_cum_s": 7.427433333333333e-05,
+      "tottime_s": 0.000102478,
+      "where": "_builder.py:354"
+    },
+    {
+      "cumtime_s": 0.00040453200000000004,
+      "function": "filter",
+      "ncalls": 2,
+      "percall_cum_s": 0.00020226600000000002,
+      "tottime_s": 2.8905000000000002e-05,
+      "where": "frame.py:4898"
+    },
+    {
+      "cumtime_s": 0.000400836,
+      "function": "fill_null",
+      "ncalls": 8,
+      "percall_cum_s": 5.01045e-05,
+      "tottime_s": 5.4442000000000005e-05,
+      "where": "expr.py:3131"
+    },
+    {
+      "cumtime_s": 0.00037432100000000005,
+      "function": "_parse_inputs_as_iterable",
+      "ncalls": 24,
+      "percall_cum_s": 1.5596708333333334e-05,
+      "tottime_s": 0.00012021300000000001,
+      "where": "expr.py:228"
+    },
+    {
+      "cumtime_s": 0.000373111,
+      "function": "_filter",
+      "ncalls": 2,
+      "percall_cum_s": 0.0001865555,
+      "tottime_s": 8.9641e-05,
+      "where": "frame.py:4813"
+    },
+    {
+      "cumtime_s": 0.000362944,
+      "function": "get_sources",
+      "ncalls": 6,
+      "percall_cum_s": 6.0490666666666673e-05,
+      "tottime_s": 8.456300000000001e-05,
+      "where": "_utils.py:341"
+    },
+    {
+      "cumtime_s": 0.0003417,
+      "function": "<built-in method __new__ of type object at 0xa43b40>",
+      "ncalls": 222,
+      "percall_cum_s": 1.5391891891891893e-06,
+      "tottime_s": 0.0003417,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000323865,
+      "function": "sort",
+      "ncalls": 2,
+      "percall_cum_s": 0.0001619325,
+      "tottime_s": 4.9493e-05,
+      "where": "frame.py:1682"
+    },
+    {
+      "cumtime_s": 0.000319462,
+      "function": "<built-in method new_from_parquet>",
+      "ncalls": 6,
+      "percall_cum_s": 5.3243666666666666e-05,
+      "tottime_s": 0.000319462,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.00030010400000000004,
+      "function": "_from_pyexpr",
+      "ncalls": 108,
+      "percall_cum_s": 2.778740740740741e-06,
+      "tottime_s": 0.000184467,
+      "where": "expr.py:294"
+    },
+    {
+      "cumtime_s": 0.00028735100000000003,
+      "function": "wrap_ldf",
+      "ncalls": 32,
+      "percall_cum_s": 8.979718750000001e-06,
+      "tottime_s": 0.000132167,
+      "where": "wrap.py:16"
+    },
+    {
+      "cumtime_s": 0.000287105,
+      "function": "__instancecheck__",
+      "ncalls": 50,
+      "percall_cum_s": 5.7421000000000005e-06,
+      "tottime_s": 7.2951e-05,
+      "where": "<frozen abc>:117"
+    },
+    {
+      "cumtime_s": 0.00028374300000000004,
+      "function": "_first_scan_path",
+      "ncalls": 6,
+      "percall_cum_s": 4.7290500000000004e-05,
+      "tottime_s": 3.2500000000000004e-05,
+      "where": "_utils.py:49"
+    },
+    {
+      "cumtime_s": 0.00027745300000000004,
+      "function": "<method 'lazy' of 'builtins.PyDataFrame' objects>",
+      "ncalls": 26,
+      "percall_cum_s": 1.0671269230769233e-05,
+      "tottime_s": 0.00027745300000000004,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000252007,
+      "function": "encode",
+      "ncalls": 28,
+      "percall_cum_s": 9.00025e-06,
+      "tottime_s": 0.00014777100000000002,
+      "where": "<frozen os>:762"
+    },
+    {
+      "cumtime_s": 0.000249529,
+      "function": "cast",
+      "ncalls": 4,
+      "percall_cum_s": 6.238225e-05,
+      "tottime_s": 4.2846e-05,
+      "where": "expr.py:2106"
+    },
+    {
+      "cumtime_s": 0.00024430400000000004,
+      "function": "is_path_or_str_sequence",
+      "ncalls": 6,
+      "percall_cum_s": 4.071733333333334e-05,
+      "tottime_s": 6.2327e-05,
+      "where": "various.py:104"
+    },
+    {
+      "cumtime_s": 0.000233679,
+      "function": "__copy__",
+      "ncalls": 28,
+      "percall_cum_s": 8.345678571428572e-06,
+      "tottime_s": 0.00011648800000000001,
+      "where": "opt_flags.py:165"
+    },
+    {
+      "cumtime_s": 0.00022618,
+      "function": "otherwise",
+      "ncalls": 2,
+      "percall_cum_s": 0.00011309,
+      "tottime_s": 1.7379e-05,
+      "where": "whenthen.py:107"
+    },
+    {
+      "cumtime_s": 0.000225182,
+      "function": "_from_pydf",
+      "ncalls": 28,
+      "percall_cum_s": 8.042214285714287e-06,
+      "tottime_s": 0.00011676000000000001,
+      "where": "frame.py:563"
+    },
+    {
+      "cumtime_s": 0.000214154,
+      "function": "<built-in method _abc._abc_instancecheck>",
+      "ncalls": 50,
+      "percall_cum_s": 4.28308e-06,
+      "tottime_s": 0.00015429000000000002,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.00021227800000000002,
+      "function": "_from_pyldf",
+      "ncalls": 54,
+      "percall_cum_s": 3.931074074074074e-06,
+      "tottime_s": 0.00013685000000000002,
+      "where": "frame.py:450"
+    },
+    {
+      "cumtime_s": 0.000206891,
+      "function": "verbose",
+      "ncalls": 6,
+      "percall_cum_s": 3.448183333333333e-05,
+      "tottime_s": 2.8082000000000003e-05,
+      "where": "logging.py:7"
+    },
+    {
+      "cumtime_s": 0.000196875,
+      "function": "__init__",
+      "ncalls": 22,
+      "percall_cum_s": 8.948863636363636e-06,
+      "tottime_s": 0.000130982,
+      "where": "opt_flags.py:34"
+    },
+    {
+      "cumtime_s": 0.00017880900000000002,
+      "function": "getenv",
+      "ncalls": 6,
+      "percall_cum_s": 2.9801500000000003e-05,
+      "tottime_s": 2.0336e-05,
+      "where": "<frozen os>:779"
+    },
+    {
+      "cumtime_s": 0.000173432,
+      "function": "parse_into_datatype_expr",
+      "ncalls": 4,
+      "percall_cum_s": 4.3358e-05,
+      "tottime_s": 3.4526e-05,
+      "where": "_parse.py:44"
+    },
+    {
+      "cumtime_s": 0.000169836,
+      "function": "_check_for_numpy",
+      "ncalls": 34,
+      "percall_cum_s": 4.995176470588235e-06,
+      "tottime_s": 0.00015371500000000001,
+      "where": "_dependencies.py:213"
+    },
+    {
+      "cumtime_s": 0.000149634,
+      "function": "<method 'with_optimizations' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 28,
+      "percall_cum_s": 5.344071428571428e-06,
+      "tottime_s": 0.000149634,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000148972,
+      "function": "<col>",
+      "ncalls": 68,
+      "percall_cum_s": 2.190764705882353e-06,
+      "tottime_s": 0.000148972,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 0.000137214,
+      "function": "get_column",
+      "ncalls": 4,
+      "percall_cum_s": 3.43035e-05,
+      "tottime_s": 4.3643e-05,
+      "where": "frame.py:9311"
+    },
+    {
+      "cumtime_s": 0.00013081600000000002,
+      "function": "_gpu_engine_callback",
+      "ncalls": 28,
+      "percall_cum_s": 4.672e-06,
+      "tottime_s": 0.00010215400000000001,
+      "where": "frame.py:213"
+    },
+    {
+      "cumtime_s": 0.000128929,
+      "function": "when",
+      "ncalls": 2,
+      "percall_cum_s": 6.44645e-05,
+      "tottime_s": 2.8261000000000003e-05,
+      "where": "whenthen.py:18"
+    },
+    {
+      "cumtime_s": 0.000119777,
+      "function": "_select_engine",
+      "ncalls": 28,
+      "percall_cum_s": 4.27775e-06,
+      "tottime_s": 5.3318e-05,
+      "where": "frame.py:190"
+    },
+    {
+      "cumtime_s": 0.000118339,
+      "function": "normalize_filepath",
+      "ncalls": 6,
+      "percall_cum_s": 1.9723166666666668e-05,
+      "tottime_s": 3.9233e-05,
+      "where": "various.py:254"
+    },
+    {
+      "cumtime_s": 0.000108592,
+      "function": "_is_arrow_schema_exportable",
+      "ncalls": 76,
+      "percall_cum_s": 1.428842105263158e-06,
+      "tottime_s": 6.9862e-05,
+      "where": "schema.py:61"
+    },
+    {
+      "cumtime_s": 0.000100118,
+      "function": "<method 'get' of 'dict' objects>",
+      "ncalls": 78,
+      "percall_cum_s": 1.2835641025641027e-06,
+      "tottime_s": 0.000100118,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 9.638700000000001e-05,
+      "function": "_is_iterable",
+      "ncalls": 12,
+      "percall_cum_s": 8.032250000000001e-06,
+      "tottime_s": 3.1255000000000005e-05,
+      "where": "expr.py:253"
+    },
+    {
+      "cumtime_s": 9.550400000000001e-05,
+      "function": "dtypes",
+      "ncalls": 4,
+      "percall_cum_s": 2.3876000000000003e-05,
+      "tottime_s": 1.1624000000000001e-05,
+      "where": "frame.py:928"
+    },
+    {
+      "cumtime_s": 9.4289e-05,
+      "function": "<method 'select' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 8,
+      "percall_cum_s": 1.1786125e-05,
+      "tottime_s": 9.4289e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 9.2435e-05,
+      "function": "parse_predicates_constraints_into_expression",
+      "ncalls": 2,
+      "percall_cum_s": 4.62175e-05,
+      "tottime_s": 1.3667000000000001e-05,
+      "where": "expr.py:266"
+    },
+    {
+      "cumtime_s": 9.2105e-05,
+      "function": "to_dtype_expr",
+      "ncalls": 4,
+      "percall_cum_s": 2.302625e-05,
+      "tottime_s": 4.2255e-05,
+      "where": "classes.py:290"
+    },
+    {
+      "cumtime_s": 8.850700000000001e-05,
+      "function": "_is_iterable_of",
+      "ncalls": 6,
+      "percall_cum_s": 1.4751166666666669e-05,
+      "tottime_s": 3.6863e-05,
+      "where": "various.py:99"
+    },
+    {
+      "cumtime_s": 8.739400000000001e-05,
+      "function": "no_optimizations",
+      "ncalls": 22,
+      "percall_cum_s": 3.972454545454546e-06,
+      "tottime_s": 4.4672e-05,
+      "where": "opt_flags.py:171"
+    },
+    {
+      "cumtime_s": 8.388e-05,
+      "function": "<method 'dtypes' of 'builtins.PyDataFrame' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 2.097e-05,
+      "tottime_s": 8.388e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 8.334400000000001e-05,
+      "function": "alias",
+      "ncalls": 6,
+      "percall_cum_s": 1.3890666666666667e-05,
+      "tottime_s": 3.0855e-05,
+      "where": "expr.py:908"
+    },
+    {
+      "cumtime_s": 8.1884e-05,
+      "function": "<method 'join' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 2.0471e-05,
+      "tottime_s": 8.1884e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 8.1031e-05,
+      "function": "<method 'encode' of 'str' objects>",
+      "ncalls": 28,
+      "percall_cum_s": 2.893964285714286e-06,
+      "tottime_s": 8.1031e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 8.084800000000001e-05,
+      "function": "columns",
+      "ncalls": 4,
+      "percall_cum_s": 2.0212000000000002e-05,
+      "tottime_s": 2.5007000000000003e-05,
+      "where": "frame.py:876"
+    },
+    {
+      "cumtime_s": 7.910600000000001e-05,
+      "function": "expanduser",
+      "ncalls": 6,
+      "percall_cum_s": 1.3184333333333335e-05,
+      "tottime_s": 4.1724e-05,
+      "where": "<frozen posixpath>:256"
+    },
+    {
+      "cumtime_s": 7.2336e-05,
+      "function": "is_not_null",
+      "ncalls": 4,
+      "percall_cum_s": 1.8084e-05,
+      "tottime_s": 3.5000000000000004e-05,
+      "where": "expr.py:1170"
+    },
+    {
+      "cumtime_s": 7.029100000000001e-05,
+      "function": "<method 'with_columns' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 6,
+      "percall_cum_s": 1.1715166666666668e-05,
+      "tottime_s": 7.029100000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 6.7827e-05,
+      "function": "wrap_s",
+      "ncalls": 4,
+      "percall_cum_s": 1.695675e-05,
+      "tottime_s": 3.4743e-05,
+      "where": "wrap.py:20"
+    },
+    {
+      "cumtime_s": 6.645900000000001e-05,
+      "function": "<get_engine_affinity>",
+      "ncalls": 28,
+      "percall_cum_s": 2.3735357142857148e-06,
+      "tottime_s": 6.645900000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 6.3965e-05,
+      "function": "_from_pyoptflags",
+      "ncalls": 28,
+      "percall_cum_s": 2.2844642857142858e-06,
+      "tottime_s": 3.6544e-05,
+      "where": "opt_flags.py:66"
+    },
+    {
+      "cumtime_s": 6.197e-05,
+      "function": "__init__",
+      "ncalls": 6,
+      "percall_cum_s": 1.0328333333333334e-05,
+      "tottime_s": 6.197e-05,
+      "where": "<string>:2"
+    },
+    {
+      "cumtime_s": 5.9864e-05,
+      "function": "__subclasscheck__",
+      "ncalls": 6,
+      "percall_cum_s": 9.977333333333334e-06,
+      "tottime_s": 1.0557e-05,
+      "where": "<frozen abc>:121"
+    },
+    {
+      "cumtime_s": 5.797200000000001e-05,
+      "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+      "ncalls": 1,
+      "percall_cum_s": 5.797200000000001e-05,
+      "tottime_s": 5.797200000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.5841e-05,
+      "function": "<method 'columns' of 'builtins.PyDataFrame' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 1.396025e-05,
+      "tottime_s": 5.5841e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.400400000000001e-05,
+      "function": "_get_path_scheme",
+      "ncalls": 6,
+      "percall_cum_s": 9.000666666666668e-06,
+      "tottime_s": 3.6196000000000004e-05,
+      "where": "_utils.py:62"
+    },
+    {
+      "cumtime_s": 5.3226e-05,
+      "function": "<method 'copy' of 'builtins.PyOptFlags' objects>",
+      "ncalls": 28,
+      "percall_cum_s": 1.9009285714285714e-06,
+      "tottime_s": 5.3226e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.2859e-05,
+      "function": "<method 'keys' of 'dict' objects>",
+      "ncalls": 28,
+      "percall_cum_s": 1.8878214285714287e-06,
+      "tottime_s": 5.2859e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.1644e-05,
+      "function": "<built-in method builtins.all>",
+      "ncalls": 6,
+      "percall_cum_s": 8.607333333333333e-06,
+      "tottime_s": 3.1414e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.9307e-05,
+      "function": "<built-in method _abc._abc_subclasscheck>",
+      "ncalls": 6,
+      "percall_cum_s": 8.217833333333333e-06,
+      "tottime_s": 3.2985000000000004e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.791e-05,
+      "function": "<built-in method builtins.len>",
+      "ncalls": 64,
+      "percall_cum_s": 7.4859375e-07,
+      "tottime_s": 4.791e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.4385e-05,
+      "function": "_is_generator",
+      "ncalls": 2,
+      "percall_cum_s": 2.21925e-05,
+      "tottime_s": 1.4493000000000002e-05,
+      "where": "various.py:89"
+    },
+    {
+      "cumtime_s": 4.4166000000000004e-05,
+      "function": "<method 'extend' of 'list' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 1.1041500000000001e-05,
+      "tottime_s": 2.6694000000000002e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.3758000000000004e-05,
+      "function": "<built-in method builtins.hasattr>",
+      "ncalls": 78,
+      "percall_cum_s": 5.61e-07,
+      "tottime_s": 4.3758000000000004e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.3731000000000005e-05,
+      "function": "<built-in method default>",
+      "ncalls": 22,
+      "percall_cum_s": 1.9877727272727274e-06,
+      "tottime_s": 4.3731000000000005e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.3207e-05,
+      "function": "<lit>",
+      "ncalls": 12,
+      "percall_cum_s": 3.6005833333333336e-06,
+      "tottime_s": 4.3207e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.3150000000000005e-05,
+      "function": "require_same_type",
+      "ncalls": 8,
+      "percall_cum_s": 5.393750000000001e-06,
+      "tottime_s": 3.2431e-05,
+      "where": "various.py:726"
+    },
+    {
+      "cumtime_s": 4.2722e-05,
+      "function": "<method 'no_optimizations' of 'builtins.PyOptFlags' objects>",
+      "ncalls": 22,
+      "percall_cum_s": 1.941909090909091e-06,
+      "tottime_s": 4.2722e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 4.1425000000000004e-05,
+      "function": "__eq__",
+      "ncalls": 4,
+      "percall_cum_s": 1.0356250000000001e-05,
+      "tottime_s": 2.3494000000000002e-05,
+      "where": "classes.py:145"
+    },
+    {
+      "cumtime_s": 4.0542000000000006e-05,
+      "function": "_handle_fromlist",
+      "ncalls": 2,
+      "percall_cum_s": 2.0271000000000003e-05,
+      "tottime_s": 3.1548000000000004e-05,
+      "where": "<frozen importlib._bootstrap>:1390"
+    },
+    {
+      "cumtime_s": 3.8287e-05,
+      "function": "<built-in method from_dtype>",
+      "ncalls": 4,
+      "percall_cum_s": 9.57175e-06,
+      "tottime_s": 3.8287e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 3.4361000000000005e-05,
+      "function": "cast",
+      "ncalls": 68,
+      "percall_cum_s": 5.053088235294119e-07,
+      "tottime_s": 3.4361000000000005e-05,
+      "where": "typing.py:2154"
+    },
+    {
+      "cumtime_s": 3.4143e-05,
+      "function": "_rename_keyword_argument",
+      "ncalls": 32,
+      "percall_cum_s": 1.06696875e-06,
+      "tottime_s": 3.4143e-05,
+      "where": "deprecation.py:140"
+    },
+    {
+      "cumtime_s": 3.3084000000000004e-05,
+      "function": "_from_pyseries",
+      "ncalls": 4,
+      "percall_cum_s": 8.271000000000001e-06,
+      "tottime_s": 1.8292e-05,
+      "where": "series.py:469"
+    },
+    {
+      "cumtime_s": 3.2866e-05,
+      "function": "is_bool_sequence",
+      "ncalls": 2,
+      "percall_cum_s": 1.6433e-05,
+      "tottime_s": 1.0470000000000001e-05,
+      "where": "various.py:126"
+    },
+    {
+      "cumtime_s": 3.2424e-05,
+      "function": "then",
+      "ncalls": 2,
+      "percall_cum_s": 1.6212e-05,
+      "tottime_s": 2.0764e-05,
+      "where": "whenthen.py:36"
+    },
+    {
+      "cumtime_s": 3.1429e-05,
+      "function": "parse_into_dtype",
+      "ncalls": 4,
+      "percall_cum_s": 7.85725e-06,
+      "tottime_s": 1.2738e-05,
+      "where": "_parse.py:52"
+    },
+    {
+      "cumtime_s": 2.939e-05,
+      "function": "<method 'sort_by_exprs' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 1.4695e-05,
+      "tottime_s": 2.939e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 2.8303000000000003e-05,
+      "function": "simplify_expression",
+      "ncalls": 22,
+      "percall_cum_s": 1.2865e-06,
+      "tottime_s": 2.8303000000000003e-05,
+      "where": "opt_flags.py:207"
+    },
+    {
+      "cumtime_s": 2.5744000000000003e-05,
+      "function": "<method 'get_column' of 'builtins.PyDataFrame' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 6.436000000000001e-06,
+      "tottime_s": 2.5744000000000003e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 2.504e-05,
+      "function": "to_physical",
+      "ncalls": 2,
+      "percall_cum_s": 1.252e-05,
+      "tottime_s": 1.2837000000000001e-05,
+      "where": "expr.py:593"
+    },
+    {
+      "cumtime_s": 2.3408e-05,
+      "function": "<method 'alias' of 'builtins.PyExpr' objects>",
+      "ncalls": 6,
+      "percall_cum_s": 3.901333333333334e-06,
+      "tottime_s": 2.3408e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 2.2162000000000002e-05,
+      "function": "update",
+      "ncalls": 22,
+      "percall_cum_s": 1.0073636363636364e-06,
+      "tottime_s": 2.2162000000000002e-05,
+      "where": "opt_flags.py:106"
+    },
+    {
+      "cumtime_s": 2.023e-05,
+      "function": "<genexpr>",
+      "ncalls": 12,
+      "percall_cum_s": 1.6858333333333334e-06,
+      "tottime_s": 1.5303000000000002e-05,
+      "where": "various.py:101"
+    },
+    {
+      "cumtime_s": 1.8772000000000003e-05,
+      "function": "<method 'startswith' of 'str' objects>",
+      "ncalls": 6,
+      "percall_cum_s": 3.1286666666666672e-06,
+      "tottime_s": 1.8772000000000003e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.8691e-05,
+      "function": "is_polars_dtype",
+      "ncalls": 4,
+      "percall_cum_s": 4.67275e-06,
+      "tottime_s": 1.1145000000000001e-05,
+      "where": "convert.py:58"
+    },
+    {
+      "cumtime_s": 1.8084e-05,
+      "function": "is_sequence",
+      "ncalls": 2,
+      "percall_cum_s": 9.042e-06,
+      "tottime_s": 5.521e-06,
+      "where": "various.py:148"
+    },
+    {
+      "cumtime_s": 1.7808e-05,
+      "function": "<method 'find' of 'str' objects>",
+      "ncalls": 6,
+      "percall_cum_s": 2.968e-06,
+      "tottime_s": 1.7808e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.728e-05,
+      "function": "<method 'fill_null' of 'builtins.PyExpr' objects>",
+      "ncalls": 8,
+      "percall_cum_s": 2.16e-06,
+      "tottime_s": 1.728e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.6322e-05,
+      "function": "__subclasshook__",
+      "ncalls": 6,
+      "percall_cum_s": 2.7203333333333334e-06,
+      "tottime_s": 1.6322e-05,
+      "where": "<frozen _collections_abc>:341"
+    },
+    {
+      "cumtime_s": 1.6181e-05,
+      "function": "extend_bool",
+      "ncalls": 4,
+      "percall_cum_s": 4.04525e-06,
+      "tottime_s": 1.2818000000000002e-05,
+      "where": "various.py:550"
+    },
+    {
+      "cumtime_s": 1.5654e-05,
+      "function": "<genexpr>",
+      "ncalls": 4,
+      "percall_cum_s": 3.9135e-06,
+      "tottime_s": 6.266000000000001e-06,
+      "where": "frame.py:4860"
+    },
+    {
+      "cumtime_s": 1.5079e-05,
+      "function": "<method 'is_not_null' of 'builtins.PyExpr' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 3.76975e-06,
+      "tottime_s": 1.5079e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.4624000000000001e-05,
+      "function": "<method 'cast' of 'builtins.PyExpr' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 3.6560000000000002e-06,
+      "tottime_s": 1.4624000000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.3405000000000001e-05,
+      "function": "<method 'filter' of 'builtins.PyLazyFrame' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 6.702500000000001e-06,
+      "tottime_s": 1.3405000000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.2213000000000001e-05,
+      "function": "<method 'otherwise' of 'builtins.PyThen' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 6.106500000000001e-06,
+      "tottime_s": 1.2213000000000001e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.1563000000000001e-05,
+      "function": "_from_pydatatype_expr",
+      "ncalls": 4,
+      "percall_cum_s": 2.8907500000000002e-06,
+      "tottime_s": 1.1563000000000001e-05,
+      "where": "datatype_expr.py:87"
+    },
+    {
+      "cumtime_s": 1.1520000000000002e-05,
+      "function": "__get__",
+      "ncalls": 4,
+      "percall_cum_s": 2.8800000000000004e-06,
+      "tottime_s": 1.1520000000000002e-05,
+      "where": "classes.py:53"
+    },
+    {
+      "cumtime_s": 1.1409e-05,
+      "function": "<built-in method builtins.issubclass>",
+      "ncalls": 4,
+      "percall_cum_s": 2.85225e-06,
+      "tottime_s": 1.1409e-05,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 7.771e-06,
+      "function": "<built-in method posix.fspath>",
+      "ncalls": 6,
+      "percall_cum_s": 1.2951666666666667e-06,
+      "tottime_s": 7.771e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 7.670000000000001e-06,
+      "function": "_check_for_torch",
+      "ncalls": 12,
+      "percall_cum_s": 6.391666666666668e-07,
+      "tottime_s": 7.670000000000001e-06,
+      "where": "_dependencies.py:237"
+    },
+    {
+      "cumtime_s": 6.762000000000001e-06,
+      "function": "<when>",
+      "ncalls": 2,
+      "percall_cum_s": 3.3810000000000003e-06,
+      "tottime_s": 6.762000000000001e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 6.639e-06,
+      "function": "<method 'then' of 'builtins.PyWhen' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 3.3195e-06,
+      "tottime_s": 6.639e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 6.257e-06,
+      "function": "<method 'index' of 'list' objects>",
+      "ncalls": 4,
+      "percall_cum_s": 1.56425e-06,
+      "tottime_s": 6.257e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.241e-06,
+      "function": "<method 'to_physical' of 'builtins.PyExpr' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 2.6205e-06,
+      "tottime_s": 5.241e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 5.055000000000001e-06,
+      "function": "_combine_predicates",
+      "ncalls": 2,
+      "percall_cum_s": 2.5275000000000004e-06,
+      "tottime_s": 3.994e-06,
+      "where": "expr.py:301"
+    },
+    {
+      "cumtime_s": 2.4550000000000002e-06,
+      "function": "sort_collapse",
+      "ncalls": 2,
+      "percall_cum_s": 1.2275000000000001e-06,
+      "tottime_s": 2.4550000000000002e-06,
+      "where": "opt_flags.py:261"
+    },
+    {
+      "cumtime_s": 2.426e-06,
+      "function": "<method 'items' of 'dict' objects>",
+      "ncalls": 2,
+      "percall_cum_s": 1.213e-06,
+      "tottime_s": 2.426e-06,
+      "where": "~:0"
+    },
+    {
+      "cumtime_s": 1.8180000000000002e-06,
+      "function": "<genexpr>",
+      "ncalls": 2,
+      "percall_cum_s": 9.090000000000001e-07,
+      "tottime_s": 1.8180000000000002e-06,
+      "where": "frame.py:4865"
+    },
+    {
+      "cumtime_s": 1.4710000000000002e-06,
+      "function": "__init__",
+      "ncalls": 2,
+      "percall_cum_s": 7.355000000000001e-07,
+      "tottime_s": 1.4710000000000002e-06,
+      "where": "whenthen.py:33"
+    },
+    {
+      "cumtime_s": 1.2390000000000001e-06,
+      "function": "__init__",
+      "ncalls": 2,
+      "percall_cum_s": 6.195000000000001e-07,
+      "tottime_s": 1.2390000000000001e-06,
+      "where": "whenthen.py:58"
+    }
+  ],
+  "module_rows": [
+    {
+      "cumtime_s": 0.244884002,
+      "module": "deprecation.py",
+      "tottime_s": 0.000944543
+    },
+    {
+      "cumtime_s": 0.22265400600000002,
+      "module": "train.py",
+      "tottime_s": 0.0021454910000000002
+    },
+    {
+      "cumtime_s": 0.20086142700000004,
+      "module": "frame.py",
+      "tottime_s": 0.0026008129999999996
+    },
+    {
+      "cumtime_s": 0.15328760200000002,
+      "module": "profile_pipeline.py",
+      "tottime_s": 8.3046e-05
+    },
+    {
+      "cumtime_s": 0.14070722499999994,
+      "module": "~",
+      "tottime_s": 0.14030623199999995
+    },
+    {
+      "cumtime_s": 0.133986008,
+      "module": "opt_flags.py",
+      "tottime_s": 0.0014335069999999999
+    },
+    {
+      "cumtime_s": 0.08428131,
+      "module": "functions.py",
+      "tottime_s": 0.000348902
+    },
+    {
+      "cumtime_s": 0.007882763000000001,
+      "module": "expr.py",
+      "tottime_s": 0.0015185020000000001
+    },
+    {
+      "cumtime_s": 0.0020304750000000003,
+      "module": "col.py",
+      "tottime_s": 0.00057492
+    },
+    {
+      "cumtime_s": 0.001419816,
+      "module": "wrap.py",
+      "tottime_s": 0.000706262
+    },
+    {
+      "cumtime_s": 0.001163676,
+      "module": "_builder.py",
+      "tottime_s": 0.000167971
+    },
+    {
+      "cumtime_s": 0.001067518,
+      "module": "<frozen os>",
+      "tottime_s": 0.000552802
+    },
+    {
+      "cumtime_s": 0.0008500350000000001,
+      "module": "<frozen _collections_abc>",
+      "tottime_s": 0.000213333
+    },
+    {
+      "cumtime_s": 0.000700691,
+      "module": "_utils.py",
+      "tottime_s": 0.00015325900000000002
+    },
+    {
+      "cumtime_s": 0.000626046,
+      "module": "various.py",
+      "tottime_s": 0.00022945900000000003
+    },
+    {
+      "cumtime_s": 0.00057998,
+      "module": "schema.py",
+      "tottime_s": 0.00039857300000000005
+    },
+    {
+      "cumtime_s": 0.0005300820000000001,
+      "module": "lit.py",
+      "tottime_s": 0.00021419400000000002
+    },
+    {
+      "cumtime_s": 0.000512878,
+      "module": "series.py",
+      "tottime_s": 5e-05
+    },
+    {
+      "cumtime_s": 0.000390243,
+      "module": "whenthen.py",
+      "tottime_s": 6.9114e-05
+    },
+    {
+      "cumtime_s": 0.00034696900000000003,
+      "module": "<frozen abc>",
+      "tottime_s": 8.3508e-05
+    },
+    {
+      "cumtime_s": 0.000206891,
+      "module": "logging.py",
+      "tottime_s": 2.8082000000000003e-05
+    },
+    {
+      "cumtime_s": 0.000204861,
+      "module": "_parse.py",
+      "tottime_s": 4.7264e-05
+    },
+    {
+      "cumtime_s": 0.00017750600000000002,
+      "module": "_dependencies.py",
+      "tottime_s": 0.00016138500000000003
+    },
+    {
+      "cumtime_s": 0.00014505,
+      "module": "classes.py",
+      "tottime_s": 7.726900000000001e-05
+    },
+    {
+      "cumtime_s": 7.910600000000001e-05,
+      "module": "<frozen posixpath>",
+      "tottime_s": 4.1724e-05
+    },
+    {
+      "cumtime_s": 6.197e-05,
+      "module": "<string>",
+      "tottime_s": 6.197e-05
+    },
+    {
+      "cumtime_s": 4.0542000000000006e-05,
+      "module": "<frozen importlib._bootstrap>",
+      "tottime_s": 3.1548000000000004e-05
+    },
+    {
+      "cumtime_s": 3.4361000000000005e-05,
+      "module": "typing.py",
+      "tottime_s": 3.4361000000000005e-05
+    },
+    {
+      "cumtime_s": 1.8691e-05,
+      "module": "convert.py",
+      "tottime_s": 1.1145000000000001e-05
+    },
+    {
+      "cumtime_s": 1.1563000000000001e-05,
+      "module": "datatype_expr.py",
+      "tottime_s": 1.1563000000000001e-05
+    }
+  ],
+  "profile": "data_prep_load",
+  "wall_seconds": 0.15361329598817974
+}
