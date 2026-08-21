@@ -85,7 +85,22 @@ def main() -> None:
                                 on="player_code")
     data = data.with_columns(_bucket(pl.col("pred")))
     validation = data.filter(pl.col("split") == "validation")
-    test = data.filter(pl.col("split") == "test")
+    test = (
+        data.filter(pl.col("split") == "test")
+        .with_columns(
+            pl.col("pred").rank(method="average", descending=True)
+            .over("gw").alias("rank_gw"),
+            pl.len().over("gw").alias("n_gw"),
+            pl.col("pred").rank(method="average", descending=True)
+            .over(["gw", "position"]).alias("rank_pos_gw"),
+            pl.len().over(["gw", "position"]).alias("n_pos_gw"),
+        )
+        .with_columns(
+            (pl.col("rank_gw") <= pl.col("n_gw") * 0.10).alias("top10"),
+            (pl.col("rank_pos_gw") <= pl.col("n_pos_gw") * 0.10)
+            .alias("top10_by_position"),
+        )
+    )
 
     print(f"tail comparison: validation={validation.height}, test={test.height}")
     print("=" * 72)
@@ -104,17 +119,22 @@ def main() -> None:
             test.join(grouped, on=["position", "bucket"], how="left")
             .with_columns(pl.col("residual_q").fill_null(global_q))
         )
-        actual = test["actual"].to_numpy()
-        global_pred = test["pred"].to_numpy() + global_q
-        conditional_pred = (
-            test["pred"].to_numpy() + conditional["residual_q"].to_numpy()
-        )
-        for label, pred in [("global", global_pred),
-                            ("position+bucket", conditional_pred)]:
-            coverage = float(np.mean(actual <= pred))
-            loss = _pinball(actual, pred, q)
-            print(f"q{q:.2f} {label:<17} coverage={coverage:.3f} "
-                  f"pinball={loss:.3f}")
+        for subset_name, subset in [
+            ("all", conditional),
+            ("top10", conditional.filter(pl.col("top10"))),
+            ("top10_by_pos", conditional.filter(pl.col("top10_by_position"))),
+        ]:
+            actual = subset["actual"].to_numpy()
+            global_pred = subset["pred"].to_numpy() + global_q
+            conditional_pred = (
+                subset["pred"].to_numpy() + subset["residual_q"].to_numpy()
+            )
+            for label, pred in [("global", global_pred),
+                                ("position+bucket", conditional_pred)]:
+                coverage = float(np.mean(actual <= pred))
+                loss = _pinball(actual, pred, q)
+                print(f"q{q:.2f} {subset_name:<13} {label:<17} n={len(actual):4} "
+                      f"coverage={coverage:.3f} pinball={loss:.3f}")
 
 
 if __name__ == "__main__":

@@ -169,6 +169,15 @@ the proper scoring rule, especially q90/q95, without changing the mean model.
 Coverage needs a second calibration pass (or conformal adjustment); this is a
 useful tail layer before event-specific models.
 
+**Decision-surface rerun:** all-player metrics are not the primary objective,
+so the experiment also ranks test rows by pre-GW prediction and reports the
+top 10% (plus top 10% within each position). On overall top-decile rows, q90
+pinball improves **1.078→0.951** and coverage improves **0.754→0.844** toward
+0.90. q95 pinball is nearly unchanged (**0.634→0.630**) while coverage
+improves **0.863→0.896**; position-balanced top-decile q90 pinball improves
+**1.041→0.947**. The important q90 region improves clearly; q95 remains a
+separate extreme-tail calibration problem.
+
 ## Experiment 6 — integrated factor sampling A/B
 
 `experiments/ab_factor_sampling.py` uses the existing `dist_2025-2026.parquet`
