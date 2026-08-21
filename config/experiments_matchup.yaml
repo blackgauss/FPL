@@ -1,7 +1,11 @@
 # Standard runner proof: baseline vs the simplest leakage-safe matchup feature.
-fit_gw_max: 30
-test_gw_min: 31
 seasons: ["2024-2025", "2025-2026"]
+split:
+  fit_gw_max: 30
+  cal_start: 31
+  cal_end: 30            # empty calibration -> no curation slice
+  test_start: 31         # source rows -> target GWs 32..38
+  test_end: null
 
 experiments:
   baseline:

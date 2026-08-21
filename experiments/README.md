@@ -60,6 +60,52 @@ for duplicate feature sets, and writes a `status: complete` JSON artifact only
 after every declared experiment finishes. Printed tables are for humans;
 the JSON artifact is the reproducible result contract.
 
+## How to add an experiment
+
+Declare it as YAML — no per-experiment code. A point experiment:
+
+```yaml
+seasons: ["2024-2025", "2025-2026"]
+split:                       # source-GW windows (target = source + 1)
+  fit_gw_max: 30
+  cal_start: 31
+  cal_end: 30                # empty calibration (no curation slice)
+  test_start: 31
+  test_end: null
+experiments:
+  my_exp:
+    model: lgbm              # registry: lgbm | hist_gb | ridge
+    features: [position, now_cost, pts_avg_3, pts_avg_5]
+    categorical_columns: [position]
+```
+
+An experiment with a gym arm (same candidate squads, replay + observability):
+
+```yaml
+experiments:
+  my_exp_gym:
+    model: lgbm              # gym requires the default feature set
+    gym:
+      season: "2025-2026"
+      gw_start: 31
+      gw_end: 33
+      n_teams: 4
+      seed: 1
+      top: 2
+```
+
+Run it and compare:
+
+```bash
+python scripts/run_experiments.py --config config/my_exp.yaml --output experiments/artifacts/my_exp.json
+python scripts/compare_experiments.py experiments/artifacts/A.json experiments/artifacts/B.json
+```
+
+The runner applies the leakage gate, cohorts (all / top10 / top10-per-position),
+point metrics, and optional gym metrics, and writes `complete` — or `failed`
+with a traceback if anything broke. A `play_prob(squad, gw)` hook (passed in
+`fpl.experiments.run`) switches the gym to predicted settlement.
+
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.
 

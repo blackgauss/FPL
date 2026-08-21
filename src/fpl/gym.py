@@ -34,6 +34,21 @@ from fpl.domain import Squad
 
 Policy = Callable[[Squad, int], Squad]          # (squad, gw) -> next-week squad
 Predictor = Callable[[Squad, int], dict[int, float]]  # (squad, gw) -> expected
+PlayProb = Callable[[Squad, int], dict[int, float]]  # (squad, gw) -> P(plays)
+
+
+def predicted_xi(squad: Squad, play_prob: dict[int, float]) -> tuple[int, ...]:
+    """Pick the predicted starting XI by modeled P(play), respecting the
+    formation minimums (1 GKP, >=3 DEF, >=1 FWD, 11 players)."""
+    players = list(squad.players)
+    players.sort(key=lambda p: -play_prob.get(p.code, 0.0))
+    gks = [p for p in players if p.position.value == "GKP"]
+    defs = [p for p in players if p.position.value == "DEF"]
+    mids = [p for p in players if p.position.value == "MID"]
+    fwds = [p for p in players if p.position.value == "FWD"]
+    xi = [gks[0].code] + [p.code for p in defs[:4]] + \
+        [p.code for p in mids[:5]] + [fwds[0].code]
+    return tuple(xi)
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +107,7 @@ def replay(
     weeks: int,
     policy: Policy | None = None,
     predictor: Predictor | None = None,
+    play_prob: PlayProb | None = None,
 ) -> list[WeekResult]:
     """Replay `squad` from squad.gw for `weeks` gameweeks against real data.
 
@@ -99,8 +115,11 @@ def replay(
     (player_id -> player_code) are the actuals store. `policy` mutates the
     squad between weeks (captain/transfers); `predictor` supplies per-player
     expected points so each week reports forecast-vs-actual under the same
-    doubling/substitution rule. Weeks with no data are settled as all-players-
-    dnps (scores 0) so the harness is total and never crashes.
+    doubling/substitution rule. `play_prob` (optional) switches the FORECAST
+    arm to a modeled predicted XI (predicted settlement) instead of the
+    observed XI — use it to judge forecast quality without leaking actual
+    playing information. Weeks with no data are settled as all-players-dnps
+    (scores 0) so the harness is total and never crashes.
     """
     results: list[WeekResult] = []
     current = squad
@@ -111,11 +130,24 @@ def replay(
         predicted = None
         if predictor is not None:
             expected = predictor(current, gw)
-            predicted = sum(
-                expected.get(code, 0.0) * 2 if code == settle.captain_doubled
-                else expected.get(code, 0.0)
-                for code in settle.playing
-            )
+            if play_prob is not None:
+                xi = predicted_xi(current, play_prob(current, gw))
+                if current.captain in xi:
+                    doubled = current.captain
+                elif current.vice_captain in xi:
+                    doubled = current.vice_captain
+                else:
+                    doubled = None
+                predicted = sum(
+                    expected.get(code, 0.0) * 2 if code == doubled
+                    else expected.get(code, 0.0)
+                    for code in xi)
+            else:
+                predicted = sum(
+                    expected.get(code, 0.0) * 2 if code == settle.captain_doubled
+                    else expected.get(code, 0.0)
+                    for code in settle.playing
+                )
 
         results.append(WeekResult(
             gw=gw, squad=current, xi=settle.playing,
@@ -150,6 +182,7 @@ class Eval:
     predictor: Predictor | None = None
     forecast: pl.DataFrame | None = None
     name: str = "eval"
+    play_prob: PlayProb | None = None
 
     def __post_init__(self) -> None:
         if self.predictor is not None and self.forecast is not None:
@@ -169,8 +202,10 @@ class Eval:
 
         weeks = replay(self.squad, gw_stats=self.gw_stats, players=self.players,
                        weeks=self.weeks, policy=self.policy,
-                       predictor=predictor)
-        return EvalResult(spec=self, weeks=tuple(weeks))
+                       predictor=predictor, play_prob=self.play_prob)
+        settlement = "predicted" if self.play_prob is not None else "actual"
+        return EvalResult(spec=self, weeks=tuple(weeks),
+                          settlement=settlement)
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +220,7 @@ class EvalResult:
 
     spec: Eval
     weeks: tuple[WeekResult, ...]
+    settlement: str = "actual"      # 'actual' | 'predicted'
 
     @property
     def total_actual(self) -> float:
@@ -221,7 +257,7 @@ class EvalResult:
         s = self.spec
         lines = [
             f"[{s.name}] gw {s.squad.gw}..{s.squad.gw + len(self.weeks) - 1} "
-            f"({len(self.weeks)} weeks)",
+            f"({len(self.weeks)} weeks, {self.settlement} settlement)",
             f"  actual     {self.total_actual:7.1f} pts",
         ]
         if self.total_predicted is not None:

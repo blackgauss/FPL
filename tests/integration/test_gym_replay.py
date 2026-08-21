@@ -129,3 +129,21 @@ class TestEvalProtocol:
         with pytest.raises(ValueError, match="not both"):
             Eval(squad, gw_stats=season.gw_stats, players=season.players,
                  weeks=1, predictor=lambda s, g: {}, forecast=season.gw_stats)
+
+    def test_predicted_settlement_ignores_observed_xi(self, season):
+        # predicted settlement scores the EXPECTED XI chosen by P(play), even
+        # when the observed week left someone out.
+        squad = _build_squad(season.players)
+        forecast = pl.DataFrame({
+            "player_code": [c for c in squad.codes() for _ in (2, 3)],
+            "gw": [g for _ in squad.codes() for g in (2, 3)],
+            "expected_points": [3.0] * (2 * len(squad.codes())),
+        })
+        play_prob = lambda s, gw: {c: 1.0 for c in s.codes()}  # noqa: E731
+        res = Eval(squad, gw_stats=season.gw_stats, players=season.players,
+                   weeks=2, forecast=forecast, play_prob=play_prob,
+                   name="predicted").run()
+        assert res.settlement == "predicted"
+        assert res.total_predicted == pytest.approx(
+            sum(w.predicted_points for w in res.weeks))
+        assert res.total_predicted is not None
