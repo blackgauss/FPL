@@ -29,12 +29,36 @@ Ran so far:
 - `ab_first_team_regularity.py` — all-player training vs adding leakage-safe
   trailing appearance/start/minutes features. The first definition slightly
   improves overall MAE but worsens the regular-player cohort; not a win yet.
+- `ab_position_shrinkage.py` — global model plus validation-fitted position
+  corrections. Independent position models overfit; shrinkage keeps global
+  strength while allowing position-specific behavior.
 
 Velocity conventions (see `analysis/Investigations.md` → Velocity notes):
 run a *leakage gate + deterministic seed* first, prefer model-free arms and
 reuse the stored model for squads (no retraining), cache train-derived tables
 in `experiments/artifacts/` (keyed by season+window), keep `n_teams` small,
 and always grade paired toggles.
+
+For standard player-model comparisons, use the declared YAML registry:
+
+```bash
+python scripts/run_experiments.py \
+  --config config/experiments.yaml \
+  --output experiments/artifacts/model_experiments.json
+```
+
+The first migrated A/B is also declared in `config/experiments_matchup.yaml`:
+
+```bash
+python scripts/run_experiments.py \
+  --config config/experiments_matchup.yaml \
+  --output experiments/artifacts/matchup.json
+```
+
+The runner validates leakage before fitting, reuses assembled training data
+for duplicate feature sets, and writes a `status: complete` JSON artifact only
+after every declared experiment finishes. Printed tables are for humans;
+the JSON artifact is the reproducible result contract.
 
 Findings and conclusions are recorded in `analysis/Investigations.md`, and
 only experiment code + recorded outputs live here.

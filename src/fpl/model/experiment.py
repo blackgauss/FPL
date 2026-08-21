@@ -13,9 +13,12 @@ The registry holds the estimators we can swap; add one to try a new family.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
+import polars as pl
 
 
 def _lgbm(params: dict):
@@ -73,6 +76,8 @@ class ExperimentResult:
     fit_gw_max: int
     test_gw_min: int
     n_test: int
+    top10_mae: float | None = None
+    n_top10: int = 0
 
 
 def run_experiment(
@@ -117,6 +122,14 @@ def run_experiment(
     pred = predict(X_test)
 
     resid = y_test - pred
+    # Decision-relevant cohort: top 10% by prediction within each GW. This
+    # uses prediction only, so it is available before outcomes are observed.
+    test_meta = fit_data.meta.filter(pl.Series("test", mask)).select("gw")
+    top10 = np.zeros(len(pred), dtype=bool)
+    for gw in test_meta["gw"].unique().to_list():
+        idx = np.flatnonzero(test_meta["gw"].to_numpy() == gw)
+        n = max(1, int(np.ceil(len(idx) * 0.10)))
+        top10[idx[np.argsort(pred[idx])[-n:]]] = True
     return ExperimentResult(
         name=name,
         model=model,
@@ -126,13 +139,41 @@ def run_experiment(
         fit_gw_max=fit_gw_max,
         test_gw_min=test_gw_min,
         n_test=int(mask.sum()),
+        top10_mae=float(np.abs(resid[top10]).mean()),
+        n_top10=int(top10.sum()),
     )
 
 
 def print_results(results: list[ExperimentResult]) -> None:
-    print(f"{'name':<26}{'model':<10}{'MAE':>8}{'RMSE':>8}{'n':>6}  features")
+    print(f"{'name':<26}{'model':<10}{'MAE':>8}{'RMSE':>8}{'top10':>8}{'n':>6}  features")
     print("-" * 88)
     for r in sorted(results, key=lambda r: r.mae):
         feats = ",".join(r.features) if r.features else "ALL"
-        print(f"{r.name:<26}{r.model:<10}{r.mae:>8.3f}{r.rmse:>8.3f}{r.n_test:>6}  {feats}")
+        print(f"{r.name:<26}{r.model:<10}{r.mae:>8.3f}{r.rmse:>8.3f}"
+              f"{r.top10_mae or 0:>8.3f}{r.n_test:>6}  {feats}")
     print("-" * 88)
+
+
+def write_results(
+    results: list[ExperimentResult],
+    path: str | Path,
+    *,
+    metadata: dict | None = None,
+) -> Path:
+    """Write a completed, machine-readable experiment result artifact.
+
+    The artifact is written only after every declared experiment completes;
+    callers can therefore treat its presence and ``status=complete`` as proof
+    that the comparison actually ran. Metadata carries the declared config,
+    split, data fingerprint, git SHA, and any runner-specific context.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": "complete",
+        "results": [asdict(result) for result in results],
+        "metadata": metadata or {},
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+    return path

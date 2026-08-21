@@ -215,6 +215,24 @@ in the earlier check. Keep all players; investigate a better role/selection
 representation (starts, expected lineup role, team depth, and shrinkage)
 before adopting it.
 
+## Experiment 8 — position correction with validation shrinkage
+
+`experiments/ab_position_shrinkage.py` compares the global point model,
+independent position models, and:
+
+    global + alpha[position] * (position_model - global)
+
+Alphas are selected on source GWs 28–29 and evaluated on untouched source GWs
+30–37. Learned alphas: GKP **0.0**, DEF **0.0**, MID **1.0**, FWD **0.7**.
+
+- Holdout all-player MAE: global **1.009** → blend **1.001**.
+- Holdout predicted top-10% MAE: global **3.052** → blend **3.019**.
+
+**Read:** independent position models overfit, but validation shrinkage keeps
+the global sample strength while recovering useful position-specific behavior.
+This is the first position-model design with a positive decision-surface
+result.
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical
