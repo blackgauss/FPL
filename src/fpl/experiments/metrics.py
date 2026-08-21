@@ -22,21 +22,14 @@ def pinball(actual: np.ndarray, predicted: np.ndarray, q: float) -> float:
     return float(np.mean(np.where(error >= 0, q * error, (q - 1) * error)))
 
 
-def point_metrics(
-    actual: np.ndarray,
-    predicted: np.ndarray,
-    cohort: str | None = None,
-) -> dict:
-    """Point-outcome metrics for one slice (optionally a cohort label)."""
-    base = {
+def point_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict:
+    """Point-outcome metrics for one slice (MAE/RMSE/bias are level metrics)."""
+    return {
         "mae": mae(actual, predicted),
         "rmse": rmse(actual, predicted),
         "n": int(actual.size),
         "bias": float(np.mean(predicted - actual)),
     }
-    if cohort is not None:
-        base["cohort"] = cohort
-    return base
 
 
 # --- stage 1: ranking (is the ORDERING useful, scale-free) ---------------
@@ -82,11 +75,31 @@ def ranking_metrics(
     actual: np.ndarray, predicted: np.ndarray, source_gw: np.ndarray,
     *, top: float = 0.10,
 ) -> dict:
-    """The scale-free 'does the model order players correctly' stage."""
+    """The scale-free 'does the model order players correctly' stage.
+
+    Selection happens within a gameweek, so spearman and concordance are
+    computed per-GW and averaged, and topk hit-rate counts per-GW recovery.
+    """
+    rhos: list[float] = []
+    concords: list[float] = []
+    topk_hits_total = 0
+    topk_total = 0
+    for gw in np.unique(source_gw):
+        idx = np.flatnonzero(source_gw == gw)
+        a, p = actual[idx], predicted[idx]
+        if a.size < 2:
+            continue
+        rhos.append(spearman(a, p))
+        concords.append(pairwise_concordance(a, p))
+        k = max(1, int(np.ceil(a.size * top)))
+        topk_hits_total += len(
+            set(idx[np.argsort(a)[-k:]]) & set(idx[np.argsort(p)[-k:]]))
+        topk_total += k
     return {
-        "spearman_rho": spearman(actual, predicted),
-        "topk_hit_rate": topk_hit_rate(actual, predicted, source_gw, top=top),
-        "pairwise_concordance": pairwise_concordance(actual, predicted),
+        "spearman_rho": sum(rhos) / len(rhos) if rhos else float("nan"),
+        "topk_hit_rate": topk_hits_total / topk_total if topk_total else 0.0,
+        "pairwise_concordance": sum(concords) / len(concords)
+        if concords else float("nan"),
         "n": int(actual.size),
     }
 

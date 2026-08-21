@@ -30,15 +30,16 @@ class TemporalSplit:
     def problems(self) -> list[str]:
         problems: list[str] = []
         problems += check_split_no_future_in_train(self.fit_gw_max, self.test_start)
-        empty_cal = self.cal_end < self.cal_start
-        if not empty_cal and not (self.cal_start <= self.cal_end):
-            problems.append("calibration window is empty or reversed")
-        if not empty_cal and not (self.fit_gw_max < self.cal_start):
-            problems.append(
-                f"fit max GW {self.fit_gw_max} >= cal start {self.cal_start}")
-        if not (self.cal_end < self.test_start):
-            problems.append(
-                f"cal end {self.cal_end} >= test start {self.test_start}")
+        if self.cal_end < self.cal_start:
+            # empty calibration window (e.g. season-start) is allowed
+            pass
+        else:
+            if not (self.fit_gw_max < self.cal_start):
+                problems.append(
+                    f"fit max GW {self.fit_gw_max} >= cal start {self.cal_start}")
+            if not (self.cal_end < self.test_start):
+                problems.append(
+                    f"cal end {self.cal_end} >= test start {self.test_start}")
         return problems
 
     def validate(self) -> None:

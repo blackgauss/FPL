@@ -31,7 +31,6 @@ def candidate_squads(
     model,
     n_teams: int,
     seed: int,
-    richness: str = "h2h",
 ) -> CandidatePack:
     """Generate `n_teams` deterministic candidate squads via run_basket.
 
@@ -42,7 +41,7 @@ def candidate_squads(
     if key not in _CACHE:
         res = run_basket(
             processed=processed, season=season, gw_start=gw_start, gw_end=gw_end,
-            model=model, freshness=False, value_fn=richness,
+            model=model, freshness=False, value_fn="h2h",
             enum_kw={"n_teams": n_teams, "seed": seed},
         )
         _CACHE[key] = (tuple(res.squads), tuple(res.team_ids))

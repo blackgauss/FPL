@@ -78,6 +78,17 @@ class TestRankingMetrics:
         assert pairwise_concordance(actual, actual) == 1.0
         assert pairwise_concordance(actual, actual[::-1]) == 0.0
 
+    def test_ranking_metrics_are_per_gw(self):
+        from fpl.experiments.metrics import ranking_metrics
+
+        # two GWs, each perfectly ordered -> per-GW spearman/concordance = 1
+        actual = np.asarray([1.0, 2.0, 3.0, 1.0, 2.0, 3.0])
+        pred = actual.copy()
+        gw = np.asarray([1, 1, 1, 2, 2, 2])
+        m = ranking_metrics(actual, pred, gw)
+        assert m["spearman_rho"] == pytest.approx(1.0)
+        assert m["pairwise_concordance"] == pytest.approx(1.0)
+
 
 class TestCalibrationMetrics:
     def test_slope_and_ece_perfect(self):

@@ -112,11 +112,8 @@ def run_experiment(
          **point_metrics(actual[mask], pred[mask])}
         for cohort, mask in cohort_mask.items() if np.any(mask)
     ]
-    # model performance has two separable questions:
-    #   ranking    - does the model ORDER players correctly (scale-free)?
-    #   calibration - do the predicted MAGNITUDES mean what they claim?
-    ranking = ranking_metrics(actual, pred, source_gw)
     calibration = calibration_metrics(actual, pred)
+    ranking = ranking_metrics(actual, pred, source_gw)
 
     result: dict = {
         "name": name, "model": model_name,
@@ -156,13 +153,3 @@ def run_experiment(
             "runs": [ev.observability() for ev in evals],
         }
     return result
-
-
-def _result_metrics_table(result: dict) -> list[dict]:
-    """Flatten a result dict into compact metric rows (for compare_artifacts)."""
-    rows = []
-    for metric in result.get("metrics", []):
-        rows.append({k: v for k, v in metric.items()})
-    if result.get("gym"):
-        rows.append({"cohort": "gym", **result["gym"]})
-    return rows

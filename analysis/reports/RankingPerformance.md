@@ -1,6 +1,6 @@
 # Ranking Ability Report
 
-Generated: 2026-08-21T18:01:38.404353+00:00 (git dc224c6269e9b08e41ee4de6f7bbf44594f52d0b)
+Generated: 2026-08-21T18:11:45.576137+00:00 (git b699ccd4071e29cad8aba0e08a7155a5bd77e8a4)
 Frame: ranking stage (spearman / topk_hit_rate / concordance)
 
 Reproduce with:
@@ -17,15 +17,15 @@ Leakage-safe split on 2025-2026: fit <= source GW 30, test from source GW 31. Pe
 
 | ranker | spearman_rho | topk_hit_rate | pairwise_concordance |
 |---|---|---|---|
-| lgbm_all | 0.6805 | 0.3533 | 0.4649 |
-| ridge | 0.6340 | 0.3533 | 0.4509 |
-| hist_gb | 0.6833 | 0.3413 | 0.4654 |
-| FPL_ep_next | 0.6348 | 0.3396 | 0.4326 |
-| persist(prev_points) | 0.5837 | 0.2762 | 0.3381 |
+| lgbm_all | 0.6787 | 0.3636 | 0.4634 |
+| ridge | 0.6375 | 0.3551 | 0.4511 |
+| hist_gb | 0.6856 | 0.3431 | 0.4654 |
+| FPL_ep_next | 0.6366 | 0.3396 | 0.4317 |
+| persist(prev_points) | 0.5898 | 0.2762 | 0.3375 |
 
 ## Read
 
-- Best model by hit-rate: **lgbm_all** (topk-hit 0.353, spearman 0.681).
+- Best model by hit-rate: **lgbm_all** (topk-hit 0.364, spearman 0.679).
 - FPL's own `ep_next` reference ranks at topk-hit 0.340; persist-last-GW at 0.276.
 - Ranking is materially better than naive persistence but still recovers only ~1 in 3 of the true top-decile performers per GW (topk-hit ~0.35), and the edge over FPL's official forecast is thin.
 - Dropping `ep_next` from the model degrades ranking sharply (measured separately), so the official forecast carries real ranking signal.
