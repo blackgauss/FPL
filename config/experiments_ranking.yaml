@@ -1,0 +1,20 @@
+# Ranking-stage comparison: tree models vs naive references on the same split.
+# Reproduces the "ranking ability" finding for scripts/ranking_report.py.
+seasons: ["2024-2025", "2025-2026"]
+split:
+  fit_gw_max: 30
+  cal_start: 31
+  cal_end: 30            # empty calibration
+  test_start: 31
+  test_end: null
+
+experiments:
+  lgbm_all:
+    model: lgbm
+    note: full feature set
+  hist_gb:
+    model: hist_gb
+    note: sklearn gradient boosting on full set
+  ridge:
+    model: ridge
+    note: linear baseline on full set

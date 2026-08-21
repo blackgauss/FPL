@@ -1,0 +1,22 @@
+# Gym evaluation of point models: point metrics + replay through fpl.gym on
+# the same candidate squads. settlement: actual (history) unless a play-prob
+# hook is wired in the runner (predicted settlement).
+seasons: ["2024-2025", "2025-2026"]
+split:
+  fit_gw_max: 30
+  cal_start: 31
+  cal_end: 30            # empty calibration
+  test_start: 31
+  test_end: null
+
+experiments:
+  baseline_gym:
+    model: lgbm
+    gym:
+      season: "2025-2026"
+      gw_start: 31
+      gw_end: 33
+      n_teams: 4
+      seed: 1
+      top: 2
+    note: point fit + gym replay, actual settlement

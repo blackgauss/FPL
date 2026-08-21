@@ -1,18 +1,21 @@
 # Rapid-experiment registry: run candidates on the same held-out slice.
 # Each experiment: model (registry name), features (feature-store subset),
-# fit_gw_max / test_gw_min (the shared held-out window).
+# split: explicit source-GW windows (see fpl.experiments.splits).
 
-fit_gw_max: 30
-test_gw_min: 31
 seasons: ["2024-2025", "2025-2026"]
+split:
+  fit_gw_max: 30
+  cal_start: 31
+  cal_end: 30            # empty calibration (no curation slice)
+  test_start: 31         # source rows -> target GWs 32..38
+  test_end: null
 
-# Season-start (honest) benchmark: trained ONLY on seasons[0], evaluated on
-# seasons[1]'s first gameweeks — mirrors picking the GW1 team before data
-# accrues. Report: our cold model MAE 1.190 vs FPL ep_next 1.241 (2025-26 #GW1-5).
+# Season-start (honest) benchmark: trained ONLY on seasons[0]. Note the runner
+# maps this to source rows (targets are one GW later than the source windows);
+# run with --season-start. Report: our cold model MAE 1.190 vs FPL ep_next
+# 1.241 (2025-26 #GW1-5).
 season_start:
-  fit_gw_max: 0          # train on previous season only
-  test_gw_max: 5         # evaluate seasons[1] GW1..5
-  note: "cold start; expected worse than late-season, but the true selection setting"
+  test_gw_max: 5
 
 experiments:
   lgbm_all:
