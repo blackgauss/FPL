@@ -13,6 +13,7 @@ import time
 import polars as pl
 import pytest
 
+from fpl.domain import Player, PlayerForm, PlayerIdentity, Position, Squad
 from fpl.live.agreement import hygiene_summary, price_diff_tenths, report_agreement, to_tenths
 from fpl.live.filters import (
     available,
@@ -260,6 +261,58 @@ class TestFlagSquadPlayer:
             {"status": None, "team_code": 1, "team_code_live": None,
              "price_diff_tenths": None})
         assert "NOT IN LIVE ROSTER" in f
+
+
+class TestFlagSquad:
+    """Squad-level live flags from the typed interface (no column joining)."""
+
+    def _squad(self, players):
+        return Squad(players=tuple(players),
+                     starters=tuple(p.code for p in players))
+
+    @staticmethod
+    def _p(code, name, position, club, cost):
+        return Player(identity=PlayerIdentity(code, name, Position(position)),
+                      form=PlayerForm(club, cost))
+
+    def test_healthy_all_ok(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([
+            self._p(223001, "P0", "MID", 10, 50),   # team_code 10, £5.0
+            self._p(223002, "P1", "MID", 20, 60),   # team_code 20, £6.0
+            self._p(223008, "P7", "DEF", 30, 120),  # team_code 30, £12.0
+        ])
+        out = flag_squad(squad, live)
+        assert all(flag == "ok" for flag in out.values())
+
+    def test_injured_detected(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223005, "P4", "MID", 50, 90)])
+        f = flag_squad(squad, live)[223005]
+        assert "UNAVAILABLE[i]" in f and "INJURED" in f
+
+    def test_transferred_detected(self, live):
+        # squad records old club (99); live says 10
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223001, "P0", "MID", 99, 50)])
+        f = flag_squad(squad, live)[223001]
+        assert "TRANSFERRED (ds 99 -> live 10)" in f
+
+    def test_price_move_detected(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(223001, "P0", "MID", 10, 45)])
+        f = flag_squad(squad, live)[223001]
+        assert "price +5" in f  # live 50 tenths - squad 45 tenths
+
+    def test_missing_from_live_flagged(self, live):
+        from fpl.live.filters import flag_squad
+
+        squad = self._squad([self._p(999999, "ghost", "MID", 10, 50)])
+        assert "NOT IN LIVE ROSTER" in flag_squad(squad, live)[999999]
 
 
 class TestHygieneAgreement:

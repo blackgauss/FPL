@@ -1,10 +1,10 @@
 """Check a candidate team basket against live FPL API state.
 
-Reproduces the team-search basket the way `inspect_teams.py` does, then joins
-the LIVE snapshot and flags for every squad: players who are injured /
-suspended / unavailable, players who transferred clubs (team mismatch), and
-price moves — i.e. the "my candidate team had missing/injured players" problem,
-made detectable.
+Reproduces the team-search basket the way `inspect_teams.py` does, then flags
+every squad from the typed interface — `basket_squads` hydrates the basket
+into Squad objects and `flag_squad` reports players who are injured /
+suspended / unavailable, transferred clubs, or price-moved. The "my candidate
+team had missing/injured players" problem, made detectable.
 
 Usage:
     python scripts/live_check_team.py \
@@ -18,14 +18,19 @@ import argparse
 
 import polars as pl
 
-from fpl.live.agreement import to_tenths
-from fpl.live.filters import flag_squad_player
+from fpl.domain import position_sort_key
+from fpl.live.filters import flag_squad
 from fpl.live.live import load_live_state
 from fpl.model.inference import load_model
 from fpl.model.train import load_training
 from fpl.team.enumerate import greedy_teams
 from fpl.team.filtering import availability_from_gw_stats, filter_pool
+from fpl.team.harness import basket_squads
 from fpl.team.scoring import score_players
+
+
+def _expected(squad, expected) -> float:
+    return sum(expected.get(p.code, 0.0) for p in squad.players)
 
 
 def main() -> None:
@@ -53,63 +58,50 @@ def main() -> None:
                        reserve_top=20)
     basket = greedy_teams(pool, n_teams=args.n_teams, seed=1)
 
+    # hydrate the typed interface once (names/clubs, prices in tenths)
+    squads = basket_squads(basket, scored, gw=args.gw)
+    expected = dict(zip(scored["player_code"], scored["expected_total"],
+                        strict=False))
+    teams_names = dict(zip(teams["code"], teams["name"], strict=False))
+
     # 2) live state (rate-limit-safe; cached)
     live, fetched = load_live_state(args.cache, max_age_seconds=3600)
     print(f"\nlive snapshot {fetched} | {live.height} players | "
-          f"basket {basket['team_id'].n_unique()} squads\n")
+          f"{len(squads)} squads\n")
     print("=" * 100)
 
-    # 3) per-squad: join live + flag problems
-    live_cols = live.select(
-        "player_code", "web_name", "status", "news", "team_code", "now_cost")
-    basket_meta = (
-        basket
-        .join(players.select("player_code", "web_name", "team_code"),
-              on="player_code", how="left")
-        .join(teams.select(pl.col("code").alias("team_code"),
-                           pl.col("name").alias("club")), on="team_code", how="left")
-        .join(live_cols, on="player_code", how="left", suffix="_live")
-        .with_columns(
-            to_tenths(pl.col("now_cost"), 10).alias("ds_price_tenths"),
-        )
-        .with_columns(
-            (pl.col("now_cost_live") - pl.col("ds_price_tenths"))
-            .alias("price_diff_tenths"),
-        )
-    )
+    status_of = {c: s for c, s in live.select("player_code", "status").iter_rows()}
 
-    basket_meta = basket_meta.with_columns(
-        # per-row flag from the shared, tested helper
-        pl.struct(["status", "team_code", "team_code_live", "price_diff_tenths"])
-        .map_elements(lambda r: flag_squad_player(dict(r)), return_dtype=pl.String)
-        .alias("problems")
-    )
-
-    # rank squads by expected total and print the best few, then a problem rollup
-    best = basket_meta.group_by("team_id").agg(
-        pl.col("expected_total").sum().alias("exp"),
-        pl.col("problems").alias("problems"),
-    ).with_columns(
-        pl.col("problems").list.len().alias("problem_count"),
-        pl.col("problems").list.filter(
-            pl.element().ne("ok")).alias("real_problems"),
-    ).sort("exp", descending=True)
+    # rank squads by expected total; show the best, then a problem rollup
+    ranked = sorted(squads, key=lambda kv: _expected(kv[1], expected), reverse=True)
+    best = ranked[0]
+    flags = flag_squad(best[1], live)
 
     print("=== best squad + live-detected problems ===")
-    best_team = best.head(1)
-    tid = best_team.get_column("team_id").item()
-    sq = basket_meta.filter(pl.col("team_id") == tid).sort(
-        "position", "expected_total", descending=[False, True])
-    for row in sq.iter_rows(named=True):
-        print(f"  {row['web_name']:<28} {row['club'] or '?':<14} "
-              f"status={row['status'] or '-':>1}  {row['problems'][:52]}")
+    for p in sorted(best[1].players, key=lambda p: position_sort_key(p.position)):
+        club = teams_names.get(p.club, "?")
+        status = status_of.get(p.code) or "-"
+        print(f"  {p.name:<28} {club:<14} status={status:>1}  "
+              f"{flags[p.code][:52]}")
 
     print("\n=== problem rollup across all squads ===")
-    flat = basket_meta.filter(pl.col("problems") != "ok")
-    print(flat.group_by(pl.col("web_name"), pl.col("problems")).len().sort(
-        "len", descending=True).head(12))
-    print(f"\n{flat.height} of {basket.height} team-starts have a live problem "
+    counts: dict[tuple[str, str], int] = {}
+    flagged_starts = 0
+    for _, squad in squads:
+        sf = flag_squad(squad, live)
+        for p in squad.players:
+            if sf[p.code] != "ok":
+                flagged_starts += 1
+                counts[(p.name, sf[p.code])] = counts.get((p.name, sf[p.code]), 0) + 1
+    for (name, problem), n in sorted(counts.items(), key=lambda kv: -kv[1])[:12]:
+        print(f"  {n:>3}  {name:<20}  {problem}")
+    total_starts = sum(len(s.players) for _, s in squads)
+    print(f"\n{flagged_starts} of {total_starts} team-starts have a live problem "
           f"(injured/suspended/transferred/price-moved)")
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":
