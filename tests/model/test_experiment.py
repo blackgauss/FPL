@@ -83,6 +83,8 @@ class TestRunExperiment:
                            fit_gw_max=2, test_gw_min=3)
         assert isinstance(r.mae, float)
         assert r.n_test == 2  # gw == 3 rows
+        assert r.n_top10 == 1
+        assert isinstance(r.top10_mae, float)
 
     def test_registry_has_core_models(self):
         assert {"lgbm", "hist_gb", "ridge"} <= set(REGISTRY)

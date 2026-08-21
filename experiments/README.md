@@ -44,6 +44,14 @@ python scripts/run_experiments.py \
   --output experiments/artifacts/model_experiments.json
 ```
 
+The first migrated A/B is also declared in `config/experiments_matchup.yaml`:
+
+```bash
+python scripts/run_experiments.py \
+  --config config/experiments_matchup.yaml \
+  --output experiments/artifacts/matchup.json
+```
+
 The runner validates leakage before fitting, reuses assembled training data
 for duplicate feature sets, and writes a `status: complete` JSON artifact only
 after every declared experiment finishes. Printed tables are for humans;

@@ -57,9 +57,14 @@ def main() -> None:
     loaded = {}
     for name, exp in spec["experiments"].items():
         feats = exp.get("features")  # None => full set
-        key = tuple(feats) if feats is not None else None
+        cats = exp.get("categorical_columns")
+        key = (
+            tuple(feats) if feats is not None else None,
+            tuple(cats) if cats is not None else None,
+        )
         if key not in loaded:
-            loaded[key] = load_training(root, seasons, feature_columns=feats)
+            loaded[key] = load_training(root, seasons, feature_columns=feats,
+                                        categorical_columns=cats)
         by_season = loaded[key]
         train, fit = by_season[seasons[0]], by_season[seasons[-1]]
         results.append(run_experiment(
