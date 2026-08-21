@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "config": "config/experiments_ranking.yaml",
+    "frame": "ranking stage (spearman / topk_hit_rate / concordance)",
+    "generated": "2026-08-21T18:01:38.404353+00:00",
+    "git_sha": "dc224c6269e9b08e41ee4de6f7bbf44594f52d0b",
+    "seasons": [
+      "2024-2025",
+      "2025-2026"
+    ],
+    "split": {
+      "cal_end": 30,
+      "cal_start": 31,
+      "fit_gw_max": 30,
+      "test_end": null,
+      "test_start": 31
+    }
+  },
+  "results": [
+    {
+      "calibration": {
+        "ece": 0.08954451199469662,
+        "intercept": 0.0897778486871713,
+        "mae": 0.9971238514783989,
+        "n": 5802,
+        "rmse": 1.9924161283388961,
+        "slope": 0.8918907500381557,
+        "variance_ratio": 2.6499856379892455
+      },
+      "features": [
+        "team_code",
+        "position",
+        "now_cost",
+        "ep_next",
+        "had_match",
+        "was_home",
+        "opponent_elo",
+        "home_elo",
+        "pts_avg_3",
+        "pts_avg_5"
+      ],
+      "gym": null,
+      "metrics": [
+        {
+          "bias": 0.03212740913911963,
+          "cohort": "all",
+          "mae": 0.9971238514783989,
+          "n": 5802,
+          "rmse": 1.9924161283388961
+        },
+        {
+          "bias": 0.5456066151549834,
+          "cohort": "top10",
+          "mae": 3.099863619065976,
+          "n": 583,
+          "rmse": 3.9468843321952964
+        },
+        {
+          "bias": 0.5315193953364024,
+          "cohort": "top10_by_position",
+          "mae": 3.029847459501372,
+          "n": 593,
+          "rmse": 3.8921665237950527
+        }
+      ],
+      "model": "lgbm",
+      "name": "lgbm_all",
+      "ranking": {
+        "n": 5802,
+        "pairwise_concordance": 0.4648827024735896,
+        "spearman_rho": 0.6805471494339972,
+        "topk_hit_rate": 0.35334476843910806
+      }
+    },
+    {
+      "calibration": {
+        "ece": 0.11318928801837469,
+        "intercept": 0.08301617544642022,
+        "mae": 1.004102668956503,
+        "n": 5802,
+        "rmse": 1.9974037858979155,
+        "slope": 0.8892231214771057,
+        "variance_ratio": 2.6624130166130575
+      },
+      "features": [
+        "team_code",
+        "position",
+        "now_cost",
+        "ep_next",
+        "had_match",
+        "was_home",
+        "opponent_elo",
+        "home_elo",
+        "pts_avg_3",
+        "pts_avg_5"
+      ],
+      "gym": null,
+      "metrics": [
+        {
+          "bias": 0.04311421576603097,
+          "cohort": "all",
+          "mae": 1.004102668956503,
+          "n": 5802,
+          "rmse": 1.9974037858979155
+        },
+        {
+          "bias": 0.5251264666472563,
+          "cohort": "top10",
+          "mae": 3.0979658724828827,
+          "n": 583,
+          "rmse": 3.916537155530779
+        },
+        {
+          "bias": 0.41030782558297507,
+          "cohort": "top10_by_position",
+          "mae": 3.0572845118081755,
+          "n": 593,
+          "rmse": 3.907766451870014
+        }
+      ],
+      "model": "hist_gb",
+      "name": "hist_gb",
+      "ranking": {
+        "n": 5802,
+        "pairwise_concordance": 0.46538642525052887,
+        "spearman_rho": 0.6833082227818903,
+        "topk_hit_rate": 0.34133790737564323
+      }
+    },
+    {
+      "calibration": {
+        "ece": 0.357486107359121,
+        "intercept": 0.11709656731367657,
+        "mae": 1.126638441836117,
+        "n": 5802,
+        "rmse": 2.0599507383258198,
+        "slope": 0.8251362567750282,
+        "variance_ratio": 2.6171341414543763
+      },
+      "features": [
+        "team_code",
+        "position",
+        "now_cost",
+        "ep_next",
+        "had_match",
+        "was_home",
+        "opponent_elo",
+        "home_elo",
+        "pts_avg_3",
+        "pts_avg_5"
+      ],
+      "gym": null,
+      "metrics": [
+        {
+          "bias": 0.09024439317963032,
+          "cohort": "all",
+          "mae": 1.126638441836117,
+          "n": 5802,
+          "rmse": 2.0599507383258198
+        },
+        {
+          "bias": 0.9526643730250632,
+          "cohort": "top10",
+          "mae": 3.185925236004139,
+          "n": 583,
+          "rmse": 4.011092161978127
+        },
+        {
+          "bias": 0.8701071084149667,
+          "cohort": "top10_by_position",
+          "mae": 3.146947175409531,
+          "n": 593,
+          "rmse": 3.99142680240766
+        }
+      ],
+      "model": "ridge",
+      "name": "ridge",
+      "ranking": {
+        "n": 5802,
+        "pairwise_concordance": 0.450889524984727,
+        "spearman_rho": 0.6339789019183445,
+        "topk_hit_rate": 0.35334476843910806
+      }
+    },
+    {
+      "calibration": {},
+      "gym": null,
+      "metrics": [],
+      "model": "reference",
+      "name": "persist(prev_points)",
+      "ranking": {
+        "n": 5802,
+        "pairwise_concordance": 0.33812443396552117,
+        "spearman_rho": 0.5836668261295043,
+        "topk_hit_rate": 0.27615780445969124
+      }
+    },
+    {
+      "calibration": {},
+      "gym": null,
+      "metrics": [],
+      "model": "reference",
+      "name": "FPL_ep_next",
+      "ranking": {
+        "n": 5802,
+        "pairwise_concordance": 0.43256202602922234,
+        "spearman_rho": 0.6347628758720926,
+        "topk_hit_rate": 0.33962264150943394
+      }
+    }
+  ],
+  "status": "complete"
+}
