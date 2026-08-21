@@ -51,6 +51,7 @@ def choose_transfer(
                 continue
             proposal = apply_transfer(squad, out, new, gw=squad.gw)
             if proposal.validate():
+                # non-empty problem list => candidate swap is invalid; skip.
                 continue
             gain = expected.get(new.code, 0.0) - expected.get(out.code, 0.0) - cost
             if gain > best[2]:

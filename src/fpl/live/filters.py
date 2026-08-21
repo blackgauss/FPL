@@ -15,7 +15,26 @@ from __future__ import annotations
 
 import polars as pl
 
-from fpl.domain import Squad
+from fpl.domain import Position, Squad
+
+ELEMENT_TYPE_TO_POSITION = {
+    1: Position.GKP,
+    2: Position.DEF,
+    3: Position.MID,
+    4: Position.FWD,
+}
+
+
+def position_for_element_type(element_type: int) -> Position:
+    """Map the FPL API element_type (1..4) to the domain Position.
+
+    Single canonical projection for live -> domain; callers never build their
+    own id map. Raises KeyError for out-of-range element types.
+    """
+    try:
+        return ELEMENT_TYPE_TO_POSITION[int(element_type)]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise KeyError(f"unknown element_type {element_type!r}") from exc
 
 
 def status_mask(live: pl.DataFrame, statuses: list[str]) -> pl.Series:

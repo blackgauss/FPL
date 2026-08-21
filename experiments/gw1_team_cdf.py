@@ -14,6 +14,7 @@ Outputs:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -180,12 +181,9 @@ def main() -> None:
                         scored["expected_total"].to_list(), strict=False))
     candidates = []
     for _, squad in basket_squads(basket, pool_frame, gw=1):
-        squad = squad.__class__(
-            players=squad.players, gw=1, starters=squad.starters,
-            bench=tuple(p.code for p in squad.players if p.code not in squad.starters),
-            captain=squad.captain, vice_captain=squad.vice_captain,
-        )
-        candidates.append(set_captains(squad, expected))
+        bench = tuple(p.code for p in squad.players
+                      if p.code not in squad.starters)
+        candidates.append(set_captains(replace(squad, bench=bench), expected))
     squad = next(
         s for s in candidates
         if {s.by_code()[c].name for c in s.starters} == TARGET_NAMES
