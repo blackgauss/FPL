@@ -95,14 +95,16 @@ def main() -> None:
                 results = list(pool.map(
                     lambda s: run_experiment(s, processed=processed,
                                              git_sha=git_sha,
-                                             cache_dir=cache_dir),
+                                             cache_dir=cache_dir,
+                                             n_workers=args.parallel),
                     specs))
         else:
             for s in specs:
                 print(f"running {s['name']!r} ...")
                 results.append(run_experiment(s, processed=processed,
                                               git_sha=git_sha,
-                                              cache_dir=cache_dir))
+                                              cache_dir=cache_dir,
+                                              n_workers=args.parallel))
         write_artifact(outcome_path, results, metadata=metadata)
     except Exception as exc:  # noqa: BLE001 - write a failed artifact
         write_failed_artifact(outcome_path, exc, metadata=metadata)

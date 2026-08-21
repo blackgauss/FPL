@@ -90,9 +90,20 @@ QUALITY knee and scale time linearly:
   which is per-process randomized). A later CLI run loads instead of
   re-fitting the same config. Same-config second process shows `fit_hits = 1`.
 - **Parallel arms**: `--parallel N` runs declared experiments in a
-  `ThreadPoolExecutor`, which helps because LightGBM releases the GIL during
-  training. Heavy imports (lightgbm/scipy) are warmed before the pool to
-  avoid a circular-import race on first lazy import.
+  `ThreadPoolExecutor`. This only pays when per-arm LightGBM threads are
+  throttled (`num_threads = cores // N`): untrottled, concurrent fits contend
+  and parallel was SLOWER than sequential. Heavy imports are warmed before
+  the pool.
+- **Measured (ranking config, 3 experiments):**
+
+  | run | wall |
+  |---|---:|
+  | sequential, no disk | 30.9s |
+  | parallel 3 (throttled), cold | 13.6s |
+  | parallel 3 (throttled), warm disk | 10.3s |
+
+  i.e. parallel ≈ 2.3×, plus disk ≈ 3× vs sequential.
+
 - Both were the "cross-process" and "parallel" levers from the earlier list;
   training round count + these are the practical wins.
 
