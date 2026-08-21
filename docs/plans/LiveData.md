@@ -44,6 +44,22 @@ hygiene shows genuine `price_moved=403`, `team_transferred=45`,
 `not_available=92` (dataset is a 2025-26 snapshot vs current live — the drift
 is real, which is the point of this layer).
 
+### Reconcile BEFORE construction (current.py)
+
+Team construction must never see a stale world, so live state is reconciled
+into the *input* to the pipeline (`construction_input(scored, live, mask)`):
+- **transfers**: each player's `team_code` is overwritten with the live club,
+  so `max_per_club` and enumeration use the current club;
+- **missing players**: players absent from the live roster (transferred out of
+  FPL, de-listed) are dropped;
+- **availability**: injured/suspended/unavailable players excluded via
+  `suggest()`.
+
+Real 2025-26 GW2-4 reconcile: scored 753 → 366 (387 removed — missing from
+live / unavailable), pool rebuilt on current clubs. This is the "updates the
+team for transferred players before construction" guarantee; `current.py` has
+dedicated tests for transfer-update, missing-drop, and mask-exclusion.
+
 `scripts/live_check_team.py`: reproduces the candidate team basket and flags
 **per-squad live problems** — the "my candidate team had missing/injured
 players" case. Uses the shared `flag_squad_player` helper, which detects

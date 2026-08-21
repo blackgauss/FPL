@@ -178,6 +178,56 @@ class TestFilters:
         assert set(excluded) <= {"i", "s", "u"}
 
 
+class TestCurrentWorld:
+    """Reconciliation feeds construction the current clubs/availability."""
+
+    @pytest.fixture()
+    def scored(self, live):
+        # a scored-like frame: player + dataset-stale team_code + points
+        return pl.DataFrame({
+            "player_code": [223001, 223002, 223003, 223004, 223005, 223006, 223007, 223008],
+            "web_name": [f"P{i}" for i in range(8)],
+            "position": ["FWD"] * 2 + ["DEF"] * 6,
+            "expected_total": [10.0 + i for i in range(8)],
+            "team_code": [1, 1, 2, 2, 3, 3, 4, 4],  # stale clubs
+        })
+
+    def test_transfer_updates_club_in_pool(self, scored, live):
+        from fpl.live.current import reconcile_player_clubs
+
+        # live gives P0 team 2 (was 1 -> transferred)
+        out = reconcile_player_clubs(scored, live)
+        p0 = out.filter(pl.col("player_code") == 223001)
+        assert p0.get_column("team_code").item() == live.filter(
+            pl.col("player_code") == 223001)["team_code"].item()
+
+    def test_missing_from_live_dropped(self, scored, live):
+        from fpl.live.current import reconcile_player_clubs
+
+        # drop P7 from live roster -> absent players are removed
+        reduced = live.filter(pl.col("player_code") != 223008)
+        out = reconcile_player_clubs(scored, reduced)
+        assert 223008 not in out.get_column("player_code").to_list()
+
+    def test_construction_input_applies_mask(self, scored, live):
+        from fpl.live.current import construction_input
+
+        mask = pl.Series([True] * 8)  # all playable
+        out = construction_input(scored, live, mask)
+        # still has all 8, clubs now from live
+        assert out.height == 8
+        assert out.get_column("team_code").eq(live.sort("player_code")["team_code"]).all()
+
+    def test_construction_input_excludes_injured(self, scored, live):
+        from fpl.live.current import construction_input
+        from fpl.live.filters import suggest
+
+        out = construction_input(scored, live, suggest(live))
+        # fixture has i/s/u players (223005..223007) -> excluded
+        kept = set(out.get_column("player_code").to_list())
+        assert {223005, 223006, 223007}.isdisjoint(kept)
+
+
 class TestFlagSquadPlayer:
     """Detect missing/injured players in a candidate team (the reported bug)."""
 
