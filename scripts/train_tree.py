@@ -14,6 +14,7 @@ import numpy as np
 import polars as pl
 
 from fpl.model.eval import baseline_mean, summarize
+from fpl.model.inference import save_model
 from fpl.model.leakage import validate
 from fpl.model.train import assemble
 
@@ -66,6 +67,9 @@ def main() -> None:
         lgb_train,
         num_boost_round=200,
     )
+
+    save_model(model, "data/processed/points_lgbm.txt")
+    print("saved model -> data/processed/points_lgbm.txt")
 
     # held-out test slice
     mask = (fit_data.gw >= TEST_GWS[0]) & (fit_data.gw <= TEST_GWS[1])

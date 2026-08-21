@@ -115,3 +115,28 @@ the season-end cumulative total). Caught by the model producing nonsense targets
 - Per-position models (FWD/MID/DEF/GKP benefit differently from features)
 - Predict *future GWs* for team value (bag/horizon aggregation)
 - Distribution not just mean (needed for the journal's risk/return framing)
+
+## Serving: expected points for a player collection + GW
+
+`src/fpl/model/inference.py` turns the trained model into a claim: given a list
+of `player_code`s and a gameweek G, report expected points. Row semantics: the
+feature-store row at gw=k predicts points in gw=k+1, so GW G uses rows where
+gw = G-1. `scripts/train_tree.py` saves the booster to
+`data/processed/points_lgbm.txt`; `scripts/predict.py` loads and serves it.
+
+```
+python scripts/train_tree.py                     # writes the model
+python scripts/predict.py --season 2025-2026 --gw 31
+```
+
+Example (2025-26 GW31, expected vs actual): Haaland 1.99↔2, Palme 2.79↔4,
+Gabriel 2.63↔4, Foden 1.95↔1, Bowen 3.65↔14. Per-GW noise is high — horizon
+aggregation (mean of next 3-5 GWs) is the intended use for team value.
+
+## ep_next data artifact (fixed)
+
+FPL-Core sometimes scrapes `ep_next` as 0.0 for available players whose
+`ep_this > 0` (910 rows in 2025-26, concentrated in later GWs — i.e. the held
+out window). `load_gw_stats_csv` now repairs those: `ep_next = ep_this` when
+the player is available and `ep_this > 0`. This removed the systematic
+star-under-prediction (Haaland -0.23 -> 1.99 expected).

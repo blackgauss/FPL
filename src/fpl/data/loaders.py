@@ -99,8 +99,14 @@ def load_teams_csv(path: str | Path) -> pl.DataFrame:
 
 
 def load_gw_stats_csv(path: str | Path) -> pl.DataFrame:
-    """Load player_gameweek_stats.csv (discrete per-GW) with renamed, cast columns."""
-    return (
+    """Load player_gameweek_stats.csv (discrete per-GW) with renamed, cast columns.
+
+    Fixes a known FPL-Core artifact: `ep_next` is sometimes scraped as 0.0 even
+    though `ep_this` shows the player is expected to feature (910 rows in
+    2025-26, concentrated in later GWs). For available players with a healthy
+    `ep_this`, that zero is clearly broken — substitute this-GW's expectation.
+    """
+    df = (
         pl.read_csv(path, schema_overrides={col: pl.Float64 for col in (
             "now_cost", "form", "ep_next", "ep_this", "selected_by_percent")})
         .rename(_GW_STATS_COLUMNS)
@@ -110,9 +116,18 @@ def load_gw_stats_csv(path: str | Path) -> pl.DataFrame:
             *[pl.col(c).cast(pl.Int64) for c in (
                 "total_points", "minutes", "goals_scored", "assists",
                 "bonus", "bps", "saves", "starts")],
+            pl.when(
+                (pl.col("status") == "a")
+                & (pl.col("ep_this") > 0)
+                & (pl.col("ep_next") == 0)
+            )
+            .then(pl.col("ep_this"))
+            .otherwise(pl.col("ep_next"))
+            .alias("ep_next"),
         )
         .select(*_GW_STATS_COLUMNS.values())
     )
+    return df
 
 
 def load_legacy_gw_stats_csv(path: str | Path) -> pl.DataFrame:

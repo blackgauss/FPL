@@ -1,0 +1,71 @@
+"""Black-box tests: inference serving (expected points for a context)."""
+
+import polars as pl
+import pytest
+
+from fpl.model.inference import expected_points
+from fpl.model.train import assemble
+
+
+@pytest.fixture(scope="module")
+def model_and_td(tmp_path_factory):
+    import lightgbm as lgb
+
+    feat = pl.DataFrame({
+        "player_id": [1, 1, 2, 2],
+        "player_code": [223094, 223094, 118748, 118748],
+        "gw": [2, 3, 2, 3],
+        "team_code": [43, 43, 3, 3],
+        "opponent_team_code": [3, 3, 43, 43],
+        "was_home": [True, False, False, True],
+        "home_elo": [2064.0, 1991.0, 1991.0, 2064.0],
+        "opponent_elo": [1991.0, 2064.0, 2064.0, 1991.0],
+        "prev_points": [13, 2, 9, 3],
+        "pts_avg_3": [13.0, 7.5, 9.0, 6.0],
+        "pts_avg_5": [13.0, 7.5, 9.0, 6.0],
+        "total_points": [2, 4, 5, 7],
+        "next_points": [4, 5, 7, 6],
+    })
+    players = pl.DataFrame({
+        "player_id": [1, 2],
+        "player_code": [223094, 118748],
+        "team_code": [43, 3],
+        "position": ["FWD", "MID"],
+        "web_name": ["Haaland", "De Bruyne"],
+    })
+    gw_stats = pl.DataFrame({
+        "player_id": [1, 1, 2, 2],
+        "gw": [2, 3, 2, 3],
+        "now_cost": [15.0, 14.1, 11.0, 10.5],
+        "ep_next": [4.0, 4.5, 3.0, 3.5],
+    })
+    td = assemble(feat, players, gw_stats, "2025-2026")
+    ds = lgb.Dataset(td.X, label=td.y, feature_name=td.feature_names,
+                     categorical_feature=td.categorical)
+    model = lgb.train({"objective": "regression", "metric": "mae",
+                       "verbosity": -1}, ds, num_boost_round=2)
+    return model, td, players
+
+
+def test_predicts_target_gameweek_rows_only(model_and_td):
+    # gw=3 rows have target == points of GW4 (shift semantics).
+    # expected_points(gw=4) must predict on rows where gw == 3.
+    model, td, players = model_and_td
+    rep = expected_points(td, model, gw=4, players=players)
+    assert set(rep.get_column("gw")) == {3}  # source rows are gw-1
+    assert rep.height == 2  # both players have a gw=3 row
+    assert "expected_points" in rep.columns
+
+
+def test_code_filter_restricts(model_and_td):
+    model, td, players = model_and_td
+    rep = expected_points(td, model, gw=4, players=players,
+                          code_filter=[223094])
+    assert rep.height == 1
+    assert rep.get_column("player_code").item() == 223094
+
+
+def test_missing_gw_raises(model_and_td):
+    model, td, players = model_and_td
+    with pytest.raises(ValueError, match="no feature rows"):
+        expected_points(td, model, gw=1, players=players)
