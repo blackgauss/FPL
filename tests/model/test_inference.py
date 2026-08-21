@@ -69,3 +69,33 @@ def test_missing_gw_raises(model_and_td):
     model, td, players = model_and_td
     with pytest.raises(ValueError, match="no feature rows"):
         expected_points(td, model, gw=1, players=players)
+
+
+class TestSerialization:
+    @pytest.fixture()
+    def ridge(self):
+        import numpy as np
+        from sklearn.linear_model import Ridge
+
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(40, 3))
+        y = X @ np.array([1.0, 2.0, 3.0]) + 0.1 * rng.normal(size=40)
+        return Ridge().fit(X, y)
+
+    @pytest.mark.parametrize("suffix", [".pkl", ".joblib"])
+    def test_sklearn_roundtrip(self, ridge, tmp_path, suffix):
+        import numpy as np
+
+        from fpl.model.inference import load_model, save_model
+
+        p = tmp_path / f"ridge{suffix}"
+        save_model(ridge, p)
+        back = load_model(p)
+        x = np.zeros((3, 3))
+        np.testing.assert_allclose(back.predict(x), ridge.predict(x), rtol=1e-9)
+
+    def test_unknown_suffix_raises(self, ridge, tmp_path):
+        from fpl.model.inference import save_model
+
+        with pytest.raises(ValueError, match="no serializer for '.xyz'"):
+            save_model(ridge, tmp_path / "model.xyz")

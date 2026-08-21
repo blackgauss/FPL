@@ -4,9 +4,10 @@ Row semantics (feature store): the row at gw=k holds features observed before
 GW k's deadline; its target `next_points` is that player's points in GW k+1.
 So expected points for gameweek G come from predictions on rows where gw == G-1.
 
-The happy path: we already have an assembled `TrainingData` (features + meta)
-for the season of interest and a trained model. `expected_points` masks to the
-rows for the target gameweek and returns a name-filled report.
+Model-family independence: `save_model`/`load_model` dispatch on a registry so
+any estimator with `.predict(X)` can be served — adding a family is one dict
+entry in SERIALIZERS, not an edit to serving. The model object itself is opaque
+to `expected_points`.
 """
 
 from __future__ import annotations
@@ -15,6 +16,71 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
+
+
+def _save_txt(model, path: Path) -> None:
+    """LightGBM Booster persistence (Booster.save_model)."""
+    model.save_model(str(path))
+
+
+def _load_txt(path: Path):
+    import lightgbm as lgb
+
+    return lgb.Booster(model_file=str(path))
+
+
+def _save_pickle(model, path: Path) -> None:
+    import pickle
+
+    with open(path, "wb") as fh:
+        pickle.dump(model, fh)
+
+
+def _load_pickle(path: Path):
+    import pickle
+
+    with open(path, "rb") as fh:
+        return pickle.load(fh)
+
+
+def _save_joblib(model, path: Path) -> None:
+    import joblib
+
+    joblib.dump(model, path)
+
+
+def _load_joblib(path: Path):
+    import joblib
+
+    return joblib.load(path)
+
+
+SERIALIZERS: dict[str, tuple | None] = {
+    ".txt": (_save_txt, _load_txt),        # lightgbm Booster
+    ".pkl": (_save_pickle, _load_pickle),  # any pickleable estimator
+    ".joblib": (_save_joblib, _load_joblib),
+}
+
+
+def save_model(model, path: str | Path) -> Path:
+    """Persist a model; format chosen by filename suffix via SERIALIZERS."""
+    path = Path(path)
+    key = path.suffix
+    if key not in SERIALIZERS:
+        raise ValueError(
+            f"no serializer for {key!r}; pick one of {sorted(SERIALIZERS)}")
+    SERIALIZERS[key][0](model, path)
+    return path
+
+
+def load_model(path: str | Path):
+    """Load a model persisted via save_model (format from filename suffix)."""
+    path = Path(path)
+    key = path.suffix
+    if key not in SERIALIZERS:
+        raise ValueError(
+            f"no deserializer for {key!r}; pick one of {sorted(SERIALIZERS)}")
+    return SERIALIZERS[key][1](path)
 
 
 def expected_points(
@@ -57,13 +123,4 @@ def expected_points(
     return report.sort("expected_points", descending=True)
 
 
-def load_model(path: str | Path):
-    """Load a lightgbm Booster saved via Booster.save_model."""
-    import lightgbm as lgb
-
-    return lgb.Booster(model_file=str(path))
-
-
-def save_model(model, path: str | Path) -> None:
-    """Persist a lightgbm Booster to disk."""
-    model.save_model(str(path))
+# (serializers defined above; module ends cleanly after load_model)

@@ -118,11 +118,18 @@ the season-end cumulative total). Caught by the model producing nonsense targets
 
 ## Serving: expected points for a player collection + GW
 
-`src/fpl/model/inference.py` turns the trained model into a claim: given a list
+`src/fpl/model/inference.py` turns a trained model into a claim: given a list
 of `player_code`s and a gameweek G, report expected points. Row semantics: the
 feature-store row at gw=k predicts points in gw=k+1, so GW G uses rows where
 gw = G-1. `scripts/train_tree.py` saves the booster to
 `data/processed/points_lgbm.txt`; `scripts/predict.py` loads and serves it.
+
+**Model-family independence:** the tooling is estimator-agnostic. Serving only
+requires `model.predict(X)`; persistence dispatches on filename suffix via
+`SERIALIZERS` (`.txt` lightgbm, `.pkl`/`.joblib` any pickleable estimator), so
+adding a new model family is one registry entry — no change to leakage gates,
+the experiment harness, or `expected_points`. Sklearn estimators already
+round-trip through inference in the tests.
 
 ```
 python scripts/train_tree.py                     # writes the model
