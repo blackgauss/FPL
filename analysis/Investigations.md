@@ -145,6 +145,11 @@ fat/tail + mean fidelity, not scale. (k≈1.2 here — small, because the
 empirical-marginal sampler's variance is already nearer reality than the
 in-sample residual σ² used in Exp 2.)
 
+**Performance vs baseline (gw 31–38 arbiter):** calibration improves every
+predictive-distribution metric — mean|z| 2.55→2.12, std(z) 1.64→1.37, 1σ
+coverage 0.19→0.26, 2σ coverage 0.37→0.48, CRPS 22.5→21.7. Confirmed a real
+model-performance win, leakage-safe (k from gw 28–30 only).
+
 ## Velocity notes (experiment loop)
 
 - **Model-free where possible**: experiment 3 needs no model fit — empirical

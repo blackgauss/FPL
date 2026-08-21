@@ -103,12 +103,26 @@ def main() -> None:
     z_raw = np.array([(a - m) / s for a, m, s in test])
     z_cal = np.array([(a - m) / (k * s) for a, m, s in test])
 
+    from scipy.stats import norm
+    def pdist_metrics(z, sigma):
+        """Distribution-forecast quality for Normal(mean, sigma) modes."""
+        std = float(z.std())
+        cov1 = float((np.abs(z) <= 1).mean())
+        cov2 = float((np.abs(z) <= 2).mean())
+        crps = float(np.mean(sigma * (
+            z * (2 * norm.cdf(z) - 1) + 2 * norm.pdf(z) - 1 / np.sqrt(np.pi))))
+        return std, cov1, cov2, crps
+
     print(f"\nvalidation {VAL_GWS[0]}..{VAL_GWS[1]}: {len(val)} squad-weeks -> "
           f"calibration factor k = {k:.3f}")
     print("gym arbitration (test gw 31..38):")
     print("=" * 72)
-    print(f"  raw        : mean|z| = {np.abs(z_raw).mean():.3f}  std(z) = {z_raw.std():.3f}")
-    print(f"  calibrated : mean|z| = {np.abs(z_cal).mean():.3f}  std(z) = {z_cal.std():.3f}")
+    for name, z, s in [("raw", z_raw, 1.0),
+                       ("calibrated", z_cal, k)]:
+        std, cov1, cov2, crps = pdist_metrics(z, s * np.array([m[2] for m in test]))
+        print(f"  {name:<12} mean|z| = {np.abs(z).mean():.3f}  std(z) = {std:.3f}  "
+              f"coverage1σ = {cov1:.3f} (ideal 0.683)  coverage2σ = {cov2:.3f} "
+              f"(ideal 0.954)  CRPS = {crps:.3f}")
 
 
 if __name__ == "__main__":
