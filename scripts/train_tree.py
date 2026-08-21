@@ -10,6 +10,7 @@ Run:  python scripts/train_tree.py
 from __future__ import annotations
 
 import lightgbm as lgb
+import numpy as np
 import polars as pl
 
 from fpl.model.eval import baseline_mean, summarize
@@ -42,8 +43,13 @@ def main() -> None:
     )
     print("leakage validation: PASS")
 
+    # fit only on train (2024-25) + 2025-26 GW 1..30; never the held-out GWs
+    fit_excl_test_mask = fit_data.gw <= FIT_GWS[1]
+    X_train = np.vstack([train_data.X, fit_data.X[fit_excl_test_mask]])
+    y_train = np.concatenate([train_data.y, fit_data.y[fit_excl_test_mask]])
+
     lgb_train = lgb.Dataset(
-        train_data.X, label=train_data.y,
+        X_train, label=y_train,
         feature_name=train_data.feature_names,
         categorical_feature=train_data.categorical,
     )
