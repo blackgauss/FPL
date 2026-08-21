@@ -1,0 +1,133 @@
+"""On-the-fly player filters built from live FPL API state.
+
+The user's design: the live snapshot is kept SEPARATE from the dataset/feature
+store; these filters apply it at query time. Each filter is a pure function
+taking the live-state frame (from fpl.live.live.load_live_state) plus optional
+context, and returning a boolean mask aligned to that frame — so callers can
+join/apply it onto any player-level dataset without changing the stored data.
+
+Semantics follow the FPL `status` enum:
+    a = available      d = doubtful       i = injured
+    s = suspended      u = unavailable    n = not in squad
+"""
+
+from __future__ import annotations
+
+import polars as pl
+
+
+def status_mask(live: pl.DataFrame, statuses: list[str]) -> pl.Series:
+    """True where the player's live status is in `statuses`."""
+    return pl.Series(
+        [s in statuses for s in live.get_column("status")],
+        dtype=pl.Boolean,
+    )
+
+
+def available(live: pl.DataFrame) -> pl.Series:
+    """Players fully expected to play: status 'a'. Ignores chance-heuristics
+    for week-to-week availability (minute risk); see chance_of_playing next."""
+    return status_mask(live, ["a"])
+
+
+def not_injured_suspended(live: pl.DataFrame) -> pl.Series:
+    """Not currently injured, suspended, or unavailable."""
+    return status_mask(live, ["a", "d"])
+
+
+def chance_of_playing(live: pl.DataFrame, *, min_pct: float = 75.0) -> pl.Series:
+    """At least `min_pct` chance next round; null (unknown) -> retained.
+
+    FPL leaves chance_of_playing_* null for most players even when available,
+    so a null signals 'no flagged doubt'. Doubtful ('d') are kept too — with a
+    numeric chance below the bar, the mask is False; with null they pass.
+    """
+    chance = live.get_column("chance_of_playing_next_round").cast(pl.Float64)
+    status = live.get_column("status")
+    return pl.Series(
+        [
+            (s in ("a", "d")) if (c is None) else (float(c) >= min_pct)
+            for s, c in zip(status, chance, strict=False)
+        ],
+        dtype=pl.Boolean,
+    )
+
+
+def no_news(live: pl.DataFrame) -> pl.Series:
+    """No injury/availability news text (clearest 'fully available' signal)."""
+    return pl.Series(
+        [not isinstance(n, str) or n.strip() == "" for n in live.get_column("news")],
+        dtype=pl.Boolean,
+    )
+
+
+def in_league(live: pl.DataFrame) -> pl.Series:
+    """Still selectable/transactable (not removed, loaned, or de-registered).
+
+    `removed=False` means actively in the league; `can_select=True` means
+    priced/selectable. A player is in-league iff not removed and selectable.
+    """
+    return pl.Series(
+        [
+            bool(r) is False and bool(c)
+            for r, c in zip(live.get_column("removed"),
+                            live.get_column("can_select"), strict=False)
+        ],
+        dtype=pl.Boolean,
+    )
+
+
+def not_transferred(live: pl.DataFrame, team_code: pl.Series) -> pl.Series:
+    """Player still at the club the dataset assumes (`team_code` aligned to
+    `live` rows — i.e. pass the dataset's per-player current club beside live's
+    live.team_code). True where live team_code matches the expected club."""
+    return pl.Series(
+        [a == b for a, b in zip(team_code, live.get_column("team_code"), strict=False)],
+        dtype=pl.Boolean,
+    )
+
+
+def price_unchanged(live: pl.DataFrame, expected_now_cost: pl.Series) -> pl.Series:
+    """Price hasn't moved from the value the model/dataset used. expected costs
+    are in the same units as live (tenths)."""
+    return pl.Series(
+        [a == b for a, b in zip(expected_now_cost,
+                                live.get_column("now_cost"), strict=False)],
+        dtype=pl.Boolean,
+    )
+
+
+def suggest(live: pl.DataFrame, *, min_chance_pct: float = 75.0) -> pl.Series:
+    """Composite suggested filter: actually in the league, not injured/
+    suspended/unavailable, and meeting the chance-of-playing bar. A one-call
+    sensible default for team selection."""
+    return (
+        in_league(live)
+        & not_injured_suspended(live)
+        & chance_of_playing(live, min_pct=min_chance_pct)
+    ).alias("suggest_playable")
+
+
+def apply_filters(live: pl.DataFrame, **filters: pl.Series) -> pl.DataFrame:
+    """Join any mask Series (aligned to `live`) back into a live frame, useful
+    for reporting which players drop for which reason."""
+    out = live
+    for name, mask in filters.items():
+        out = out.with_columns(mask.alias(name))
+    return out
+
+
+def filter_frame_by_code(
+    frame: pl.DataFrame, live: pl.DataFrame, mask: pl.Series,
+) -> pl.DataFrame:
+    """Drop rows of `frame` (keyed by `player_code`) whose player is excluded
+    by `mask` (a boolean Series aligned to `live`, e.g. from `suggest`).
+
+    This is the on-the-fly filter: apply the live-state mask onto any player
+    dataset without baking the state into the data. Keys must cover the same
+    player_codes; players absent from live are kept (unknown != excluded).
+    """
+    excluded = live.filter(~mask).get_column("player_code")
+    if excluded.len() == 0:
+        return frame
+    return frame.filter(~pl.col("player_code").is_in(excluded.implode()))
