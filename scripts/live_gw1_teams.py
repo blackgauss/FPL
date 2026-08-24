@@ -25,9 +25,7 @@ from fpl.live.filters import flag_squad, suggest
 from fpl.live.live import load_live_state
 from fpl.model.inference import load_model
 from fpl.model.train import load_training
-from fpl.team.enumerate import greedy_teams
-from fpl.team.filtering import filter_pool
-from fpl.team.harness import basket_squads
+from fpl.team.selection import pool_and_squads
 from fpl.units import to_millions
 
 
@@ -63,23 +61,20 @@ def main() -> None:
         pl.lit(1).alias("minutes_in_window"))
     scored = scored.with_columns(pl.lit(1).alias("minutes_in_window"))
 
-    # reconcile the current world BEFORE construction (clubs/injuries/missing)
+    # reconcile the current world BEFORE construction (clubs/injuries/missing),
+    # then build the candidate squads via the shared selection tail
     scored_live = construction_input(scored, live, suggest(live))
-    pool = filter_pool(scored_live, avail, top_k_per_position=25,
-                       max_per_team=4, reserve_top=20)
-    basket = greedy_teams(pool, n_teams=args.n_teams, seed=1)
-
-    # hydrate the typed interface once — from the RECONCILED frame so the squad
-    # clubs are current-world (greedy's ≤3/club caps were live-aware)
-    squads = basket_squads(basket, scored_live, gw=args.gw)
-    expected = dict(zip(scored["player_code"], scored["expected_total"],
-                        strict=False))
+    selection = pool_and_squads(
+        scored_live, scored_live, avail, gw=args.gw,
+        n_teams=args.n_teams, seed=1)
+    squads = list(zip(selection.team_ids, selection.squads, strict=False))
+    expected = selection.expected
     teams = pl.read_parquet(f"{args.processed}/teams_{args.season}.parquet")
     teams_names = dict(zip(teams["code"], teams["name"], strict=False))
     status_of = {c: s for c, s in live.select("player_code", "status").iter_rows()}
 
     print(f"\nlive {fetched} | 2026-27 GW{args.gw} candidates "
-          f"(scored {scored_live.height} players, pool {pool.height}, "
+          f"(scored {scored_live.height} players, pool {selection.pool_size}, "
           f"{len(squads)} squads)\n"
           f"{'='*104}")
 

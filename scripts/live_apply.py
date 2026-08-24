@@ -24,8 +24,9 @@ from fpl.live.filters import suggest
 from fpl.live.live import load_live_state
 from fpl.model.inference import load_model
 from fpl.model.train import load_training
-from fpl.team.filtering import availability_from_gw_stats, filter_pool
+from fpl.team.filtering import availability_from_gw_stats
 from fpl.team.scoring import score_players
+from fpl.team.selection import pool_and_squads
 
 
 def main() -> None:
@@ -56,12 +57,13 @@ def main() -> None:
     print(f"scored {scored.height} -> {scored_live.height} after current-world "
           f"reconcile ({dropped} removed: missing from live / unavailable)")
 
-    # 3) build the pool from the reconciled input (current clubs used)
+    # 3) build the candidate squads from the reconciled input (shared tail)
     avail = availability_from_gw_stats(gw_stats, players,
                                        gw_start=args.gw, gw_end=gw_end)
-    pool = filter_pool(scored_live, avail, top_k_per_position=25, max_per_team=4,
-                       reserve_top=20)
-    print(f"pool after construction on current clubs/injuries: {pool.height} players")
+    selection = pool_and_squads(scored_live, scored_live, avail, gw=args.gw,
+                                n_teams=1, seed=1)
+    print(f"pool after construction on current clubs/injuries: "
+          f"{selection.pool_size} players")
 
     # 4) hygiene: how much does live differ from the dataset predictions used?
     summ = hygiene_summary(
