@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fpl.experiments.splits import TemporalSplit, source_masks
+from fpl.experiments.splits import TemporalSplit, rolling_splits, source_masks
 
 
 def test_valid_split_masks():
@@ -32,6 +32,20 @@ def test_empty_cal_allowed():
     # e.g. season-start / no-curation slices
     split = TemporalSplit(fit_gw_max=0, cal_start=1, cal_end=0, test_start=1)
     assert split.problems() == []
+
+
+def test_rolling_splits_are_contiguous_and_leakage_safe():
+    windows = rolling_splits(
+        first_test_start=10, last_test_end=20, test_window=4, step=4)
+    assert [(w.fit_gw_max, w.test_start, w.test_end) for w in windows] == [
+        (9, 10, 13), (13, 14, 17)]
+    assert all(not w.problems() for w in windows)
+
+
+def test_rolling_splits_reject_empty_window():
+    with pytest.raises(ValueError, match="window is empty"):
+        rolling_splits(first_test_start=20, last_test_end=20,
+                       test_window=2)
 
 
 def test_leakage_gate_runs_for_declared_split(tmp_path):

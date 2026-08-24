@@ -5,9 +5,9 @@ DVC (`dvc.yaml`) is the glue: it declares stages over existing scripts, their
 inputs (`deps`), outputs, configuration (`params`), and results (`metrics`)
 — so `dvc repro` runs only what changed and `dvc.lock` pins reproducibility.
 
-This is a small integration over the real data, model, search, and evaluation
-recipes. Extend it by adding stages and connecting a stage's output to another
-stage's input.
+This is the canonical production workflow over real data, models, search, and
+evaluation. Extend it by adding package stages and connecting a stage's output
+to another stage's input. See `docs/Repository.md` for the repository boundary.
 
 ## What each file does
 

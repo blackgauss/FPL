@@ -9,9 +9,11 @@ processed: data/processed
 artifacts: experiments/artifacts
 pipeline:
   season: 2025-2026
+  historical_season: 2024-2025
   gw_start: 31
   gw_end: 33
   fit_gw_max: 30
+  test_gw_end: 38
   train_seed: 0
   search:
     enum: greedy

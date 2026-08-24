@@ -12,7 +12,7 @@ from fpl.team.harness import run as harness_run
 
 CANDIDATE_COLUMNS = frozenset({
     "team_id", "player_code", "position", "price_tenths", "expected_total",
-    "artifact_schema_version",
+    "artifact_schema_version", "season", "gw_start", "gw_end", "model_id",
 })
 
 
@@ -25,13 +25,17 @@ def validate_candidate_artifact(candidates: pl.DataFrame) -> None:
             + ", ".join(sorted(missing)))
 
 
-def ranked_candidates(result) -> pl.DataFrame:
+def ranked_candidates(result, *, model_id: str = "unknown") -> pl.DataFrame:
     """Lower a SearchResult to the stable parquet contract for downstream stages."""
     frames = [
         result.basket.filter(pl.col("team_id") == team_id)
         .with_columns(
             pl.lit(rank).alias("candidate_rank"),
             pl.lit(1).alias("artifact_schema_version"),
+            pl.lit(result.season).alias("season"),
+            pl.lit(result.gw_start).alias("gw_start"),
+            pl.lit(result.gw_end).alias("gw_end"),
+            pl.lit(model_id).alias("model_id"),
         )
         for rank, team_id in enumerate(result.team_ids)
     ]
@@ -58,7 +62,7 @@ def run(
         if value_fn == "h2h_dist" else {},
         dist_forecast=dist,
     )
-    candidates = ranked_candidates(result)
+    candidates = ranked_candidates(result, model_id=Path(model_path).stem)
     output = Path(out)
     output.parent.mkdir(parents=True, exist_ok=True)
     candidates.write_parquet(output)

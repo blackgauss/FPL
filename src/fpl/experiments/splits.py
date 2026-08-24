@@ -69,3 +69,29 @@ def validate_feature_leakage(
     split.validate()
     validate(features, players,
              gw_train_max=split.fit_gw_max, gw_test_min=split.test_start)
+
+
+def rolling_splits(
+    *, first_test_start: int, last_test_end: int, test_window: int, step: int = 1,
+) -> tuple[TemporalSplit, ...]:
+    """Build leakage-safe rolling evaluation windows."""
+    if min(first_test_start, last_test_end, test_window, step) < 1:
+        raise ValueError("rolling split arguments must be positive")
+    if first_test_start > last_test_end or test_window > last_test_end:
+        raise ValueError("rolling split window is empty")
+    windows: list[TemporalSplit] = []
+    test_start = first_test_start
+    while test_start + test_window - 1 <= last_test_end:
+        split = TemporalSplit(
+            fit_gw_max=test_start - 1,
+            cal_start=test_start,
+            cal_end=test_start - 1,
+            test_start=test_start,
+            test_end=test_start + test_window - 1,
+        )
+        split.validate()
+        windows.append(split)
+        test_start += step
+    if not windows:
+        raise ValueError("rolling split window is empty")
+    return tuple(windows)
