@@ -46,6 +46,10 @@ graph LR
 - `gym` — consumes the candidate artifact and replays it against actuals,
   emitting the canonical gym observability document and compact metrics.
 
+The active season, forecast window, search settings, gym cutoff, and experiment
+parallelism live in `params.yaml`; stage commands interpolate them rather than
+embedding run-specific values in `dvc.yaml`.
+
 A stage **emits its own metrics at compute time**; DVC only *reads* them
 (`dvc metrics show`). Full documents stay the git record; the small metric
 files are the DVC outputs. (The first `dvc repro` also surfaced and fixed a
@@ -61,11 +65,15 @@ dvc dag                  # render the stage graph
 dvc metrics show         # read the emitted metrics files
 ```
 
+CI runs `ruff`, the data-independent test suite, and `dvc dag`. A real
+`dvc repro` stays out of CI because the source data is local and ignored; run
+it locally when validating data changes.
+
 ## Composition rules (how to grow this)
 
-1. **Add a stage** = add a `stages.<name>` block whose `cmd` wraps an existing
-   script. Inputs it reads → `deps`; scalars it is configured by → `params`;
-   numbers it produces → `metrics` (emit a small JSON inside the script).
+1. **Add a stage** = add a `stages.<name>` block whose `cmd` invokes a package
+   pipeline operation. Inputs it reads → `deps`; scalars it is configured by →
+   `params`; numbers it produces → `metrics`.
 2. **Chain two jobs** = put the producer's output in the consumer's `deps`.
    `dvc.repro` then knows the consumer depends on the producer and reruns it
    when the producer's output hash changes.

@@ -26,23 +26,29 @@ stages:
   features:
     cmd: >-
       uv run python scripts/features.py --config config/data.yaml
-      --season 2025-2026
+      --season ${pipeline.season}
+    params:
+      - pipeline.season
     deps:
       - config/data.yaml
-      - data/processed/players_2025-2026.parquet
-      - data/processed/gw_stats_2025-2026.parquet
-      - data/processed/team_history_2025-2026.parquet
-      - data/processed/matches_2025-2026.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - data/processed/gw_stats_${pipeline.season}.parquet
+      - data/processed/team_history_${pipeline.season}.parquet
+      - data/processed/matches_${pipeline.season}.parquet
+      - src/fpl
+      - scripts/features.py
     outs:
-      - data/processed/features_2025-2026.parquet
+      - data/processed/features_${pipeline.season}.parquet
 
   train:
     cmd: uv run python scripts/train_tree.py
     deps:
       - data/processed/features_2024-2025.parquet
-      - data/processed/features_2025-2026.parquet
+      - data/processed/features_${pipeline.season}.parquet
       - data/processed/players_2024-2025.parquet
-      - data/processed/players_2025-2026.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - src/fpl
+      - scripts/train_tree.py
     outs:
       - data/processed/points_lgbm.txt
     metrics:
@@ -51,13 +57,21 @@ stages:
   fit_dist:
     cmd: >-
       uv run python scripts/fit_dist.py --processed data/processed
-      --season 2025-2026 --gw 31 --gw-end 33 --fit-gw-max 30
+      --season ${pipeline.season} --gw ${pipeline.gw_start}
+      --gw-end ${pipeline.gw_end} --fit-gw-max ${pipeline.fit_gw_max}
+    params:
+      - pipeline.season
+      - pipeline.gw_start
+      - pipeline.gw_end
+      - pipeline.fit_gw_max
     deps:
       - data/processed/points_lgbm.txt
-      - data/processed/features_2025-2026.parquet
-      - data/processed/players_2025-2026.parquet
+      - data/processed/features_${pipeline.season}.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - src/fpl
+      - scripts/fit_dist.py
     outs:
-      - data/processed/dist_2025-2026.parquet
+      - data/processed/dist_${pipeline.season}.parquet
 
   eval_experiments:
     cmd: >-
@@ -65,39 +79,55 @@ stages:
       --config config/experiments_ranking.yaml
       --output experiments/artifacts/ranking_exp.json
       --metrics-out experiments/artifacts/ranking_exp.metrics.json
-      --parallel 3
+      --parallel ${pipeline.experiments.parallel}
       --cache-dir experiments/artifacts/.cache
+    params:
+      - pipeline.experiments.parallel
     deps:
       - config/experiments_ranking.yaml
       - data/processed/features_2024-2025.parquet
-      - data/processed/features_2025-2026.parquet
+      - data/processed/features_${pipeline.season}.parquet
       - data/processed/players_2024-2025.parquet
-      - data/processed/players_2025-2026.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - src/fpl
+      - scripts/run_experiments.py
     metrics:
       - experiments/artifacts/ranking_exp.metrics.json
 
   rank_report:
     cmd: >-
       uv run python scripts/ranking_report.py
+    params:
+      - pipeline.season
     deps:
       - config/experiments_ranking.yaml
-      - data/processed/features_2025-2026.parquet
-      - data/processed/players_2025-2026.parquet
+      - data/processed/features_${pipeline.season}.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - src/fpl
+      - scripts/ranking_report.py
     metrics:
       - experiments/artifacts/ranking.metrics.json
 
   search:
     cmd: >-
-      uv run python -m fpl search --season 2025-2026 --gw 31
-      --gw-end 33 --out data/processed/search_candidates.parquet
+      uv run python -m fpl search --season ${pipeline.season}
+      --gw ${pipeline.gw_start} --gw-end ${pipeline.gw_end}
+      --enum ${pipeline.search.enum} --value ${pipeline.search.value}
+      --n-teams ${pipeline.search.n_teams} --seed ${pipeline.search.seed}
+      --n-samples ${pipeline.search.n_samples}
+      --out data/processed/search_candidates.parquet
       --metrics-out experiments/artifacts/search.metrics.json
+    params:
+      - pipeline.season
+      - pipeline.gw_start
+      - pipeline.gw_end
+      - pipeline.search
     deps:
       - data/processed/points_lgbm.txt
-      - data/processed/features_2025-2026.parquet
-      - data/processed/players_2025-2026.parquet
-      - data/processed/gw_stats_2025-2026.parquet
-      - src/fpl/pipeline.py
-      - src/fpl/__main__.py
+      - data/processed/features_${pipeline.season}.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - data/processed/gw_stats_${pipeline.season}.parquet
+      - src/fpl
     outs:
       - data/processed/search_candidates.parquet
     metrics:
@@ -105,19 +135,23 @@ stages:
 
   gym:
     cmd: >-
-      uv run python -m fpl gym --season 2025-2026 --gw 31
-      --gw-end 33 --candidates data/processed/search_candidates.parquet
+      uv run python -m fpl gym --season ${pipeline.season}
+      --gw ${pipeline.gw_start} --gw-end ${pipeline.gw_end}
+      --top ${pipeline.gym.top} --candidates data/processed/search_candidates.parquet
       --out experiments/artifacts/gym.json
       --metrics-out experiments/artifacts/gym.metrics.json
+    params:
+      - pipeline.season
+      - pipeline.gw_start
+      - pipeline.gw_end
+      - pipeline.gym.top
     deps:
       - data/processed/search_candidates.parquet
       - data/processed/points_lgbm.txt
-      - data/processed/features_2025-2026.parquet
-      - data/processed/players_2025-2026.parquet
-      - data/processed/gw_stats_2025-2026.parquet
-      - src/fpl/pipeline.py
-      - src/fpl/__main__.py
-      - src/fpl/gym.py
+      - data/processed/features_${pipeline.season}.parquet
+      - data/processed/players_${pipeline.season}.parquet
+      - data/processed/gw_stats_${pipeline.season}.parquet
+      - src/fpl
     outs:
       - experiments/artifacts/gym.json
     metrics:

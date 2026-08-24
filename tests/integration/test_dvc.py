@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import polars as pl
 import pytest
 import yaml
 
@@ -21,6 +22,7 @@ from fpl.experiments.artifacts import (
     write_flat_metrics,
     write_metrics_json,
 )
+from fpl.pipeline import ranked_candidates, validate_candidate_artifact
 
 ROOT = Path(__file__).resolve().parents[2]
 DVC = importlib.util.find_spec("dvc") is not None
@@ -56,6 +58,13 @@ def test_dvc_yaml_defines_expected_stages():
                for path in stages["gym"]["deps"])
     assert (ROOT / "params.yaml").exists()
     assert any("params.yaml" in s for s in spec.get("vars", []))
+    assert stages["search"]["params"] == ["pipeline.season",
+                                            "pipeline.gw_start",
+                                            "pipeline.gw_end", "pipeline.search"]
+    assert stages["gym"]["params"] == ["pipeline.season", "pipeline.gw_start",
+                                          "pipeline.gw_end", "pipeline.gym.top"]
+    assert "src/fpl" in stages["search"]["deps"]
+    assert "src/fpl" in stages["gym"]["deps"]
 
 
 def test_metrics_writer_flat_and_roundtrip(tmp_path):
@@ -75,6 +84,23 @@ def test_metrics_writer_flat_and_roundtrip(tmp_path):
 def test_write_metrics_json_roundtrip(tmp_path):
     path = write_metrics_json({"hist_gb": {"mae": 1.0}}, tmp_path / "k.json")
     assert json.loads(path.read_text()) == {"hist_gb": {"mae": 1.0}}
+
+
+def test_candidate_artifact_contract_and_order():
+    class Result:
+        basket = pl.DataFrame({
+            "team_id": [2, 1], "player_code": [20, 10],
+            "position": ["GKP", "GKP"], "price_tenths": [50, 50],
+            "expected_total": [4.0, 5.0],
+        })
+        team_ids = (1, 2)
+
+    artifact = ranked_candidates(Result())
+    assert artifact["team_id"].to_list() == [1, 2]
+    assert artifact["candidate_rank"].to_list() == [0, 1]
+    validate_candidate_artifact(artifact)
+    with pytest.raises(ValueError, match="expected_total"):
+        validate_candidate_artifact(artifact.drop("expected_total"))
 
 
 @pytest.mark.skipif(not DVC, reason="dvc dev dependency not installed")

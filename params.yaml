@@ -7,3 +7,18 @@ split:
   test_start: 31
 processed: data/processed
 artifacts: experiments/artifacts
+pipeline:
+  season: 2025-2026
+  gw_start: 31
+  gw_end: 33
+  fit_gw_max: 30
+  search:
+    enum: greedy
+    value: h2h
+    n_teams: 20
+    seed: 0
+    n_samples: 150
+  gym:
+    top: 3
+  experiments:
+    parallel: 3

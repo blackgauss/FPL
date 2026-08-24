@@ -32,6 +32,10 @@ from fpl.team.harness import basket_squads
 from fpl.team.harness import run as harness_run
 from fpl.team.scoring import score_players
 
+CANDIDATE_COLUMNS = frozenset({
+    "team_id", "player_code", "position", "price_tenths", "expected_total",
+})
+
 
 def run_basket(
     *,
@@ -95,12 +99,7 @@ def write_search_stage(
         if value_fn == "h2h_dist" else {},
         dist_forecast=dist,
     )
-    frames = [
-        result.basket.filter(pl.col("team_id") == team_id)
-        .with_columns(pl.lit(rank).alias("candidate_rank"))
-        for rank, team_id in enumerate(result.team_ids)
-    ]
-    candidates = pl.concat(frames, how="vertical") if frames else result.basket
+    candidates = ranked_candidates(result)
     output = Path(out)
     output.parent.mkdir(parents=True, exist_ok=True)
     candidates.write_parquet(output)
@@ -134,8 +133,9 @@ def write_gym_stage(
     forecastable = sorted(per_gw["gw"].unique().to_list())
     start, end = forecastable[0], forecastable[-1]
     candidates = pl.read_parquet(candidates_path)
-    if "candidate_rank" in candidates.columns:
-        candidates = candidates.sort("candidate_rank")
+    validate_candidate_artifact(candidates)
+    candidates = candidates.sort("candidate_rank") if "candidate_rank" in candidates.columns \
+        else candidates
     squads = basket_squads(candidates, players, gw=gw_start)
     forecast = per_gw.select("player_code", "gw", "expected_points")
     evals = [
@@ -205,3 +205,24 @@ def _common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gw-end", type=int)
     parser.add_argument("--processed", default="data/processed")
     parser.add_argument("--model", default="data/processed/points_lgbm.txt")
+
+
+def ranked_candidates(result) -> pl.DataFrame:
+    """Lower a SearchResult to the stable parquet contract for downstream stages."""
+    frames = [
+        result.basket.filter(pl.col("team_id") == team_id)
+        .with_columns(pl.lit(rank).alias("candidate_rank"))
+        for rank, team_id in enumerate(result.team_ids)
+    ]
+    candidates = pl.concat(frames, how="vertical") if frames else result.basket
+    validate_candidate_artifact(candidates)
+    return candidates
+
+
+def validate_candidate_artifact(candidates: pl.DataFrame) -> None:
+    """Check the minimum schema required to hydrate candidates into Squad values."""
+    missing = CANDIDATE_COLUMNS - set(candidates.columns)
+    if missing:
+        raise ValueError(
+            "candidate artifact missing required columns: "
+            + ", ".join(sorted(missing)))
