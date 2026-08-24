@@ -22,7 +22,7 @@ from fpl.experiments.artifacts import (
     write_flat_metrics,
     write_metrics_json,
 )
-from fpl.pipeline import ranked_candidates, validate_candidate_artifact
+from fpl.stages.search import ranked_candidates, validate_candidate_artifact
 
 ROOT = Path(__file__).resolve().parents[2]
 DVC = importlib.util.find_spec("dvc") is not None
@@ -63,6 +63,8 @@ def test_dvc_yaml_defines_expected_stages():
                                             "pipeline.gw_end", "pipeline.search"]
     assert stages["gym"]["params"] == ["pipeline.season", "pipeline.gw_start",
                                           "pipeline.gw_end", "pipeline.gym.top"]
+    assert "pipeline.train_seed" in stages["train"]["params"]
+    assert "pipeline.train_seed" in stages["fit_dist"]["params"]
     assert "src/fpl" in stages["search"]["deps"]
     assert "src/fpl" in stages["gym"]["deps"]
     for name in stages:
@@ -101,6 +103,7 @@ def test_candidate_artifact_contract_and_order():
     artifact = ranked_candidates(Result())
     assert artifact["team_id"].to_list() == [1, 2]
     assert artifact["candidate_rank"].to_list() == [0, 1]
+    assert artifact["artifact_schema_version"].unique().to_list() == [1]
     validate_candidate_artifact(artifact)
     with pytest.raises(ValueError, match="expected_total"):
         validate_candidate_artifact(artifact.drop("expected_total"))

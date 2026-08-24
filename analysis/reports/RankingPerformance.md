@@ -1,6 +1,6 @@
 # Ranking Ability Report
 
-Generated: 2026-08-24T20:00:10.206279+00:00 (git dea1dc4f1ac0500d50c61268145287ab6be40b80)
+Generated: 2026-08-24T20:18:21.201172+00:00 (git 489cda2991b86404931309c9cd03496aecf1fff3)
 Frame: ranking stage (spearman / topk_hit_rate / concordance)
 
 Reproduce with:
@@ -17,9 +17,9 @@ Leakage-safe split on 2025-2026: fit <= source GW 30, test from source GW 31. Pe
 
 | ranker | spearman_rho | topk_hit_rate | pairwise_concordance |
 |---|---|---|---|
-| lgbm_all | 0.6781 | 0.3568 | 0.4631 |
-| ridge | 0.6351 | 0.3516 | 0.4504 |
-| hist_gb | 0.6820 | 0.3499 | 0.4638 |
+| lgbm_all | 0.6784 | 0.3568 | 0.4634 |
+| ridge | 0.6354 | 0.3533 | 0.4505 |
+| hist_gb | 0.6823 | 0.3499 | 0.4643 |
 | FPL_ep_next | 0.6366 | 0.3396 | 0.4317 |
 | persist(prev_points) | 0.5898 | 0.2762 | 0.3375 |
 
