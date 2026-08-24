@@ -42,7 +42,8 @@ def run(
              weeks=end - start + 1, forecast=forecast, name=f"cand-{i}").run()
         for i, (_, squad) in enumerate(squads[:top])
     ]
-    payload = {"season": season, "gw_start": start, "gw_end": end,
+    payload = {"schema_version": 1, "season": season,
+               "gw_start": start, "gw_end": end,
                "runs": [evaluation.observability() for evaluation in evals]}
     output = Path(out)
     output.parent.mkdir(parents=True, exist_ok=True)

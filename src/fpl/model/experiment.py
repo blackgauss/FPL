@@ -27,7 +27,10 @@ def _lgbm(params: dict):
     def make(X, y, categorical):
         ds = lgb.Dataset(X, label=y, categorical_feature=categorical)
         cfg = {"objective": "regression", "metric": "mae", "learning_rate": 0.05,
-               "num_leaves": 63, "min_child_samples": 20, "verbosity": -1}
+               "num_leaves": 63, "min_child_samples": 20, "verbosity": -1,
+               "seed": 0, "bagging_seed": 0, "feature_fraction_seed": 0,
+               "data_random_seed": 0, "deterministic": True,
+               "force_col_wise": True, "num_threads": 1}
         cfg.update(params)
         num_round = cfg.pop("num_boost_round", 200)
         fitted = lgb.train(cfg, ds, num_boost_round=num_round)

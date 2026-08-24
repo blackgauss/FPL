@@ -103,6 +103,7 @@ def test_candidate_artifact_contract_and_order():
     artifact = ranked_candidates(Result())
     assert artifact["team_id"].to_list() == [1, 2]
     assert artifact["candidate_rank"].to_list() == [0, 1]
+    assert artifact["artifact_schema_version"].unique().to_list() == [1]
     validate_candidate_artifact(artifact)
     with pytest.raises(ValueError, match="expected_total"):
         validate_candidate_artifact(artifact.drop("expected_total"))

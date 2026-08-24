@@ -12,6 +12,7 @@ from fpl.team.harness import run as harness_run
 
 CANDIDATE_COLUMNS = frozenset({
     "team_id", "player_code", "position", "price_tenths", "expected_total",
+    "artifact_schema_version",
 })
 
 
@@ -28,7 +29,10 @@ def ranked_candidates(result) -> pl.DataFrame:
     """Lower a SearchResult to the stable parquet contract for downstream stages."""
     frames = [
         result.basket.filter(pl.col("team_id") == team_id)
-        .with_columns(pl.lit(rank).alias("candidate_rank"))
+        .with_columns(
+            pl.lit(rank).alias("candidate_rank"),
+            pl.lit(1).alias("artifact_schema_version"),
+        )
         for rank, team_id in enumerate(result.team_ids)
     ]
     candidates = pl.concat(frames, how="vertical") if frames else result.basket

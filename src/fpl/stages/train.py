@@ -71,6 +71,7 @@ def main() -> None:
             "data_random_seed": args.seed,
             "deterministic": True,
             "force_col_wise": True,
+            "num_threads": 1,
         },
         lgb_train,
         num_boost_round=200,

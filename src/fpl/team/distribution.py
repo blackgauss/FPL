@@ -42,7 +42,7 @@ def _fit_split(
          "learning_rate": 0.05, "min_child_samples": 20, "verbosity": -1,
          "seed": seed, "bagging_seed": seed, "feature_fraction_seed": seed,
          "data_random_seed": seed, "deterministic": True,
-         "force_col_wise": True},
+         "force_col_wise": True, "num_threads": 1},
         ds, num_boost_round=200,
     )
 
@@ -57,6 +57,7 @@ def _fit_split(
             "seed": seed, "bagging_seed": seed,
             "feature_fraction_seed": seed, "data_random_seed": seed,
             "deterministic": True, "force_col_wise": True,
+            "num_threads": 1,
         })
     return point, sigma_model, digest
 
