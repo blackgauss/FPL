@@ -19,7 +19,11 @@ import polars as pl
 import yaml
 
 from fpl.experiments import cache
-from fpl.experiments.artifacts import write_artifact, write_failed_artifact
+from fpl.experiments.artifacts import (
+    write_artifact,
+    write_failed_artifact,
+    write_flat_metrics,
+)
 from fpl.experiments.run import run_experiment
 from fpl.experiments.splits import TemporalSplit, validate_feature_leakage
 
@@ -47,6 +51,8 @@ def main() -> None:
     parser.add_argument("--cache-dir", default=str(DEFAULT_CACHE),
                         help="cross-process fit cache directory; empty string "
                              "disables")
+    parser.add_argument("--metrics-out", default=None,
+                        help="also write a flat metrics JSON (for dvc metrics)")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as fh:
@@ -112,6 +118,9 @@ def main() -> None:
         raise
     print(f"completed result artifact -> {outcome_path}")
     print(f"experiment cache: {cache.cache_counts()}")
+    if args.metrics_out:
+        write_flat_metrics(results, args.metrics_out)
+        print(f"metrics -> {args.metrics_out}")
 
 
 if __name__ == "__main__":

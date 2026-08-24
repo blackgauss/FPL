@@ -1,0 +1,43 @@
+# DVC pipeline — small integration proof.
+#
+# Two real stages built on the existing tooling, demonstrating DVC
+# composition:
+#   - eval_experiments : declared-run harness -> full artifact (git-tracked)
+#                        + flat metrics JSON (DVC-managed)
+#   - rank_report      : ranking-ability report + its metrics JSON
+#
+# Stage workflow: `dvc repro` runs only what changed, `dvc dag` renders the
+# graph, `dvc metrics show` reads the flat metrics each stage emits.
+# The full result documents stay git-tracked (repo record); only the small
+# `metrics:` files are DVC outputs.
+
+vars:
+  - params.yaml
+
+stages:
+  eval_experiments:
+    cmd: >-
+      uv run python scripts/run_experiments.py
+      --config config/experiments_ranking.yaml
+      --output experiments/artifacts/ranking_exp.json
+      --metrics-out experiments/artifacts/ranking_exp.metrics.json
+      --parallel 3
+      --cache-dir experiments/artifacts/.cache
+    deps:
+      - config/experiments_ranking.yaml
+      - data/processed/features_2024-2025.parquet
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2024-2025.parquet
+      - data/processed/players_2025-2026.parquet
+    metrics:
+      - experiments/artifacts/ranking_exp.metrics.json
+
+  rank_report:
+    cmd: >-
+      uv run python scripts/ranking_report.py
+    deps:
+      - config/experiments_ranking.yaml
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2025-2026.parquet
+    metrics:
+      - experiments/artifacts/ranking.metrics.json

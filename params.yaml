@@ -1,0 +1,9 @@
+# Pipeline knobs (DVC params).
+# A stage using `params:` here invalidates only when a value it reads changes.
+
+seasons: ["2024-2025", "2025-2026"]
+split:
+  fit_gw_max: 30
+  test_start: 31
+processed: data/processed
+artifacts: experiments/artifacts

@@ -23,10 +23,9 @@ from fpl.live.filters import flag_squad
 from fpl.live.live import load_live_state
 from fpl.model.inference import load_model
 from fpl.model.train import load_training
-from fpl.team.enumerate import greedy_teams
-from fpl.team.filtering import availability_from_gw_stats, filter_pool
-from fpl.team.harness import basket_squads
+from fpl.team.filtering import availability_from_gw_stats
 from fpl.team.scoring import score_players
+from fpl.team.selection import pool_and_squads
 
 
 def _expected(squad, expected) -> float:
@@ -54,14 +53,10 @@ def main() -> None:
                               players=players, detail=True)
     avail = availability_from_gw_stats(gw_stats, players,
                                        gw_start=args.gw, gw_end=gw_end)
-    pool = filter_pool(scored, avail, top_k_per_position=25, max_per_team=4,
-                       reserve_top=20)
-    basket = greedy_teams(pool, n_teams=args.n_teams, seed=1)
-
-    # hydrate the typed interface once (names/clubs, prices in tenths)
-    squads = basket_squads(basket, scored, gw=args.gw)
-    expected = dict(zip(scored["player_code"], scored["expected_total"],
-                        strict=False))
+    selection = pool_and_squads(scored, scored, avail, gw=args.gw,
+                                n_teams=args.n_teams, seed=1)
+    squads = list(zip(selection.team_ids, selection.squads, strict=False))
+    expected = selection.expected
     teams_names = dict(zip(teams["code"], teams["name"], strict=False))
 
     # 2) live state (rate-limit-safe; cached)

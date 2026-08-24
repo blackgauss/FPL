@@ -1,0 +1,22 @@
+# DVC ignore rules: files that should never be tracked as pipeline deps/outs.
+# NOTE: /data/ is already ignored by git (git .gitignore); DVC owns the
+# data/processed outputs via stage `outs` (pinned by dvc.lock + .dvc/cache).
+
+# local tooling / caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# DVC's own content cache lives here; dvc.lock pins versions instead
+.dvc/cache/
+
+# regenerable, already-large or binary outputs (agent reports are committed)
+experiments/artifacts/.cache/
+experiments/artifacts/profile/
+*.prof
+notebooks/*.ipynb
+
+# external data trees (git already ignores, keep out of dep tracking)
+external/

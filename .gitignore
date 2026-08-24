@@ -21,3 +21,6 @@ experiments/artifacts/.cache/
 
 # cProfile dumps (binary); JSON reports are committed
 experiments/artifacts/profile/
+
+# DVC content cache (dvc.lock pins versions; data/ already gitignored)
+.dvc/cache/
