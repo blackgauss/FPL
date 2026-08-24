@@ -85,3 +85,40 @@ stages:
       - data/processed/players_2025-2026.parquet
     metrics:
       - experiments/artifacts/ranking.metrics.json
+
+  search:
+    cmd: >-
+      uv run python -m fpl search --season 2025-2026 --gw 31
+      --gw-end 33 --out data/processed/search_candidates.parquet
+      --metrics-out experiments/artifacts/search.metrics.json
+    deps:
+      - data/processed/points_lgbm.txt
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2025-2026.parquet
+      - data/processed/gw_stats_2025-2026.parquet
+      - src/fpl/pipeline.py
+      - src/fpl/__main__.py
+    outs:
+      - data/processed/search_candidates.parquet
+    metrics:
+      - experiments/artifacts/search.metrics.json
+
+  gym:
+    cmd: >-
+      uv run python -m fpl gym --season 2025-2026 --gw 31
+      --gw-end 33 --candidates data/processed/search_candidates.parquet
+      --out experiments/artifacts/gym.json
+      --metrics-out experiments/artifacts/gym.metrics.json
+    deps:
+      - data/processed/search_candidates.parquet
+      - data/processed/points_lgbm.txt
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2025-2026.parquet
+      - data/processed/gw_stats_2025-2026.parquet
+      - src/fpl/pipeline.py
+      - src/fpl/__main__.py
+      - src/fpl/gym.py
+    outs:
+      - experiments/artifacts/gym.json
+    metrics:
+      - experiments/artifacts/gym.metrics.json

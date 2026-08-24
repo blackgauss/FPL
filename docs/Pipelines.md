@@ -5,8 +5,9 @@ DVC (`dvc.yaml`) is the glue: it declares stages over existing scripts, their
 inputs (`deps`), outputs, configuration (`params`), and results (`metrics`)
 — so `dvc repro` runs only what changed and `dvc.lock` pins reproducibility.
 
-This is a **small integration proof**: two real stages (below). Extend by
-adding stages and connecting a stage's output to another stage's input.
+This is a small integration over the real data, model, search, and evaluation
+recipes. Extend it by adding stages and connecting a stage's output to another
+stage's input.
 
 ## What each file does
 
@@ -28,6 +29,7 @@ graph LR
   train --> fit_dist
   features --> eval_experiments
   features --> rank_report
+  search --> gym
 ```
 
 - `ingest` — builds the parquet dataset (`scripts/ingest.py`); a side-effect
@@ -39,6 +41,10 @@ graph LR
 - `eval_experiments` — declared-run harness → full artifact (git-tracked) +
   flat `*.metrics.json` (DVC-managed).
 - `rank_report` — ranking-ability report + `ranking.metrics.json`.
+- `search` — scores and ranks candidate squads, emitting
+  `search_candidates.parquet` and compact search metrics.
+- `gym` — consumes the candidate artifact and replays it against actuals,
+  emitting the canonical gym observability document and compact metrics.
 
 A stage **emits its own metrics at compute time**; DVC only *reads* them
 (`dvc metrics show`). Full documents stay the git record; the small metric
@@ -75,5 +81,7 @@ dvc metrics show         # read the emitted metrics files
 
 - DVC is glue, not an abstraction: scripts stay pure over parquet/files, no
   query API, YAML config where possible.
+- Search and gym communicate through a parquet candidate artifact; DVC does
+  not serialize domain objects or move their computation into YAML.
 - Reproducibility = committed `dvc.lock`; content cache = `.dvc/cache/`
   (gitignored); full results = git-tracked artifacts.

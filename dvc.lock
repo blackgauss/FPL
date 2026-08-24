@@ -142,3 +142,88 @@ stages:
       hash: md5
       md5: 2d0730eaf130f8bc58157d4617c4dc2a
       size: 175693
+  search:
+    cmd: uv run python -m fpl search --season 2025-2026 --gw 31 --gw-end 33 
+      --out data/processed/search_candidates.parquet --metrics-out 
+      experiments/artifacts/search.metrics.json
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 952b6df1ea637badac76cd55a934a664
+      size: 1114789
+    - path: src/fpl/__main__.py
+      hash: md5
+      md5: b1902983d4a3ad898147924ea53f6a8d
+      size: 134
+    - path: src/fpl/pipeline.py
+      hash: md5
+      md5: 1375f7029547b7d9320c5cca62835c74
+      size: 8464
+    outs:
+    - path: data/processed/search_candidates.parquet
+      hash: md5
+      md5: 999affccdb7cf09f95d83b3b950958bd
+      size: 3524
+    - path: experiments/artifacts/search.metrics.json
+      hash: md5
+      md5: a2f20ab1a7224b691ab2040999adb668
+      size: 128
+  gym:
+    cmd: uv run python -m fpl gym --season 2025-2026 --gw 31 --gw-end 33 
+      --candidates data/processed/search_candidates.parquet --out 
+      experiments/artifacts/gym.json --metrics-out 
+      experiments/artifacts/gym.metrics.json
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 952b6df1ea637badac76cd55a934a664
+      size: 1114789
+    - path: data/processed/search_candidates.parquet
+      hash: md5
+      md5: 999affccdb7cf09f95d83b3b950958bd
+      size: 3524
+    - path: src/fpl/__main__.py
+      hash: md5
+      md5: b1902983d4a3ad898147924ea53f6a8d
+      size: 134
+    - path: src/fpl/gym.py
+      hash: md5
+      md5: 110a1e52ac1fc101064231093e46694f
+      size: 12356
+    - path: src/fpl/pipeline.py
+      hash: md5
+      md5: 1375f7029547b7d9320c5cca62835c74
+      size: 8464
+    outs:
+    - path: experiments/artifacts/gym.json
+      hash: md5
+      md5: 22c24ffa8ddc966613c73717621ef284
+      size: 5784
+    - path: experiments/artifacts/gym.metrics.json
+      hash: md5
+      md5: ead098e1ce6eaae7a6eda25c8be71a85
+      size: 92

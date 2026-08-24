@@ -1,7 +1,6 @@
-"""End-to-end: a script-equivalent run through the composable runner.
+"""End-to-end: the composable pipeline runner.
 
-These assert the *script-level* path (what `scripts/search_teams.py` /
-`live_apply.py` do) still works when driven through `fpl.pipeline.run_basket`,
+These assert the search and live-reconcile paths through `fpl.pipeline.run_basket`,
 so orchestration stays in one place instead of drifting across scripts.
 Synthetic-only; no network.
 """
