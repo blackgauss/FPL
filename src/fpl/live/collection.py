@@ -69,7 +69,7 @@ def _pick_rows(entry_id: int, gw: int, payload: dict) -> list[dict]:
 def collect(
     *, league_id: int, entry_id: int, out_dir: str | Path,
     gw_start: int = 1, gw_end: int | None = None,
-    league_picks: bool = False, timeout: int = 30,
+    league_picks: bool = False, skip_league: bool = False, timeout: int = 30,
     session: requests.Session | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Collect one manager and optionally every visible league entry.
@@ -81,7 +81,16 @@ def collect(
         raise ValueError("invalid gameweek collection range")
     session = session or requests.Session()
     output = Path(out_dir)
-    standings = fetch_league_standings(league_id, session=session, timeout=timeout)
+    standings_error = None
+    try:
+        standings = fetch_league_standings(league_id, session=session, timeout=timeout)
+    except requests.HTTPError as exc:
+        if not skip_league:
+            raise
+        standings = []
+        standings_error = f"HTTP {exc.response.status_code if exc.response else 'error'}"
+    if league_picks and not standings:
+        raise ValueError("--league-picks requires accessible league standings")
     entry = _get_json(session, f"entry/{entry_id}/", timeout=timeout)
     history = _get_json(session, f"entry/{entry_id}/history/", timeout=timeout)
     latest = max((row.get("event", 0) for row in history.get("current", [])),
@@ -108,12 +117,16 @@ def collect(
                     _get_json(session, f"entry/{other_id}/event/{gw}/picks/",
                               timeout=timeout)))
 
-    standings_frame = pl.DataFrame([{
+    standings_rows = [{
         "league_id": league_id, "entry_id": int(row["entry"]),
         "rank": row.get("rank"), "player_name": row.get("player_name"),
         "entry_name": row.get("entry_name"), "total": row.get("total"),
         "event_total": row.get("event_total"), "last_rank": row.get("last_rank"),
-    } for row in standings])
+    } for row in standings]
+    standings_frame = pl.DataFrame(standings_rows) if standings_rows else pl.DataFrame(
+        schema={"league_id": pl.Int64, "entry_id": pl.Int64, "rank": pl.Int64,
+                "player_name": pl.String, "entry_name": pl.String,
+                "total": pl.Int64, "event_total": pl.Int64, "last_rank": pl.Int64})
     history_frame = pl.DataFrame(history_rows)
     picks_frame = pl.DataFrame(pick_rows)
     metadata = {
@@ -123,6 +136,8 @@ def collect(
         "gw_start": gw_start, "gw_end": end,
         "league_picks": league_picks,
     }
+    if standings_error:
+        metadata["league_error"] = standings_error
     output.mkdir(parents=True, exist_ok=True)
     standings_frame.write_parquet(output / "league_standings.parquet")
     history_frame.write_parquet(output / "team_history.parquet")

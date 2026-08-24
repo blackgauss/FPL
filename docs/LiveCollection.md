@@ -24,6 +24,10 @@ standings endpoint. This increases API traffic substantially because picks are
 one request per entry per gameweek, so use it deliberately and respect the
 API's rate limits.
 
+If a new or private league does not expose standings yet, add
+`--skip-league`. The manager history and picks will still be collected, and the
+standings can be retried later.
+
 This is an operational input, not a default DVC stage: league membership and
 manager state are mutable and account-specific. Once collected, the parquet
 outputs are stable inputs for a future personal-team evaluation stage.

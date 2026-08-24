@@ -36,13 +36,15 @@ def main() -> None:
     collect_parser.add_argument("--gw-start", type=int, default=1)
     collect_parser.add_argument("--gw-end", type=int)
     collect_parser.add_argument("--league-picks", action="store_true")
+    collect_parser.add_argument("--skip-league", action="store_true",
+                                help="collect manager data if standings are unavailable")
 
     args = parser.parse_args()
     if args.stage == "collect":
         collection.collect(
             league_id=args.league_id, entry_id=args.entry_id, out_dir=args.out,
             gw_start=args.gw_start, gw_end=args.gw_end,
-            league_picks=args.league_picks,
+            league_picks=args.league_picks, skip_league=args.skip_league,
         )
     elif args.stage == "search":
         search.run(

@@ -2,6 +2,8 @@
 
 import json
 
+import requests
+
 from fpl.live.collection import COLLECTION_SCHEMA_VERSION, collect
 
 
@@ -72,3 +74,21 @@ def test_collect_league_picks_adds_other_entries(tmp_path):
     frames = collect(league_id=9, entry_id=42, out_dir=tmp_path,
                      session=session, league_picks=True)
     assert set(frames["picks"]["entry_id"].unique().to_list()) == {42, 77}
+
+
+def test_collect_can_keep_manager_data_when_league_unavailable(tmp_path):
+    session = Session()
+    base_get = session.get
+
+    def get(url, *, headers, timeout):
+        if "standings" in url:
+            response = Response({})
+            response.status_code = 404
+            raise requests.HTTPError(response=response)
+        return base_get(url, headers=headers, timeout=timeout)
+
+    session.get = get
+    frames = collect(league_id=9, entry_id=42, out_dir=tmp_path,
+                     session=session, skip_league=True)
+    assert frames["standings"].height == 0
+    assert frames["history"].height == 2
