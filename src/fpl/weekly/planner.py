@@ -26,6 +26,11 @@ def plan_weeks(
     not the final horizon optimizer.
     """
     planned: list[Squad] = []
+    problems = squad.validate()
+    if problems:
+        raise ValueError("cannot plan from invalid squad: " + "; ".join(problems))
+    if free_transfers < 0:
+        raise ValueError("free_transfers must be non-negative")
     current = squad
     bank = free_transfers
     for gw in range(squad.gw, squad.gw + weeks):
@@ -41,3 +46,39 @@ def plan_weeks(
         planned.append(current)
         current = replace(current, gw=gw + 1, transfers_in=())
     return planned
+
+
+def make_policy(
+    forecasts: Mapping[int, Mapping[int, float]],
+    candidates: Mapping[int, Sequence[Player]],
+    *,
+    free_transfers: int = 1,
+):
+    """Create a gym policy that decides the next gameweek from forecasts.
+
+    Gym calls a policy after settling gameweek ``gw``. This adapter therefore
+    applies the transfer and captain policies to ``gw + 1`` and carries the
+    free-transfer bank across calls. Actual outcomes are never supplied to the
+    decision; gym only supplies the settled squad and current gameweek.
+    """
+    if free_transfers < 0:
+        raise ValueError("free_transfers must be non-negative")
+    bank = free_transfers
+
+    def step(squad: Squad, gw: int) -> Squad:
+        nonlocal bank
+        next_gw = gw + 1
+        current = replace(squad, gw=next_gw, transfers_in=())
+        expected = forecasts.get(next_gw, {})
+        out, new, _ = choose_transfer(
+            current, candidates.get(next_gw, ()), expected,
+            free_transfers=bank,
+        )
+        if out is not None and new is not None:
+            current = apply_transfer(current, out, new, gw=next_gw)
+            bank = max(0, bank - 1) + 1
+        else:
+            bank = min(5, bank + 1)
+        return set_captains(current, expected)
+
+    return step

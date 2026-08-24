@@ -15,6 +15,7 @@ import pytest
 from fpl.data.contract import load_season
 from fpl.domain import Player, PlayerIdentity, PlayerState, Position, Squad
 from fpl.gym import Eval, replay
+from fpl.weekly.planner import make_policy
 
 _POS = ("GKP", "DEF", "MID", "FWD")
 
@@ -36,12 +37,12 @@ def _build_squad(players, gw=2, captain=None):
         by_pos[row["position"]].append(row)
     starters = (by_pos["GKP"][:1] + by_pos["DEF"][:4]
                 + by_pos["MID"][:5] + by_pos["FWD"][:1])
-    bench = [by_pos["GKP"][1], by_pos["DEF"][4], by_pos["MID"][5],
-             by_pos["FWD"][1]]
+    bench = [by_pos["GKP"][1], by_pos["DEF"][4], by_pos["FWD"][1],
+             by_pos["FWD"][2]]
     all_rows = starters + bench
     ps = [Player(PlayerIdentity(r["player_code"], r["web_name"],
                                 Position(r["position"])),
-                 PlayerState(r["team_code"], 50)) for r in all_rows]
+                 PlayerState(100 + i, 50)) for i, r in enumerate(all_rows)]
     return Squad(
         players=tuple(ps), gw=gw,
         starters=tuple(r["player_code"] for r in starters),
@@ -100,6 +101,25 @@ class TestGymReplay:
             assert r.predicted_points == pytest.approx(
                 len(r.xi) * 3.0 + (3.0 if r.captain_doubled else 0.0))
             assert r.actual_points >= 0
+
+    def test_weekly_policy_changes_next_snapshot_only(self, season):
+        squad = _build_squad(season.players)
+        new_row = season.players.filter(
+            (~pl.col("player_code").is_in(squad.codes()))
+            & (pl.col("position") == "MID")
+        ).row(0, named=True)
+        new = Player(PlayerIdentity(new_row["player_code"], new_row["web_name"],
+                                    Position(new_row["position"])),
+                     PlayerState(999, 50))
+        expected = {code: 2.0 for code in squad.codes()} | {new.code: 8.0}
+        policy = make_policy({3: expected}, {3: [new]})
+        results = replay(squad, gw_stats=season.gw_stats, players=season.players,
+                         weeks=2, policy=policy)
+        assert results[0].squad.gw == 2
+        assert results[1].squad.gw == 3
+        assert new.code in results[1].squad.codes()
+        assert results[1].squad.captain == new.code
+        assert results[1].squad.validate() == []
 
 
 class TestEvalProtocol:

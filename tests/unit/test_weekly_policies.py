@@ -1,10 +1,11 @@
 """Black-box tests for the basic captain/transfer planning baseline."""
 
 import polars as pl
+import pytest
 
 from fpl.domain import squad_from_frame
 from fpl.weekly.captain import choose_captains, set_captains
-from fpl.weekly.planner import plan_weeks
+from fpl.weekly.planner import make_policy, plan_weeks
 from fpl.weekly.transfer import apply_transfer, choose_transfer
 
 
@@ -67,6 +68,13 @@ class TestTransfer:
             squad, [make_mid(99, club=20, cost=500)],
             {out_code: 2.0, 99: 20.0}) == (None, None, 0.0)
 
+    def test_invalid_transition_is_rejected_at_boundary(self):
+        squad = make_squad()
+        with pytest.raises(ValueError, match="preserve player position"):
+            apply_transfer(squad, squad.players[0], make_mid(99), gw=1)
+        with pytest.raises(ValueError, match="already in squad"):
+            apply_transfer(squad, squad.players[0], squad.players[1], gw=1)
+
 
 class TestPlanner:
     def test_transfer_then_captain_each_week(self):
@@ -82,3 +90,16 @@ class TestPlanner:
         assert planned[1].transfers_in == ()
         assert planned[0].captain == 99
         assert planned[0].validate() == []
+
+    def test_gym_policy_decides_next_gameweek(self):
+        squad = make_squad()
+        new = make_mid(99, club=20)
+        policy = make_policy(
+            {2: {**{code: 2.0 for code in squad.starters}, 99: 8.0}},
+            {2: [new]},
+        )
+        next_squad = policy(squad, 1)
+        assert next_squad.gw == 2
+        assert next_squad.captain == 99
+        assert 99 in next_squad.codes()
+        assert next_squad.validate() == []
