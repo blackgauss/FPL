@@ -112,7 +112,17 @@ def plan_one_week(
     """Rank hold and legal one-transfer plans for the next gameweek."""
     current = _current_squad(picks, players, live, gw=gw, entry_id=entry_id)
     values = _effective_expected(expected, live)
+    ownership = _league_ownership(picks, players)
+    weighted_values = {
+        code: value * (1.0 - ownership.get(code, 0.0))
+        for code, value in values.items()
+    }
     by_code = current.by_code()
+    official = {
+        int(row["player_code"]): float(row["ep_next"] or 0.0)
+        for row in live.iter_rows(named=True)
+        if row.get("ep_next") is not None
+    }
     candidates: list[Player] = []
     for row in live.iter_rows(named=True):
         code = int(row["player_code"])
@@ -144,23 +154,40 @@ def plan_one_week(
                 current, out, new, gw=gw + 1)
         except ValueError:
             continue
-        planned = _best_lineup(planned, values)
-        planned = set_captains(planned, values)
-        score = sum(values.get(code, 0.0) for code in planned.starters)
-        score += values.get(planned.captain, 0.0) if planned.captain else 0.0
+        planned = _best_lineup(planned, weighted_values)
+        planned = set_captains(planned, weighted_values)
+        score = sum(weighted_values.get(code, 0.0) for code in planned.starters)
+        score += (weighted_values.get(planned.captain, 0.0)
+                  if planned.captain else 0.0)
         options.append({
             "transfer_out": out.name if out else None,
             "transfer_in": new.name if new else None,
             "transfer_out_code": out.code if out else None,
             "transfer_in_code": new.code if new else None,
             "expected_score": round(score, 3),
+            "expected_delta": 0.0,
+            "ownership_in": round(ownership.get(new.code, 0.0), 3)
+            if new else None,
+            "ownership_out": round(ownership.get(out.code, 0.0), 3)
+            if out else None,
+            "model_expected_in": round(values.get(new.code, 0.0), 3)
+            if new else None,
+            "model_expected_out": round(values.get(out.code, 0.0), 3)
+            if out else None,
+            "official_ep_next_in": official.get(new.code) if new else None,
+            "official_ep_next_out": official.get(out.code) if out else None,
             "squad": planned,
         })
+    hold_score = next(option["expected_score"] for option in options
+                       if option["transfer_out"] is None)
+    for option in options:
+        option["expected_delta"] = round(option["expected_score"] - hold_score, 3)
     options.sort(key=lambda option: -option["expected_score"])
     return {
         "gw": gw + 1,
         "bank_tenths": bank_tenths,
         "current_squad": list(current.codes()),
+        "ownership_basis": "unique league entries selecting the player",
         "options": [_serialize_option(option) for option in options[:top]],
     }
 
@@ -198,3 +225,20 @@ def run_from_files(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
+
+
+def _league_ownership(picks: pl.DataFrame, players: pl.DataFrame) -> dict[int, float]:
+    """Return squad ownership as a fraction of unique collected league entries."""
+    if "entry_id" not in picks.columns:
+        return {}
+    entries = picks["entry_id"].n_unique()
+    if entries == 0:
+        return {}
+    counts = picks.select("entry_id", "element").unique().group_by("element").agg(
+        pl.len().alias("owners"))
+    mapped = counts.join(players.select("player_id", "player_code"),
+                         left_on="element", right_on="player_id", how="inner")
+    return {
+        int(row["player_code"]): float(row["owners"]) / entries
+        for row in mapped.iter_rows(named=True)
+    }

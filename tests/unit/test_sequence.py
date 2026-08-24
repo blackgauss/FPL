@@ -43,6 +43,9 @@ def test_one_week_plan_returns_legal_transfer_and_lineup_options():
     assert len(result["options"]) == 5
     best = result["options"][0]
     assert best["transfer_in"] == "New MID"
+    assert best["expected_delta"] > 0
+    assert best["ownership_in"] == 0.0
+    assert best["ownership_out"] == 1.0
     assert len(best["starters"]) == 11
     assert len(best["bench"]) == 4
     assert best["captain"] in best["starters"]
