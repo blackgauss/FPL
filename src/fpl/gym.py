@@ -157,8 +157,20 @@ def replay(
             xi_points={code: points.get(code, 0.0) for code in settle.playing},
         ))
 
-        current = policy(current, gw) if policy is not None \
-            else replace(current, gw=gw + 1)
+        if policy is None:
+            current = replace(current, gw=gw + 1)
+        else:
+            next_squad = policy(current, gw)
+            if not isinstance(next_squad, Squad):
+                raise TypeError("policy must return a Squad")
+            if next_squad.gw != gw + 1:
+                raise ValueError(
+                    f"policy must return next GW {gw + 1}, got {next_squad.gw}")
+            problems = next_squad.validate()
+            if problems:
+                raise ValueError(
+                    "policy produced invalid squad: " + "; ".join(problems))
+            current = next_squad
     return results
 
 
