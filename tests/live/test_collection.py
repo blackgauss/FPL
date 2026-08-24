@@ -1,0 +1,145 @@
+"""Synthetic API contract tests for league and manager collection."""
+
+import json
+
+import polars as pl
+import pytest
+import requests
+
+from fpl.live.collection import COLLECTION_SCHEMA_VERSION, collect
+from fpl.live.compare import compare_team
+
+
+class Response:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.payload
+
+
+class Session:
+    def __init__(self):
+        self.calls = []
+
+    def get(self, url, *, headers, timeout):
+        self.calls.append(url)
+        if "standings" in url:
+            return Response({"standings": {"has_next": False, "results": [{
+                "entry": 42, "rank": 1, "player_name": "Manager",
+                "entry_name": "My Team", "total": 100, "event_total": 60,
+                "last_rank": 2,
+            }, {
+                "entry": 77, "rank": 2, "player_name": "Rival",
+                "entry_name": "Rival Team", "total": 90, "event_total": 50,
+                "last_rank": 3,
+            }]}})
+        if url.endswith("entry/42/"):
+            return Response({"id": 42, "name": "Manager", "player_first_name": "A"})
+        if url.endswith("entry/42/history/"):
+            return Response({"current": [{"event": 1, "points": 60},
+                                         {"event": 2, "points": 70}]})
+        if "/entry/42/event/" in url:
+            return Response({"picks": [{
+                "element": 100, "position": 1, "multiplier": 2,
+                "is_captain": True, "is_vice_captain": False,
+            }]})
+        if "/event/" in url and "/live/" in url:
+            return Response({"elements": [{"id": 10, "stats": {
+                "minutes": 90, "total_points": 6,
+            }}]})
+        raise AssertionError(f"unexpected API request: {url}")
+
+
+def test_collect_writes_manager_and_league_outputs(tmp_path):
+    session = Session()
+    frames = collect(league_id=9, entry_id=42, out_dir=tmp_path,
+                     session=session)
+    assert frames["standings"].height == 2
+    assert frames["history"].height == 2
+    assert frames["picks"].height == 2
+    assert frames["event"].height == 2
+    assert set(frames["picks"]["entry_id"].to_list()) == {42}
+    metadata = json.loads((tmp_path / "collection.json").read_text())
+    assert metadata["schema_version"] == COLLECTION_SCHEMA_VERSION
+    assert metadata["gw_end"] == 2
+    assert len(session.calls) == 7
+
+
+def test_collect_league_picks_adds_other_entries(tmp_path):
+    session = Session()
+    base_get = session.get
+
+    def get(url, *, headers, timeout):
+        if "/entry/77/event/" in url:
+            return Response({"picks": [{"element": 200, "position": 1}]})
+        return base_get(url, headers=headers, timeout=timeout)
+
+    session.get = get
+    frames = collect(league_id=9, entry_id=42, out_dir=tmp_path,
+                     session=session, league_picks=True)
+    assert set(frames["picks"]["entry_id"].unique().to_list()) == {42, 77}
+
+
+def test_collect_can_keep_manager_data_when_league_unavailable(tmp_path):
+    session = Session()
+    base_get = session.get
+
+    def get(url, *, headers, timeout):
+        if "standings" in url:
+            response = Response({})
+            response.status_code = 404
+            raise requests.HTTPError(response=response)
+        return base_get(url, headers=headers, timeout=timeout)
+
+    session.get = get
+    frames = collect(league_id=9, entry_id=42, out_dir=tmp_path,
+                     session=session, skip_league=True)
+    assert frames["standings"].height == 0
+    assert frames["history"].height == 2
+
+
+def test_compare_team_uses_official_history_score_and_pick_xscore():
+    picks = pl.DataFrame({
+        "gw": [1, 1], "element": [10, 11], "position": [1, 12],
+        "multiplier": [2, 0], "is_captain": [True, False],
+        "is_vice_captain": [False, True],
+    })
+    players = pl.DataFrame({
+        "player_id": [10, 11], "player_code": [100, 101],
+        "web_name": ["A", "B"], "position": ["FWD", "MID"],
+    })
+    stats = pl.DataFrame({
+        "player_id": [10, 11], "gw": [1, 1],
+        "minutes": [90, 0], "total_points": [6, 10],
+    })
+    forecast = pl.DataFrame({
+        "player_code": [100, 101], "gw": [1, 1],
+        "expected_points": [4.0, 8.0],
+    })
+    history = pl.DataFrame({"event": [1], "points": [12]})
+    rows, summary = compare_team(
+        picks=picks, history=history, players=players,
+        gw_stats=stats, forecast=forecast, gw=1)
+    assert summary == {"gw": 1, "xscore": 8.0, "actual_score": 12.0,
+                       "history_score": 12.0, "score_source": "entry_history",
+                       "error": -4.0, "player_count": 2}
+    assert rows["actual_points"].to_list() == [6, 10]
+
+
+def test_compare_team_requires_entry_for_multi_team_pick_artifact():
+    picks = pl.DataFrame({"entry_id": [1, 2], "gw": [1, 1],
+                          "element": [10, 11], "position": [1, 1],
+                          "multiplier": [1, 1]})
+    with pytest.raises(ValueError, match="entry_id is required"):
+        compare_team(
+            picks=picks, history=pl.DataFrame({"event": [1], "points": [0]}),
+            players=pl.DataFrame({"player_id": [10], "player_code": [100],
+                                  "web_name": ["A"], "position": ["FWD"]}),
+            gw_stats=pl.DataFrame({"player_id": [10], "gw": [1],
+                                   "minutes": [90], "total_points": [1]}),
+            forecast=pl.DataFrame({"player_code": [100], "gw": [1],
+                                    "expected_points": [1.0]}), gw=1)
