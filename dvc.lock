@@ -1,0 +1,54 @@
+schema: '2.0'
+stages:
+  eval_experiments:
+    cmd: uv run python scripts/run_experiments.py --config 
+      config/experiments_ranking.yaml --output 
+      experiments/artifacts/ranking_exp.json --metrics-out 
+      experiments/artifacts/ranking_exp.metrics.json --parallel 3 --cache-dir 
+      experiments/artifacts/.cache
+    deps:
+    - path: config/experiments_ranking.yaml
+      hash: md5
+      md5: 13f6e208a08d421cce17fe611578c7b6
+      size: 518
+    - path: data/processed/features_2024-2025.parquet
+      hash: md5
+      md5: 95fa3721ebdf12d2cf88e6a815cc0189
+      size: 97248
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: 172dac8d2c76186021d1cf668172d7c5
+      size: 101292
+    - path: data/processed/players_2024-2025.parquet
+      hash: md5
+      md5: 7bd36146ddd8cf7685bb3803c66c1213
+      size: 22347
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    outs:
+    - path: experiments/artifacts/ranking_exp.metrics.json
+      hash: md5
+      md5: 8efe849f3366bc668d8cf2a9e2e88221
+      size: 1627
+  rank_report:
+    cmd: uv run python scripts/ranking_report.py
+    deps:
+    - path: config/experiments_ranking.yaml
+      hash: md5
+      md5: 13f6e208a08d421cce17fe611578c7b6
+      size: 518
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: 172dac8d2c76186021d1cf668172d7c5
+      size: 101292
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    outs:
+    - path: experiments/artifacts/ranking.metrics.json
+      hash: md5
+      md5: d4b6192a098e943a8d0a9e9b87e2c102
+      size: 764

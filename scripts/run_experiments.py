@@ -47,6 +47,8 @@ def main() -> None:
     parser.add_argument("--cache-dir", default=str(DEFAULT_CACHE),
                         help="cross-process fit cache directory; empty string "
                              "disables")
+    parser.add_argument("--metrics-out", default=None,
+                        help="also write a flat metrics JSON (for dvc metrics)")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as fh:
@@ -112,6 +114,34 @@ def main() -> None:
         raise
     print(f"completed result artifact -> {outcome_path}")
     print(f"experiment cache: {cache.cache_counts()}")
+    if args.metrics_out:
+        _write_flat_metrics(results, Path(args.metrics_out))
+        print(f"metrics -> {args.metrics_out}")
+
+
+def _flat_metric(result: dict) -> dict[str, float | int]:
+    """Small scalar view of one experiment result (dvc-metrics friendly)."""
+    metrics = {m["cohort"]: m for m in result.get("metrics", [])}
+    out: dict[str, float | int] = {
+        "mae_all": metrics["all"]["mae"] if "all" in metrics else float("nan"),
+        "top10_mae": metrics["top10"]["mae"] if "top10" in metrics else float("nan"),
+    }
+    for prefix, section in (("rank", result.get("ranking", {})),
+                            ("cal", result.get("calibration", {}))):
+        for key, value in section.items():
+            if isinstance(value, (int, float)):
+                out[f"{prefix}_{key}"] = value
+    return out
+
+
+def _write_flat_metrics(results: list[dict], path: Path) -> None:
+    import json
+
+    payload = {
+        "experiments": {r["name"]: _flat_metric(r) for r in results},
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
 
 
 if __name__ == "__main__":

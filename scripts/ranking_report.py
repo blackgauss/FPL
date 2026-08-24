@@ -174,6 +174,23 @@ def main() -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report, encoding="utf-8")
     print(f"wrote report -> {report_path}")
+    _write_metrics(rows, ARTIFACTS / "ranking.metrics.json")
+    print("metrics -> experiments/artifacts/ranking.metrics.json")
+
+
+def _write_metrics(rows: list[dict], path: Path) -> None:
+    import json
+
+    payload = {
+        ranker["ranker"]: {
+            "spearman_rho": ranker["spearman_rho"],
+            "topk_hit_rate": ranker["topk_hit_rate"],
+            "pairwise_concordance": ranker["pairwise_concordance"],
+        }
+        for ranker in rows
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
 
 
 if __name__ == "__main__":
