@@ -25,7 +25,7 @@ from pathlib import Path
 import polars as pl
 import yaml
 
-from fpl.experiments.artifacts import write_artifact
+from fpl.experiments.artifacts import write_artifact, write_metrics_json
 from fpl.experiments.metrics import ranking_metrics
 from fpl.experiments.run import run_experiment
 from fpl.experiments.splits import TemporalSplit, validate_feature_leakage
@@ -174,13 +174,6 @@ def main() -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report, encoding="utf-8")
     print(f"wrote report -> {report_path}")
-    _write_metrics(rows, ARTIFACTS / "ranking.metrics.json")
-    print("metrics -> experiments/artifacts/ranking.metrics.json")
-
-
-def _write_metrics(rows: list[dict], path: Path) -> None:
-    import json
-
     payload = {
         ranker["ranker"]: {
             "spearman_rho": ranker["spearman_rho"],
@@ -189,8 +182,8 @@ def _write_metrics(rows: list[dict], path: Path) -> None:
         }
         for ranker in rows
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    write_metrics_json(payload, ARTIFACTS / "ranking.metrics.json")
+    print("metrics -> experiments/artifacts/ranking.metrics.json")
 
 
 if __name__ == "__main__":
