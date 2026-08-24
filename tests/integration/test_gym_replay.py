@@ -102,6 +102,26 @@ class TestGymReplay:
                 len(r.xi) * 3.0 + (3.0 if r.captain_doubled else 0.0))
             assert r.actual_points >= 0
 
+    def test_replay_rejects_invalid_policy_output(self, season):
+        squad = _build_squad(season.players)
+
+        def invalid_policy(current, gw):
+            return replace(current, starters=current.starters[:-1], gw=gw + 1)
+
+        with pytest.raises(ValueError, match="policy produced invalid squad"):
+            replay(squad, gw_stats=season.gw_stats, players=season.players,
+                   weeks=1, policy=invalid_policy)
+
+    def test_replay_rejects_policy_that_does_not_advance_gameweek(self, season):
+        squad = _build_squad(season.players)
+
+        def stale_policy(current, gw):
+            return current
+
+        with pytest.raises(ValueError, match="must return next GW"):
+            replay(squad, gw_stats=season.gw_stats, players=season.players,
+                   weeks=1, policy=stale_policy)
+
     def test_weekly_policy_changes_next_snapshot_only(self, season):
         squad = _build_squad(season.players)
         new_row = season.players.filter(
