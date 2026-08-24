@@ -7,7 +7,7 @@ How to try a new modeling idea and compare it fairly, in minutes. This is the
 
 1. **Declare** a candidate in `config/experiments.yaml` (model, params, feature
    subset). No code changes.
-2. **Run** `python scripts/run_experiments.py`.
+2. **Run** `python -m fpl.stages.experiments`.
 3. **Read** the table — every candidate scores on the *same* held-out window
    (GW 31..38 of 2025-26), so MAE/RMSE are directly comparable.
 
@@ -18,9 +18,9 @@ uv venv && uv pip install -e ".[dev,notebook]"
 # fetch/refresh the FPL-Core clone if not present
 git clone --depth 1 https://github.com/olbauday/FPL-Core-Insights.git external/fpl_core
 # build the dataset -> feature store -> trained model (idempotent, all of these)
-python scripts/ingest.py --config config/data.yaml
-python scripts/features.py --config config/data.yaml
-python scripts/train_tree.py        # writes data/processed/points_lgbm.txt
+python -m fpl.stages.ingest --config config/data.yaml
+python -m fpl.stages.features --config config/data.yaml
+python -m fpl.stages.train        # writes data/processed/points_lgbm.txt
 ```
 
 `git pull` inside `external/fpl_core` + re-run ingest/features whenever the
@@ -73,7 +73,7 @@ _load_pickle)`); sharing the pattern is one dict entry. Nothing else changes.
 Train and persist, then ask for expected points for a player collection + GW:
 
 ```bash
-python scripts/train_tree.py
+python -m fpl.stages.train
 python scripts/predict.py --season 2025-2026 --gw 31
 ```
 
@@ -86,7 +86,7 @@ where `gw == G-1` (feature-row semantics: row gw=k predicts points in k+1).
 - **No leakage**: the split is by gameweek; the harness rejects
   `fit_gw_max >= test_gw_min`. Held-out GWs are never in any fit.
 - **Identity**: player metadata joins on stable `player_code` (player_id is
-  season-local and reused). `scripts/train_tree.py` runs the leakage gates
+  season-local and reused). `fpl.stages.train` runs the leakage gates
   before fitting.
 - **Same slice**: this is why results are comparable — every row scored the
   same 5802 player-GW test rows.

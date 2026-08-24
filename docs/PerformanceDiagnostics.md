@@ -84,7 +84,7 @@ QUALITY knee and scale time linearly:
 
 ## Cross-process + parallel levers (implemented)
 
-- **Cross-process disk cache**: `scripts/run_experiments.py --cache-dir
+- **Cross-process disk cache**: `python -m fpl.stages.experiments --cache-dir
   experiments/artifacts/.cache` persists each fitted LightGBM Booster as
   `fit-<content-id>.txt` (stable content-hash filename, NOT builtin `hash()`
   which is per-process randomized). A later CLI run loads instead of

@@ -3,7 +3,7 @@
 Loads the persisted tree model, assembles the current season's features, and
 reports expected next-GW points for each gameweek in [--gw, --gw-end].
 
-Run:  python scripts/train_tree.py   # first, to write points_lgbm.txt
+Run:  python -m fpl.stages.train   # first, to write points_lgbm.txt
       python scripts/predict.py --season 2025-2026 --gw 31
       python scripts/predict.py --season 2025-2026 --gw 31 --gw-end 35
 """

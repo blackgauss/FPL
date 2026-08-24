@@ -111,7 +111,7 @@ forecast — a **heteroskedastic model**, no binning:
 - standardize z = residual / sigma(X) into a **single global t-digest** (the
   shared tail shape; `update()` folds in GWs, `merge()` for seasons).
 - a player-GW points CDF = `mu(X) + sigma(X) * z_q` for each q in QS.
-  `scripts/fit_dist.py` writes the quantile vector to `dist_{season}.parquet`.
+  `fpl.stages.fit_dist` writes the quantile vector to `dist_{season}.parquet`.
 
 Why binning was wrong (the question that caught it): price's *mean* drives the
 cheap-are-burstier effect (cheap players have low mu, so high CV), not the

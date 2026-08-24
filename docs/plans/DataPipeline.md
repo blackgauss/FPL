@@ -16,7 +16,7 @@ unification semantics built there carry forward into the ingest job.
 dataset (player's club per GW — 27 players transferred mid-season in 2025-26, so
 opponent/venue features must not use the final club) and a feature-store job:
 
-- `scripts/features.py` writes `data/processed/features_{season}.parquet`
+- `fpl.stages.features` writes `data/processed/features_{season}.parquet`
 - feature per (player_id, gw): `team_code`, `opponent_team_code`, `was_home`,
   `home_elo`, `opponent_elo`, `prev_points`, `pts_avg_3`, `pts_avg_5`,
   `total_points`, `next_points` (the training target; final GW row null)
@@ -87,7 +87,7 @@ on `external/` existing.
 `ingest` writes the flat parquet dataset; 27-test black-box contract suite
 (TestFileSet/Schema/ReferentialIntegrity/Uniqueness/SpotValues/DataQuality/
 Determinism/EdaPattern). Config is `config/data.yaml`, `query.yaml` retired;
-`scripts/ingest.py --config --season` builds the dataset. Notebook reads only
+`fpl.stages.ingest --config --season` builds the dataset. Notebook reads only
 parquet, reproduces 6.645/11.5/7.2; `queries.py`+tests deleted. Parquet dataset
 documented in `DataDocumentation.md`. Full suite 40 tests green; real dataset
 built at `data/processed/`.
@@ -123,7 +123,7 @@ phantom points) unless the EDA pattern first filters `matches.tournament == 'pre
   `contract.py`) and write `{table}_{season}.parquet` under `processed_dir`. Parquet
   becomes the **only** interface consumers (notebook/jobs) read from — `load_season`
   stays internal to this job.
-- Include a minimal runnable entrypoint (e.g. `scripts/ingest.py --config <yaml>
+- Include a minimal runnable entrypoint (e.g. `python -m fpl.stages.ingest --config <yaml>
   --season <s>`) so the dataset can actually be produced; verify it runs clean on
   real FPL-Core data.
 - **Verify**: black-box test — synthetic season tree → read back each parquet,

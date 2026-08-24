@@ -1,12 +1,12 @@
 """Build the player-GW feature store from the parquet dataset.
 
-Reads data/processed (produced by scripts/ingest.py), writes one feature
+Reads data/processed (produced by the ingest stage), writes one feature
 parquet per season:
     data/processed/features_{season}.parquet
 The feature schema is defined in src/fpl/data/features.py.
 
 Usage:
-    python scripts/features.py --config config/data.yaml [--season <s>]
+    python -m fpl.stages.features --config config/data.yaml [--season <s>]
 """
 
 from __future__ import annotations

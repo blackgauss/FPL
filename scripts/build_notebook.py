@@ -1,6 +1,6 @@
 """Build notebooks/DataQuery.ipynb — the EDA pattern over the parquet dataset.
 
-Pure Polars over `data/processed/` (the dataset produced by `scripts/ingest.py`).
+Pure Polars over `data/processed/` (the dataset produced by the ingest stage).
 No query API imported: this is the "close to the files" pattern from Data.md.
 The only config import is for paths.
 """
@@ -32,7 +32,7 @@ Driving example (from `docs/plans/DataPipeline.md`):
 Foden also played, vs when Foden didn't?
 
 This notebook reads only `data/processed/*_2025-2026.parquet` (build with
-`python scripts/ingest.py --config config/data.yaml`). Everything is plain
+`python -m fpl.stages.ingest --config config/data.yaml`). Everything is plain
 Polars — no query API, per `docs/style/Data.md`."""
     ),
     code(

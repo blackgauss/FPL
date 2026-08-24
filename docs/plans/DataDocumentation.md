@@ -254,7 +254,7 @@ Rule: join via `code` whenever data persists across seasons; `id` only within on
 
 ## Parquet Dataset (the ingest contract)
 
-Built by `python scripts/ingest.py --config config/data.yaml [--season <s>]`
+Built by `python -m fpl.stages.ingest --config config/data.yaml [--season <s>]`
 (idempotent full rebuild). This is the **only** interface EDA notebooks and
 production jobs read from — per `docs/style/Data.md`, no query API, close to files.
 

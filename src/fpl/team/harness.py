@@ -207,7 +207,7 @@ def _value(value_fn: str, basket, totals, dist_forecast, value_kw):
         if dist_forecast is None:
             raise ValueError(
                 "value_fn='h2h_dist' needs dist_forecast (per-player-GW CDFs); "
-                "compute via scripts/fit_dist.py and pass it in")
+                "compute via fpl.stages.fit_dist and pass it in")
         n = value_kw.get("n_samples", 150)
         seed = value_kw.get("seed", 0)
         squad_dist = simulate_squad_distributions(

@@ -1,5 +1,5 @@
 # Ranking-stage comparison: tree models vs naive references on the same split.
-# Reproduces the "ranking ability" finding for scripts/ranking_report.py.
+# Reproduces the "ranking ability" finding for fpl.stages.ranking.
 seasons: ["2024-2025", "2025-2026"]
 split:
   fit_gw_max: 30

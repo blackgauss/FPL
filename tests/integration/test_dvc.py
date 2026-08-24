@@ -65,6 +65,9 @@ def test_dvc_yaml_defines_expected_stages():
                                           "pipeline.gw_end", "pipeline.gym.top"]
     assert "src/fpl" in stages["search"]["deps"]
     assert "src/fpl" in stages["gym"]["deps"]
+    for name in stages:
+        assert "scripts/" not in stages[name]["cmd"]
+    assert stages["ingest"]["cmd"].startswith("uv run python -m fpl.stages")
 
 
 def test_metrics_writer_flat_and_roundtrip(tmp_path):

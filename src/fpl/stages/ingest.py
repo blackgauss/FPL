@@ -1,7 +1,7 @@
-"""Thin entrypoint for the ingest job, driven by YAML config.
+"""Ingest stage driven by YAML config.
 
 Usage:
-    python scripts/ingest.py --config config/data.yaml --season 2025-2026
+    python -m fpl.stages.ingest --config config/data.yaml
 """
 
 from __future__ import annotations
