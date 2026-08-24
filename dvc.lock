@@ -17,8 +17,8 @@ stages:
       size: 97248
     - path: data/processed/features_2025-2026.parquet
       hash: md5
-      md5: 172dac8d2c76186021d1cf668172d7c5
-      size: 101292
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
     - path: data/processed/players_2024-2025.parquet
       hash: md5
       md5: 7bd36146ddd8cf7685bb3803c66c1213
@@ -27,10 +27,22 @@ stages:
       hash: md5
       md5: 24c136a0801b3755c70111a36286382f
       size: 23225
+    - path: scripts/run_experiments.py
+      hash: md5
+      md5: cd23abf89e7fe5911c8614c767e77a09
+      size: 4811
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.experiments.parallel: 3
     outs:
     - path: experiments/artifacts/ranking_exp.metrics.json
       hash: md5
-      md5: 8efe849f3366bc668d8cf2a9e2e88221
+      md5: 1ed3a0dea0e408a93de48954de058aef
       size: 1627
   rank_report:
     cmd: uv run python scripts/ranking_report.py
@@ -41,14 +53,245 @@ stages:
       size: 518
     - path: data/processed/features_2025-2026.parquet
       hash: md5
-      md5: 172dac8d2c76186021d1cf668172d7c5
-      size: 101292
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
     - path: data/processed/players_2025-2026.parquet
       hash: md5
       md5: 24c136a0801b3755c70111a36286382f
       size: 23225
+    - path: scripts/ranking_report.py
+      hash: md5
+      md5: b1241c34da7f0996f40eebfde5ef8f42
+      size: 7368
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.season: 2025-2026
     outs:
     - path: experiments/artifacts/ranking.metrics.json
       hash: md5
-      md5: d4b6192a098e943a8d0a9e9b87e2c102
+      md5: e976667f4c8e88531619d9fa4f206b67
       size: 764
+  ingest:
+    cmd: uv run python scripts/ingest.py --config config/data.yaml
+    deps:
+    - path: config/data.yaml
+      hash: md5
+      md5: 93663c6e4e2404cef87290c7f10bb763
+      size: 342
+    - path: external/fpl_core/data
+      hash: md5
+      md5: d751713988987e9331980363e24189ce.dir
+      size: 0
+      nfiles: 0
+  features:
+    cmd: uv run python scripts/features.py --config config/data.yaml --season 
+      2025-2026
+    deps:
+    - path: config/data.yaml
+      hash: md5
+      md5: 93663c6e4e2404cef87290c7f10bb763
+      size: 342
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/matches_2025-2026.parquet
+      hash: md5
+      md5: 9c90d84be1913ac0f419a3304c634d7e
+      size: 16153
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/team_history_2025-2026.parquet
+      hash: md5
+      md5: 7fc0b4258b04f6a2ea00517eb2335ca6
+      size: 5207
+    - path: scripts/features.py
+      hash: md5
+      md5: 956c054c4ae98b5e4b80a159247f0711
+      size: 2160
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.season: 2025-2026
+    outs:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+  train:
+    cmd: uv run python scripts/train_tree.py
+    deps:
+    - path: data/processed/features_2024-2025.parquet
+      hash: md5
+      md5: 95fa3721ebdf12d2cf88e6a815cc0189
+      size: 97248
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/players_2024-2025.parquet
+      hash: md5
+      md5: 7bd36146ddd8cf7685bb3803c66c1213
+      size: 22347
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: scripts/train_tree.py
+      hash: md5
+      md5: 2af069cdfba534aae1003513abbf2800
+      size: 4421
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    outs:
+    - path: data/processed/mae.json
+      hash: md5
+      md5: 624aa7a80c0c2ca7fa0d16c9f08bcb53
+      size: 300
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 21d7dbf547febe4b4aeabe86ce839f3b
+      size: 1115105
+  fit_dist:
+    cmd: uv run python scripts/fit_dist.py --processed data/processed --season 
+      2025-2026 --gw 31 --gw-end 33 --fit-gw-max 30
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 21d7dbf547febe4b4aeabe86ce839f3b
+      size: 1115105
+    - path: scripts/fit_dist.py
+      hash: md5
+      md5: 2709934531da5b201f0ce4625f597a19
+      size: 1391
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.fit_gw_max: 30
+        pipeline.gw_end: 33
+        pipeline.gw_start: 31
+        pipeline.season: 2025-2026
+    outs:
+    - path: data/processed/dist_2025-2026.parquet
+      hash: md5
+      md5: 5bed4e09585ddcbccd206861ed839938
+      size: 175708
+  search:
+    cmd: uv run python -m fpl search --season 2025-2026 --gw 31 --gw-end 33 
+      --enum greedy --value h2h --n-teams 20 --seed 0 --n-samples 150 --out 
+      data/processed/search_candidates.parquet --metrics-out 
+      experiments/artifacts/search.metrics.json
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 21d7dbf547febe4b4aeabe86ce839f3b
+      size: 1115105
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.gw_end: 33
+        pipeline.gw_start: 31
+        pipeline.search:
+          enum: greedy
+          value: h2h
+          n_teams: 20
+          seed: 0
+          n_samples: 150
+        pipeline.season: 2025-2026
+    outs:
+    - path: data/processed/search_candidates.parquet
+      hash: md5
+      md5: 5ce02e8cbd2db65feedf6ab055098a9d
+      size: 3654
+    - path: experiments/artifacts/search.metrics.json
+      hash: md5
+      md5: eda4f6416caa48623d17fa9a66c0df05
+      size: 130
+  gym:
+    cmd: uv run python -m fpl gym --season 2025-2026 --gw 31 --gw-end 33 --top 3
+      --candidates data/processed/search_candidates.parquet --out 
+      experiments/artifacts/gym.json --metrics-out 
+      experiments/artifacts/gym.metrics.json
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 21d7dbf547febe4b4aeabe86ce839f3b
+      size: 1115105
+    - path: data/processed/search_candidates.parquet
+      hash: md5
+      md5: 5ce02e8cbd2db65feedf6ab055098a9d
+      size: 3654
+    - path: src/fpl
+      hash: md5
+      md5: ad52a4d07d6d7e482bf2f442989b13b8.dir
+      size: 199014
+      nfiles: 47
+    params:
+      params.yaml:
+        pipeline.gw_end: 33
+        pipeline.gw_start: 31
+        pipeline.gym.top: 3
+        pipeline.season: 2025-2026
+    outs:
+    - path: experiments/artifacts/gym.json
+      hash: md5
+      md5: 14eb11d2cfef37dc2b32c0754087e1c3
+      size: 5909
+    - path: experiments/artifacts/gym.metrics.json
+      hash: md5
+      md5: 873698fee61d4e842e21e768f2f24017
+      size: 104

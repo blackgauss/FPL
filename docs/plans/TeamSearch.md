@@ -83,7 +83,7 @@ A valid FPL team: 15 players, budget <= £100m, position counts
    filter → enumerate → value; the enumeration and value strategies are
    injected from a REGISTRY (greedy / h2h today; MCMC / utility later). This
    is deliberately NOT tied to one algorithm — swap a stage to experiment.
-   `scripts/search_teams.py` runs it end-to-end.
+    `uv run python -m fpl search` runs it as the DVC search stage.
 5. ✅ `simulate_h2h` + `weaknesses`: per-team win_ratio/avg_edge over the
    round-robin field; worst-GW and star-dependence exposure per squad.
 
