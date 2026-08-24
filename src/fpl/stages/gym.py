@@ -33,6 +33,11 @@ def run(
     start, end = forecastable[0], forecastable[-1]
     candidates = pl.read_parquet(candidates_path)
     validate_candidate_artifact(candidates)
+    metadata = candidates.select("season", "gw_start", "gw_end").row(0)
+    if metadata != (season, gw_start, gw_end):
+        raise ValueError(
+            "candidate artifact window does not match gym request: "
+            f"{metadata} != {(season, gw_start, gw_end)}")
     if "candidate_rank" in candidates.columns:
         candidates = candidates.sort("candidate_rank")
     squads = basket_squads(candidates, players, gw=gw_start)
@@ -43,6 +48,7 @@ def run(
         for i, (_, squad) in enumerate(squads[:top])
     ]
     payload = {"schema_version": 1, "season": season,
+               "model_id": candidates["model_id"][0],
                "gw_start": start, "gw_end": end,
                "runs": [evaluation.observability() for evaluation in evals]}
     output = Path(out)

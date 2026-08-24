@@ -56,6 +56,8 @@ def test_dvc_yaml_defines_expected_stages():
                for path in stages["search"]["outs"])
     assert any("search_candidates.parquet" in path
                for path in stages["gym"]["deps"])
+    assert len(stages["ingest"]["outs"]) == 6
+    assert "pipeline.train_seed" in stages["fit_dist"]["params"]
     assert (ROOT / "params.yaml").exists()
     assert any("params.yaml" in s for s in spec.get("vars", []))
     assert stages["search"]["params"] == ["pipeline.season",
@@ -97,8 +99,13 @@ def test_candidate_artifact_contract_and_order():
             "team_id": [2, 1], "player_code": [20, 10],
             "position": ["GKP", "GKP"], "price_tenths": [50, 50],
             "expected_total": [4.0, 5.0],
+            "season": ["2025-2026", "2025-2026"], "gw_start": [31, 31],
+            "gw_end": [33, 33], "model_id": ["model", "model"],
         })
         team_ids = (1, 2)
+        season = "2025-2026"
+        gw_start = 31
+        gw_end = 33
 
     artifact = ranked_candidates(Result())
     assert artifact["team_id"].to_list() == [1, 2]

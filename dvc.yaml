@@ -19,10 +19,18 @@ stages:
   ingest:
     cmd: >-
       uv run python -m fpl.stages.ingest --config config/data.yaml
+      --season ${pipeline.season}
     deps:
       - config/data.yaml
       - external/fpl_core/data
       - src/fpl
+    outs:
+      - data/processed/players_${pipeline.season}.parquet
+      - data/processed/teams_${pipeline.season}.parquet
+      - data/processed/gw_stats_${pipeline.season}.parquet
+      - data/processed/match_stats_${pipeline.season}.parquet
+      - data/processed/matches_${pipeline.season}.parquet
+      - data/processed/team_history_${pipeline.season}.parquet
 
   features:
     cmd: >-
@@ -41,13 +49,23 @@ stages:
       - data/processed/features_${pipeline.season}.parquet
 
   train:
-    cmd: uv run python -m fpl.stages.train --seed ${pipeline.train_seed}
+    cmd: >-
+      uv run python -m fpl.stages.train --processed data/processed
+      --train-season ${pipeline.historical_season}
+      --season ${pipeline.season} --fit-gw-max ${pipeline.fit_gw_max}
+      --test-gw-start ${pipeline.gw_start} --test-gw-end ${pipeline.test_gw_end}
+      --seed ${pipeline.train_seed}
     params:
+      - pipeline.historical_season
+      - pipeline.season
+      - pipeline.fit_gw_max
+      - pipeline.gw_start
+      - pipeline.test_gw_end
       - pipeline.train_seed
     deps:
-      - data/processed/features_2024-2025.parquet
+      - data/processed/features_${pipeline.historical_season}.parquet
       - data/processed/features_${pipeline.season}.parquet
-      - data/processed/players_2024-2025.parquet
+      - data/processed/players_${pipeline.historical_season}.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
     outs:
@@ -87,9 +105,9 @@ stages:
       - pipeline.experiments.parallel
     deps:
       - config/experiments_ranking.yaml
-      - data/processed/features_2024-2025.parquet
+      - data/processed/features_${pipeline.historical_season}.parquet
       - data/processed/features_${pipeline.season}.parquet
-      - data/processed/players_2024-2025.parquet
+      - data/processed/players_${pipeline.historical_season}.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
     metrics:

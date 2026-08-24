@@ -22,32 +22,36 @@ from fpl.model.inference import save_model
 from fpl.model.leakage import validate
 from fpl.model.train import load_training
 
-SEASONS = ["2024-2025", "2025-2026"]
-FIT_GWS = (1, 30)
-TEST_GWS = (31, 38)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the point forecast model")
     parser.add_argument("--processed", default="data/processed")
+    parser.add_argument("--train-season", default="2024-2025")
+    parser.add_argument("--season", default="2025-2026")
+    parser.add_argument("--fit-gw-max", type=int, default=30)
+    parser.add_argument("--test-gw-start", type=int, default=31)
+    parser.add_argument("--test-gw-end", type=int, default=38)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     processed = args.processed
+    seasons = [args.train_season, args.season]
+    fit_gw_max = args.fit_gw_max
+    test_gws = (args.test_gw_start, args.test_gw_end)
 
-    by_season = load_training(processed, SEASONS)
-    train_data, fit_data = by_season[SEASONS[0]], by_season[SEASONS[1]]
+    by_season = load_training(processed, seasons)
+    train_data, fit_data = by_season[args.train_season], by_season[args.season]
 
     # leakage gate (journal "Data" section): run before any fitting
     validate(
-        pl.read_parquet(f"{processed}/features_2025-2026.parquet"),
-        pl.read_parquet(f"{processed}/players_2025-2026.parquet"),
-        gw_train_max=30,
-        gw_test_min=31,
+        pl.read_parquet(f"{processed}/features_{args.season}.parquet"),
+        pl.read_parquet(f"{processed}/players_{args.season}.parquet"),
+        gw_train_max=fit_gw_max,
+        gw_test_min=test_gws[0],
     )
     print("leakage validation: PASS")
 
     # fit only on train (2024-25) + 2025-26 GW 1..30; never the held-out GWs
-    fit_excl_test_mask = fit_data.gw <= FIT_GWS[1]
+    fit_excl_test_mask = fit_data.gw <= fit_gw_max
     X_train = np.vstack([train_data.X, fit_data.X[fit_excl_test_mask]])
     y_train = np.concatenate([train_data.y, fit_data.y[fit_excl_test_mask]])
 
@@ -81,15 +85,15 @@ def main() -> None:
     print("saved model -> data/processed/points_lgbm.txt")
 
     # held-out test slice
-    mask = (fit_data.gw >= TEST_GWS[0]) & (fit_data.gw <= TEST_GWS[1])
+    mask = (fit_data.gw >= test_gws[0]) & (fit_data.gw <= test_gws[1])
     y_test = pl.Series("actual", fit_data.y[mask])
     pred_tree = pl.Series("tree", model.predict(fit_data.X[mask]))
 
     # raw rows for baselines (prev_points from feature store, ep_next from gw_stats)
-    raw = pl.read_parquet(f"{processed}/features_2025-2026.parquet").filter(
-        pl.col("gw").is_between(*TEST_GWS)
+    raw = pl.read_parquet(f"{processed}/features_{args.season}.parquet").filter(
+        pl.col("gw").is_between(*test_gws)
     )
-    gw_stats = pl.read_parquet(f"{processed}/gw_stats_2025-2026.parquet").select(
+    gw_stats = pl.read_parquet(f"{processed}/gw_stats_{args.season}.parquet").select(
         "player_id", "gw", "ep_next"
     )
     raw = raw.join(gw_stats, on=["player_id", "gw"], how="left")
@@ -97,7 +101,7 @@ def main() -> None:
     prev_baseline = pl.Series("prev", raw.get_column("prev_points"))
     ep_baseline = pl.Series("ep", raw.get_column("ep_next").fill_null(0.0))
 
-    print(f"\nheld-out 2025-26 GW {TEST_GWS[0]}..{TEST_GWS[1]} "
+    print(f"\nheld-out {args.season} GW {test_gws[0]}..{test_gws[1]} "
           f"({y_test.len()} rows)")
     print("=" * 72)
     summarize(pred_tree, y_test, "LightGBM (tree)")
