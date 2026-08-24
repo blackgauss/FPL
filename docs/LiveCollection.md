@@ -10,6 +10,10 @@ uv run python -m fpl collect \
   --out data/raw/fpl_api/account
 ```
 
+For an H2H league, use `--league-type h2h --resolve-h2h`. This collects the
+H2H fixtures and all league picks, then writes `resolved_standings.parquet`
+using event-live points plus the domain captain and auto-substitution rules.
+
 The manager entry ID is the number in the FPL team URL. The collector writes:
 
 - `league_standings.parquet` — league rank, totals, and manager names.
