@@ -66,6 +66,11 @@ def _pick_rows(entry_id: int, gw: int, payload: dict) -> list[dict]:
     return rows
 
 
+def _event_rows(gw: int, payload: dict) -> list[dict]:
+    return [{"gw": gw, "player_id": row["id"], **row.get("stats", {})}
+            for row in payload.get("elements", [])]
+
+
 def collect(
     *, league_id: int, entry_id: int, out_dir: str | Path,
     gw_start: int = 1, gw_end: int | None = None,
@@ -101,7 +106,10 @@ def collect(
 
     history_rows = _history_rows(entry_id, history)
     pick_rows = []
+    event_rows = []
     for gw in range(gw_start, end + 1):
+        event_rows.extend(_event_rows(
+            gw, _get_json(session, f"event/{gw}/live/", timeout=timeout)))
         pick_rows.extend(_pick_rows(
             entry_id, gw, _get_json(session, f"entry/{entry_id}/event/{gw}/picks/",
                                     timeout=timeout)))
@@ -129,6 +137,7 @@ def collect(
                 "total": pl.Int64, "event_total": pl.Int64, "last_rank": pl.Int64})
     history_frame = pl.DataFrame(history_rows)
     picks_frame = pl.DataFrame(pick_rows)
+    event_frame = pl.DataFrame(event_rows)
     metadata = {
         "schema_version": COLLECTION_SCHEMA_VERSION,
         "collected_at": datetime.now(UTC).isoformat(),
@@ -142,6 +151,7 @@ def collect(
     standings_frame.write_parquet(output / "league_standings.parquet")
     history_frame.write_parquet(output / "team_history.parquet")
     picks_frame.write_parquet(output / "team_picks.parquet")
+    event_frame.write_parquet(output / "event_live.parquet")
     _write_json(output / "collection.json", {"entry": entry, **metadata})
     return {"standings": standings_frame, "history": history_frame,
-            "picks": picks_frame}
+            "picks": picks_frame, "event": event_frame}

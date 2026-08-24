@@ -2,9 +2,11 @@
 
 import json
 
+import polars as pl
 import requests
 
 from fpl.live.collection import COLLECTION_SCHEMA_VERSION, collect
+from fpl.live.compare import compare_team
 
 
 class Response:
@@ -44,6 +46,10 @@ class Session:
                 "element": 100, "position": 1, "multiplier": 2,
                 "is_captain": True, "is_vice_captain": False,
             }]})
+        if "/event/" in url and "/live/" in url:
+            return Response({"elements": [{"id": 10, "stats": {
+                "minutes": 90, "total_points": 6,
+            }}]})
         raise AssertionError(f"unexpected API request: {url}")
 
 
@@ -54,11 +60,12 @@ def test_collect_writes_manager_and_league_outputs(tmp_path):
     assert frames["standings"].height == 2
     assert frames["history"].height == 2
     assert frames["picks"].height == 2
+    assert frames["event"].height == 2
     assert set(frames["picks"]["entry_id"].to_list()) == {42}
     metadata = json.loads((tmp_path / "collection.json").read_text())
     assert metadata["schema_version"] == COLLECTION_SCHEMA_VERSION
     assert metadata["gw_end"] == 2
-    assert len(session.calls) == 5
+    assert len(session.calls) == 7
 
 
 def test_collect_league_picks_adds_other_entries(tmp_path):
@@ -92,3 +99,31 @@ def test_collect_can_keep_manager_data_when_league_unavailable(tmp_path):
                      session=session, skip_league=True)
     assert frames["standings"].height == 0
     assert frames["history"].height == 2
+
+
+def test_compare_team_uses_official_history_score_and_pick_xscore():
+    picks = pl.DataFrame({
+        "gw": [1, 1], "element": [10, 11], "position": [1, 12],
+        "multiplier": [2, 0], "is_captain": [True, False],
+        "is_vice_captain": [False, True],
+    })
+    players = pl.DataFrame({
+        "player_id": [10, 11], "player_code": [100, 101],
+        "web_name": ["A", "B"], "position": ["FWD", "MID"],
+    })
+    stats = pl.DataFrame({
+        "player_id": [10, 11], "gw": [1, 1],
+        "minutes": [90, 0], "total_points": [6, 10],
+    })
+    forecast = pl.DataFrame({
+        "player_code": [100, 101], "gw": [1, 1],
+        "expected_points": [4.0, 8.0],
+    })
+    history = pl.DataFrame({"event": [1], "points": [12]})
+    rows, summary = compare_team(
+        picks=picks, history=history, players=players,
+        gw_stats=stats, forecast=forecast, gw=1)
+    assert summary == {"gw": 1, "xscore": 8.0, "actual_score": 12.0,
+                       "history_score": 12.0, "score_source": "entry_history",
+                       "error": -4.0, "player_count": 2}
+    assert rows["actual_points"].to_list() == [6, 10]

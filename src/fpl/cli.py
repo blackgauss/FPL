@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 
-from fpl.live import collection
+from fpl.live import collection, compare
 from fpl.stages import gym, search
 
 
@@ -39,6 +40,19 @@ def main() -> None:
     collect_parser.add_argument("--skip-league", action="store_true",
                                 help="collect manager data if standings are unavailable")
 
+    compare_parser = subparsers.add_parser("compare", help="compare team to forecast")
+    compare_parser.add_argument("--picks", required=True)
+    compare_parser.add_argument("--history", required=True)
+    compare_parser.add_argument("--processed", default="data/processed")
+    compare_parser.add_argument("--season", default="2025-2026")
+    compare_parser.add_argument("--model", default="data/processed/points_lgbm.txt")
+    compare_parser.add_argument("--gw", type=int, required=True)
+    compare_parser.add_argument("--out")
+    compare_parser.add_argument("--event-live",
+                                help="collected event_live.parquet for authoritative points")
+    compare_parser.add_argument("--official-forecast", action="store_true",
+                                help="use FPL ep_this for current GW when model GW0 is unavailable")
+
     args = parser.parse_args()
     if args.stage == "collect":
         collection.collect(
@@ -46,6 +60,14 @@ def main() -> None:
             gw_start=args.gw_start, gw_end=args.gw_end,
             league_picks=args.league_picks, skip_league=args.skip_league,
         )
+    elif args.stage == "compare":
+        payload = compare.write_comparison(
+            picks_path=args.picks, history_path=args.history,
+            processed=args.processed, season=args.season, model_path=args.model,
+            gw=args.gw, out=args.out, event_live_path=args.event_live,
+            official_forecast=args.official_forecast,
+        )
+        print(json.dumps(payload["summary"], indent=2))
     elif args.stage == "search":
         search.run(
             processed=args.processed, season=args.season, gw_start=args.gw,
