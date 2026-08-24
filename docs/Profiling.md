@@ -125,6 +125,6 @@ Each `*.json` has:
 ## When NOT to use this
 
 - For correctness/leakage — use `fpl.experiments.splits.validate_feature_leakage`.
-- For model-quality comparison — use `scripts/run_experiments.py` and
+- For model-quality comparison — use `python -m fpl.stages.experiments` and
   `scripts/compare_experiments.py`; profiling answers *where time goes*, not
   *which model is better*.

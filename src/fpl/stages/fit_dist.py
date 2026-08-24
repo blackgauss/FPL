@@ -5,7 +5,7 @@ residual t-digest on the held-out slice, and produces per-player-GW CDFs
 (pred + sigma*z_q) for the horizon. Writes data/processed/dist_{season}.parquet.
 
 Usage:
-    python scripts/fit_dist.py --season 2025-2026 --gw 31 --gw-end 33
+    python -m fpl.stages.fit_dist --season 2025-2026 --gw 31 --gw-end 33
 """
 
 from __future__ import annotations

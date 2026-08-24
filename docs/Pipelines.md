@@ -32,10 +32,10 @@ graph LR
   search --> gym
 ```
 
-- `ingest` — builds the parquet dataset (`scripts/ingest.py`); a side-effect
+- `ingest` — builds the parquet dataset (`fpl.stages.ingest`); a side-effect
   node (kept at the head; outputs already gitignored under `data/processed`).
 - `features` — feature-store build for a season → `features_{season}.parquet`.
-- `train` — `scripts/train_tree.py` → `points_lgbm.txt` + `data/processed/mae.json`
+- `train` — `fpl.stages.train` → `points_lgbm.txt` + `data/processed/mae.json`
   (DVC metrics: tree + baseline MAE/RMSE).
 - `fit_dist` — distributional forecast → `dist_{season}.parquet`.
 - `eval_experiments` — declared-run harness → full artifact (git-tracked) +
@@ -45,6 +45,10 @@ graph LR
   `search_candidates.parquet` and compact search metrics.
 - `gym` — consumes the candidate artifact and replays it against actuals,
   emitting the canonical gym observability document and compact metrics.
+
+All DVC production stages are package modules under `src/fpl/stages/`. The
+remaining `scripts/` files are operational or research utilities and are not
+part of the canonical reproducible graph.
 
 The active season, forecast window, search settings, gym cutoff, and experiment
 parallelism live in `params.yaml`; stage commands interpolate them rather than

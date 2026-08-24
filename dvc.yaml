@@ -18,14 +18,15 @@ vars:
 stages:
   ingest:
     cmd: >-
-      uv run python scripts/ingest.py --config config/data.yaml
+      uv run python -m fpl.stages.ingest --config config/data.yaml
     deps:
       - config/data.yaml
       - external/fpl_core/data
+      - src/fpl
 
   features:
     cmd: >-
-      uv run python scripts/features.py --config config/data.yaml
+      uv run python -m fpl.stages.features --config config/data.yaml
       --season ${pipeline.season}
     params:
       - pipeline.season
@@ -36,19 +37,17 @@ stages:
       - data/processed/team_history_${pipeline.season}.parquet
       - data/processed/matches_${pipeline.season}.parquet
       - src/fpl
-      - scripts/features.py
     outs:
       - data/processed/features_${pipeline.season}.parquet
 
   train:
-    cmd: uv run python scripts/train_tree.py
+    cmd: uv run python -m fpl.stages.train
     deps:
       - data/processed/features_2024-2025.parquet
       - data/processed/features_${pipeline.season}.parquet
       - data/processed/players_2024-2025.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
-      - scripts/train_tree.py
     outs:
       - data/processed/points_lgbm.txt
     metrics:
@@ -56,7 +55,7 @@ stages:
 
   fit_dist:
     cmd: >-
-      uv run python scripts/fit_dist.py --processed data/processed
+      uv run python -m fpl.stages.fit_dist --processed data/processed
       --season ${pipeline.season} --gw ${pipeline.gw_start}
       --gw-end ${pipeline.gw_end} --fit-gw-max ${pipeline.fit_gw_max}
     params:
@@ -69,13 +68,12 @@ stages:
       - data/processed/features_${pipeline.season}.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
-      - scripts/fit_dist.py
     outs:
       - data/processed/dist_${pipeline.season}.parquet
 
   eval_experiments:
     cmd: >-
-      uv run python scripts/run_experiments.py
+      uv run python -m fpl.stages.experiments
       --config config/experiments_ranking.yaml
       --output experiments/artifacts/ranking_exp.json
       --metrics-out experiments/artifacts/ranking_exp.metrics.json
@@ -90,13 +88,12 @@ stages:
       - data/processed/players_2024-2025.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
-      - scripts/run_experiments.py
     metrics:
       - experiments/artifacts/ranking_exp.metrics.json
 
   rank_report:
     cmd: >-
-      uv run python scripts/ranking_report.py
+      uv run python -m fpl.stages.ranking
     params:
       - pipeline.season
     deps:
@@ -104,7 +101,6 @@ stages:
       - data/processed/features_${pipeline.season}.parquet
       - data/processed/players_${pipeline.season}.parquet
       - src/fpl
-      - scripts/ranking_report.py
     metrics:
       - experiments/artifacts/ranking.metrics.json
 

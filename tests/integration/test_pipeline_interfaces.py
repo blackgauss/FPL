@@ -45,7 +45,7 @@ class ToyModel:
 @pytest.fixture(scope="module")
 def store(tmp_path_factory):
     """A synthetic FPL-Core season with a real parquet feature store on disk,
-    exactly as scripts/features.py produces it."""
+    exactly as the features stage produces it."""
     from fpl.data.contract import load_season
     from fpl.data.features import build_features
     from fpl.model.train import load_training

@@ -1,7 +1,7 @@
 """Run declared experiment(s) through fpl.experiments and write an artifact.
 
 Usage:
-    python scripts/run_experiments.py \
+    python -m fpl.stages.experiments \
         --config config/experiments_matchup.yaml \
         --output experiments/artifacts/matchup.json \
         --parallel 2 \
@@ -27,7 +27,7 @@ from fpl.experiments.artifacts import (
 from fpl.experiments.run import run_experiment
 from fpl.experiments.splits import TemporalSplit, validate_feature_leakage
 
-DEFAULT_CACHE = Path(__file__).resolve().parents[1] / "experiments" / "artifacts" / ".cache"
+DEFAULT_CACHE = Path(__file__).resolve().parents[3] / "experiments" / "artifacts" / ".cache"
 
 
 def _git_sha() -> str | None:

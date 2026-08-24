@@ -9,7 +9,7 @@ player-GW feature store from `data-tools`. The forecast feeds later team-selecti
 ## Data
 
 - **Features**: `data/processed/features_{season}.parquet` (produced by
-  `scripts/features.py`): per (player_id, gw) — team, opponent, venue, elos,
+  `fpl.stages.features`): per (player_id, gw) — team, opponent, venue, elos,
   prev_points, pts_avg_3/5, total_points, next_points.
 - **Augmented at assemble time**: position (players), now_cost/ep_next (gw_stats).
 - **Seasons**: 2024-25 (26,052 rows) + 2025-26 (28,297 rows). 2026-27 has no
@@ -48,20 +48,20 @@ attaching the wrong players' positions/prices to every older-season row.
 ## Pipeline
 
 ```
-scripts/ingest.py  -> parquet dataset
-scripts/features.py -> features_{season}.parquet
+fpl.stages.ingest  -> parquet dataset
+fpl.stages.features -> features_{season}.parquet
 src/fpl/model/train.py  assemble(features, players, gw_stats, season,
                                   feature_columns=subset) -> TrainingData
 src/fpl/model/eval.py   mae/rmse + baselines
-scripts/train_tree.py   train + held-out eval (single model)
-scripts/run_experiments.py  fit multiple candidates on the same held-out GWs
+fpl.stages.train   train + held-out eval (single model)
+fpl.stages.experiments  fit multiple candidates on the same held-out GWs
 src/fpl/model/leakage.py    pre-training leakage gates
 ```
 
 ## Rapid experiments
 
 `config/experiments.yaml` declares candidates (model, params, feature subset);
-`scripts/run_experiments.py` scores them all on the shared held-out window
+`fpl.stages.experiments` scores them all on the shared held-out window
 (GW 31..38 of 2025-26). The harness rejects a leaky split (fit max >= test min)
 and the registry (`lgbm`, `hist_gb`, `ridge`) makes swapping estimators a dict
 change. Held-out results (GW31..38, all comparable; `features` reflects the actual
@@ -83,11 +83,11 @@ backfilled from `players.team_code`.
 # Pipeline
 
 ```
-scripts/ingest.py  -> parquet dataset
-scripts/features.py -> features_{season}.parquet
+fpl.stages.ingest  -> parquet dataset
+fpl.stages.features -> features_{season}.parquet
 src/fpl/model/train.py  assemble(features, players, gw_stats, season) -> TrainingData
 src/fpl/model/eval.py   mae/rmse + baselines
-scripts/train_tree.py   train + held-out eval
+fpl.stages.train   train + held-out eval
 ```
 
 ## Season-start (cold) evaluation — the real selection setting
@@ -112,7 +112,7 @@ Two honest findings:
 - **Late-season overstates the model** — cold-start MAE is ~0.18 worse.
 - **`ep_next` helps late-season but hurts cold-start** — at season start FPL's
   forecast is noisy; dropping it improves MAE (1.174 -> 1.151). Use
-  `--season-start` in `scripts/run_experiments.py` to reproduce.
+  `--season-start` in `fpl.stages.experiments` to reproduce.
 
 ## Carryover seeds GW1 (season-start features)
 
@@ -125,7 +125,7 @@ loosened to field rolling-features only (not the target), so scoreable rows
 survive for inference; training drops null-target rows in `assemble`.
 
 2026-27 now yields 461 GW1 feature rows (595 players, of which 460 have
-carryover); 2025-26 keeps its GW1 too. `scripts/features.py` builds the
+carryover); 2025-26 keeps its GW1 too. `fpl.stages.features` builds the
 carryover automatically by processing seasons oldest->newest.
 
 ## Latest held-out (2025-26 GW31-38) NOTE — superseded by season-start above
@@ -159,7 +159,7 @@ the season-end cumulative total). Caught by the model producing nonsense targets
 `src/fpl/model/inference.py` turns a trained model into a claim: given a list
 of `player_code`s and a gameweek G, report expected points. Row semantics: the
 feature-store row at gw=k predicts points in gw=k+1, so GW G uses rows where
-gw = G-1. `scripts/train_tree.py` saves the booster to
+gw = G-1. `fpl.stages.train` saves the booster to
 `data/processed/points_lgbm.txt`; `scripts/predict.py` loads and serves it.
 
 **Model-family independence:** the tooling is estimator-agnostic. Serving only
@@ -170,7 +170,7 @@ the experiment harness, or `expected_points`. Sklearn estimators already
 round-trip through inference in the tests.
 
 ```
-python scripts/train_tree.py                     # writes the model
+python -m fpl.stages.train                     # writes the model
 python scripts/predict.py --season 2025-2026 --gw 31
 ```
 

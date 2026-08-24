@@ -42,7 +42,7 @@ and always grade paired toggles.
 For standard player-model comparisons, use the declared YAML registry:
 
 ```bash
-python scripts/run_experiments.py \
+python -m fpl.stages.experiments \
   --config config/experiments.yaml \
   --output experiments/artifacts/model_experiments.json
 ```
@@ -50,7 +50,7 @@ python scripts/run_experiments.py \
 The first migrated A/B is also declared in `config/experiments_matchup.yaml`:
 
 ```bash
-python scripts/run_experiments.py \
+python -m fpl.stages.experiments \
   --config config/experiments_matchup.yaml \
   --output experiments/artifacts/matchup.json
 ```
@@ -97,7 +97,7 @@ experiments:
 Run it and compare:
 
 ```bash
-python scripts/run_experiments.py --config config/my_exp.yaml --output experiments/artifacts/my_exp.json
+python -m fpl.stages.experiments --config config/my_exp.yaml --output experiments/artifacts/my_exp.json
 python scripts/compare_experiments.py experiments/artifacts/A.json experiments/artifacts/B.json
 ```
 

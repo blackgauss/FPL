@@ -10,7 +10,7 @@ It writes:
   analysis/reports/RankingPerformance.md      (generated human report)
 
 Usage:
-    python scripts/ranking_report.py \
+    python -m fpl.stages.ranking \
         --config config/experiments_ranking.yaml \
         --output analysis/reports/RankingPerformance.md
 """
@@ -30,7 +30,7 @@ from fpl.experiments.metrics import ranking_metrics
 from fpl.experiments.run import run_experiment
 from fpl.experiments.splits import TemporalSplit, validate_feature_leakage
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 PROCESSED = str(ROOT / "data" / "processed")
 ARTIFACTS = ROOT / "experiments" / "artifacts"
 
@@ -125,7 +125,7 @@ def main() -> None:
         "Reproduce with:",
         "",
         "```bash",
-        f"python scripts/ranking_report.py --config {Path(args.config)} "
+        f"python -m fpl.stages.ranking --config {Path(args.config)} "
         f"--output {args.output}",
         "```",
         "",

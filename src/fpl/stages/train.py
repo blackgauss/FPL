@@ -4,7 +4,7 @@ Split by game week (no leakage): train on all of 2024-25 + 2025-26 GW 1..30,
 held-out test on 2025-26 GW 31..38. Baselines (constant mean, persist last
 GW, FPL's own ep_next) are evaluated on the same held-out rows.
 
-Run:  python scripts/train_tree.py
+Run:  python -m fpl.stages.train
 """
 
 from __future__ import annotations
