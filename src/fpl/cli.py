@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from fpl.live import collection
 from fpl.stages import gym, search
 
 
@@ -28,8 +29,22 @@ def main() -> None:
     gym_parser.add_argument("--out", required=True)
     gym_parser.add_argument("--metrics-out", required=True)
 
+    collect_parser = subparsers.add_parser("collect", help="collect league/team state")
+    collect_parser.add_argument("--league-id", type=int, required=True)
+    collect_parser.add_argument("--entry-id", type=int, required=True)
+    collect_parser.add_argument("--out", required=True)
+    collect_parser.add_argument("--gw-start", type=int, default=1)
+    collect_parser.add_argument("--gw-end", type=int)
+    collect_parser.add_argument("--league-picks", action="store_true")
+
     args = parser.parse_args()
-    if args.stage == "search":
+    if args.stage == "collect":
+        collection.collect(
+            league_id=args.league_id, entry_id=args.entry_id, out_dir=args.out,
+            gw_start=args.gw_start, gw_end=args.gw_end,
+            league_picks=args.league_picks,
+        )
+    elif args.stage == "search":
         search.run(
             processed=args.processed, season=args.season, gw_start=args.gw,
             gw_end=args.gw_end or args.gw, model_path=args.model, enum=args.enum,
