@@ -9,6 +9,9 @@ Run:  python scripts/train_tree.py
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import lightgbm as lgb
 import numpy as np
 import polars as pl
@@ -89,6 +92,24 @@ def main() -> None:
     summarize(prev_baseline, y_raw, "persist last GW (prev_points)")
     summarize(ep_baseline, y_raw, "FPL ep_next")
     summarize(baseline_mean(train_data.y, y_test), y_test, "constant train mean")
+
+    # emit a flat metrics file for `dvc metrics show` (same numbers as above)
+    def _err(pred: np.ndarray, act: np.ndarray) -> dict:
+        return {"mae": float(np.abs(pred - act).mean()),
+                "rmse": float(np.sqrt(np.mean((pred - act) ** 2)))}
+
+    ty, ry = np.asarray(y_test), np.asarray(y_raw)
+    scores = {
+        "LightGBM_tree": _err(np.asarray(pred_tree), ty),
+        "persist_last_gw": _err(np.asarray(prev_baseline), ry),
+        "FPL_ep_next": _err(np.asarray(ep_baseline), ry),
+        "constant_train_mean": _err(
+            np.full(ty.shape, float(train_data.y.mean())), ty),
+    }
+    metrics_path = Path(processed) / "mae.json"
+    metrics_path.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n",
+                            encoding="utf-8")
+    print(f"metrics -> {metrics_path}")
 
     print("\nfeature importances (top 8, gain):")
     for name, imp in sorted(

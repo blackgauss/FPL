@@ -103,4 +103,4 @@ def distributional_forecast(
     return st.select(
         "player_code", "web_name", "position",
         pl.col("gw_target").alias("gw"), "pred", "quantiles_struct",
-    ).sort("player_code", "gw_target")
+    ).sort("player_code", "gw")

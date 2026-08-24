@@ -17,8 +17,8 @@ stages:
       size: 97248
     - path: data/processed/features_2025-2026.parquet
       hash: md5
-      md5: 172dac8d2c76186021d1cf668172d7c5
-      size: 101292
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
     - path: data/processed/players_2024-2025.parquet
       hash: md5
       md5: 7bd36146ddd8cf7685bb3803c66c1213
@@ -30,8 +30,8 @@ stages:
     outs:
     - path: experiments/artifacts/ranking_exp.metrics.json
       hash: md5
-      md5: 8efe849f3366bc668d8cf2a9e2e88221
-      size: 1627
+      md5: 343727bdc33f8a59babe27b91baa07ed
+      size: 1630
   rank_report:
     cmd: uv run python scripts/ranking_report.py
     deps:
@@ -41,8 +41,8 @@ stages:
       size: 518
     - path: data/processed/features_2025-2026.parquet
       hash: md5
-      md5: 172dac8d2c76186021d1cf668172d7c5
-      size: 101292
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
     - path: data/processed/players_2025-2026.parquet
       hash: md5
       md5: 24c136a0801b3755c70111a36286382f
@@ -50,5 +50,95 @@ stages:
     outs:
     - path: experiments/artifacts/ranking.metrics.json
       hash: md5
-      md5: d4b6192a098e943a8d0a9e9b87e2c102
+      md5: b8d158898f7000bbbbb9b1c3da8ba1a9
       size: 764
+  ingest:
+    cmd: uv run python scripts/ingest.py --config config/data.yaml
+    deps:
+    - path: config/data.yaml
+      hash: md5
+      md5: 93663c6e4e2404cef87290c7f10bb763
+      size: 342
+    - path: external/fpl_core/data
+      hash: md5
+      md5: d751713988987e9331980363e24189ce.dir
+      size: 0
+      nfiles: 0
+  features:
+    cmd: uv run python scripts/features.py --config config/data.yaml --season 
+      2025-2026
+    deps:
+    - path: config/data.yaml
+      hash: md5
+      md5: 93663c6e4e2404cef87290c7f10bb763
+      size: 342
+    - path: data/processed/gw_stats_2025-2026.parquet
+      hash: md5
+      md5: bb066010156b9717589b6f28204b3084
+      size: 406228
+    - path: data/processed/matches_2025-2026.parquet
+      hash: md5
+      md5: 9c90d84be1913ac0f419a3304c634d7e
+      size: 16153
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/team_history_2025-2026.parquet
+      hash: md5
+      md5: 7fc0b4258b04f6a2ea00517eb2335ca6
+      size: 5207
+    outs:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+  train:
+    cmd: uv run python scripts/train_tree.py
+    deps:
+    - path: data/processed/features_2024-2025.parquet
+      hash: md5
+      md5: 95fa3721ebdf12d2cf88e6a815cc0189
+      size: 97248
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/players_2024-2025.parquet
+      hash: md5
+      md5: 7bd36146ddd8cf7685bb3803c66c1213
+      size: 22347
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    outs:
+    - path: data/processed/mae.json
+      hash: md5
+      md5: e2915919e6a206cb8fa2a85ae1038f9e
+      size: 301
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 952b6df1ea637badac76cd55a934a664
+      size: 1114789
+  fit_dist:
+    cmd: uv run python scripts/fit_dist.py --processed data/processed --season 
+      2025-2026 --gw 31 --gw-end 33 --fit-gw-max 30
+    deps:
+    - path: data/processed/features_2025-2026.parquet
+      hash: md5
+      md5: e46e327fc280227da05d15179495ed89
+      size: 96467
+    - path: data/processed/players_2025-2026.parquet
+      hash: md5
+      md5: 24c136a0801b3755c70111a36286382f
+      size: 23225
+    - path: data/processed/points_lgbm.txt
+      hash: md5
+      md5: 952b6df1ea637badac76cd55a934a664
+      size: 1114789
+    outs:
+    - path: data/processed/dist_2025-2026.parquet
+      hash: md5
+      md5: 2d0730eaf130f8bc58157d4617c4dc2a
+      size: 175693

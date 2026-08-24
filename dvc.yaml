@@ -1,20 +1,64 @@
-# DVC pipeline — small integration proof.
+# DVC pipeline — data + model core, wired from the existing recipes.
 #
-# Two real stages built on the existing tooling, demonstrating DVC
-# composition:
-#   - eval_experiments : declared-run harness -> full artifact (git-tracked)
-#                        + flat metrics JSON (DVC-managed)
-#   - rank_report      : ranking-ability report + its metrics JSON
+# Stages:
+#   ingest            (side-effect: parquet in data/processed; no outs)
+#   features      -> features_{season}.parquet
+#   train         -> points_lgbm.txt + mae.json (metrics)
+#   fit_dist      -> dist_{season}.parquet
+#   eval_experiments -> ranking_exp.metrics.json (metrics)
+#   rank_report   -> ranking.metrics.json (metrics) + report
 #
-# Stage workflow: `dvc repro` runs only what changed, `dvc dag` renders the
-# graph, `dvc metrics show` reads the flat metrics each stage emits.
-# The full result documents stay git-tracked (repo record); only the small
-# `metrics:` files are DVC outputs.
+# `dvc repro` runs only outdated stages; `dvc dag` renders the graph;
+# `dvc metrics show` reads the metrics each stage emits. Full result
+# documents stay git-tracked; metric files are DVC-managed outputs.
 
 vars:
   - params.yaml
 
 stages:
+  ingest:
+    cmd: >-
+      uv run python scripts/ingest.py --config config/data.yaml
+    deps:
+      - config/data.yaml
+      - external/fpl_core/data
+
+  features:
+    cmd: >-
+      uv run python scripts/features.py --config config/data.yaml
+      --season 2025-2026
+    deps:
+      - config/data.yaml
+      - data/processed/players_2025-2026.parquet
+      - data/processed/gw_stats_2025-2026.parquet
+      - data/processed/team_history_2025-2026.parquet
+      - data/processed/matches_2025-2026.parquet
+    outs:
+      - data/processed/features_2025-2026.parquet
+
+  train:
+    cmd: uv run python scripts/train_tree.py
+    deps:
+      - data/processed/features_2024-2025.parquet
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2024-2025.parquet
+      - data/processed/players_2025-2026.parquet
+    outs:
+      - data/processed/points_lgbm.txt
+    metrics:
+      - data/processed/mae.json
+
+  fit_dist:
+    cmd: >-
+      uv run python scripts/fit_dist.py --processed data/processed
+      --season 2025-2026 --gw 31 --gw-end 33 --fit-gw-max 30
+    deps:
+      - data/processed/points_lgbm.txt
+      - data/processed/features_2025-2026.parquet
+      - data/processed/players_2025-2026.parquet
+    outs:
+      - data/processed/dist_2025-2026.parquet
+
   eval_experiments:
     cmd: >-
       uv run python scripts/run_experiments.py

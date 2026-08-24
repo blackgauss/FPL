@@ -23,18 +23,27 @@ adding stages and connecting a stage's output to another stage's input.
 
 ```mermaid
 graph LR
-  eval_experiments --> rank_report
+  ingest --> features
+  features --> train
+  train --> fit_dist
+  features --> eval_experiments
+  features --> rank_report
 ```
 
-- `eval_experiments` — runs the declared-run harness
-  (`scripts/run_experiments.py --config experiments_ranking`) → full artifact
-  `experiments/artifacts/ranking_exp.json` (git-tracked) + flat `*.metrics.json`
-  (DVC-managed).
-- `rank_report` — `scripts/ranking_report.py` → report + `ranking.metrics.json`.
+- `ingest` — builds the parquet dataset (`scripts/ingest.py`); a side-effect
+  node (kept at the head; outputs already gitignored under `data/processed`).
+- `features` — feature-store build for a season → `features_{season}.parquet`.
+- `train` — `scripts/train_tree.py` → `points_lgbm.txt` + `data/processed/mae.json`
+  (DVC metrics: tree + baseline MAE/RMSE).
+- `fit_dist` — distributional forecast → `dist_{season}.parquet`.
+- `eval_experiments` — declared-run harness → full artifact (git-tracked) +
+  flat `*.metrics.json` (DVC-managed).
+- `rank_report` — ranking-ability report + `ranking.metrics.json`.
 
 A stage **emits its own metrics at compute time**; DVC only *reads* them
 (`dvc metrics show`). Full documents stay the git record; the small metric
-files are the DVC outputs.
+files are the DVC outputs. (The first `dvc repro` also surfaced and fixed a
+latent `gw_target` rename bug in `fpl/team/distribution.py`.)
 
 ## Commands (agent cheat-sheet)
 

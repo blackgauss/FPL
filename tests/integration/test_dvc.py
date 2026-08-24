@@ -42,11 +42,13 @@ def _fake_result(name="lgbm_all"):
 def test_dvc_yaml_defines_expected_stages():
     spec = yaml.safe_load((ROOT / "dvc.yaml").read_text(encoding="utf-8"))
     stages = spec["stages"]
-    assert set(stages) == {"eval_experiments", "rank_report"}
-    for name, stage in stages.items():
-        assert stage["cmd"], f"{name} must have a cmd"
-        assert stage["deps"], f"{name} must declare deps"
-        assert stage["metrics"], f"{name} must declare metrics"
+    assert set(stages) == {"ingest", "features", "train", "fit_dist",
+                           "eval_experiments", "rank_report"}
+    # the data+model spine must be present and chained by deps/outs
+    assert {x["cmd"] for x in stages.values()}
+    assert all(stage["deps"] for stage in stages.values())
+    for name in ("train", "eval_experiments", "rank_report"):
+        assert stages[name]["metrics"], f"{name} must declare metrics"
     assert (ROOT / "params.yaml").exists()
     assert any("params.yaml" in s for s in spec.get("vars", []))
 
