@@ -14,7 +14,7 @@ from fpl.domain import squad_from_frame
 def compare_team(
     *, picks: pl.DataFrame, history: pl.DataFrame, players: pl.DataFrame,
     gw_stats: pl.DataFrame, forecast: pl.DataFrame, gw: int,
-    event_live: pl.DataFrame | None = None,
+    event_live: pl.DataFrame | None = None, entry_id: int | None = None,
 ) -> tuple[pl.DataFrame, dict]:
     """Return player-level actual/predicted points and team-level summary.
 
@@ -24,6 +24,13 @@ def compare_team(
     multipliers and therefore represents the pre-match forecasted team score.
     """
     selected = picks.filter(pl.col("gw") == gw)
+    if "entry_id" in selected.columns:
+        ids = selected["entry_id"].unique().to_list()
+        if entry_id is None:
+            if len(ids) != 1:
+                raise ValueError("entry_id is required when picks contain multiple teams")
+            entry_id = int(ids[0])
+        selected = selected.filter(pl.col("entry_id") == entry_id)
     if selected.height == 0:
         raise ValueError(f"no collected picks for GW {gw}")
     actual_source = event_live if event_live is not None else gw_stats
@@ -106,7 +113,7 @@ def write_comparison(
     *, picks_path: str, history_path: str, processed: str, season: str,
     model_path: str, gw: int, out: str | None = None,
     event_live_path: str | None = None,
-    official_forecast: bool = False,
+    official_forecast: bool = False, entry_id: int | None = None,
 ) -> dict:
     """Load collected state and write/return a team comparison."""
     from fpl.model.inference import load_model
@@ -135,6 +142,7 @@ def write_comparison(
         history=pl.read_parquet(history_path), players=players,
         gw_stats=gw_stats, forecast=forecast, gw=gw,
         event_live=pl.read_parquet(event_live_path) if event_live_path else None,
+        entry_id=entry_id,
     )
     payload = {"summary": summary, "players": rows.to_dicts()}
     if out:

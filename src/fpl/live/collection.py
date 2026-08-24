@@ -103,7 +103,9 @@ def collect(
     *, league_id: int, entry_id: int, out_dir: str | Path,
     gw_start: int = 1, gw_end: int | None = None,
     league_picks: bool = False, skip_league: bool = False,
-    league_type: str = "classic", resolve_h2h: bool = False, timeout: int = 30,
+    league_type: str = "classic", resolve_h2h: bool = False,
+    processed: str = "data/processed", season: str = "2026-2027",
+    timeout: int = 30,
     session: requests.Session | None = None,
 ) -> dict[str, pl.DataFrame]:
     """Collect one manager and optionally every visible league entry.
@@ -201,7 +203,7 @@ def collect(
         resolved = resolve_h2h_standings(
             standings=standings, matches=matches_frame, picks=picks_frame,
             event_live=event_frame, players=pl.read_parquet(
-                "data/processed/players_2026-2027.parquet"),
+                f"{processed}/players_{season}.parquet"),
         )
         resolved.write_parquet(output / "resolved_standings.parquet")
     _write_json(output / "collection.json", {"entry": entry, **metadata})

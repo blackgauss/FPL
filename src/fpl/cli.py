@@ -34,6 +34,8 @@ def main() -> None:
     collect_parser.add_argument("--league-id", type=int, required=True)
     collect_parser.add_argument("--entry-id", type=int, required=True)
     collect_parser.add_argument("--out", required=True)
+    collect_parser.add_argument("--season", default="2026-2027")
+    collect_parser.add_argument("--processed", default="data/processed")
     collect_parser.add_argument("--gw-start", type=int, default=1)
     collect_parser.add_argument("--gw-end", type=int)
     collect_parser.add_argument("--league-picks", action="store_true")
@@ -48,12 +50,14 @@ def main() -> None:
     compare_parser.add_argument("--picks", required=True)
     compare_parser.add_argument("--history", required=True)
     compare_parser.add_argument("--processed", default="data/processed")
-    compare_parser.add_argument("--season", default="2025-2026")
+    compare_parser.add_argument("--season", default="2026-2027")
     compare_parser.add_argument("--model", default="data/processed/points_lgbm.txt")
     compare_parser.add_argument("--gw", type=int, required=True)
     compare_parser.add_argument("--out")
     compare_parser.add_argument("--event-live",
                                 help="collected event_live.parquet for authoritative points")
+    compare_parser.add_argument("--entry-id", type=int,
+                                help="manager ID when picks contain multiple teams")
     compare_parser.add_argument("--official-forecast", action="store_true",
                                 help="use FPL ep_this for current GW when model GW0 is unavailable")
 
@@ -64,13 +68,14 @@ def main() -> None:
             gw_start=args.gw_start, gw_end=args.gw_end,
             league_picks=args.league_picks, skip_league=args.skip_league,
             league_type=args.league_type, resolve_h2h=args.resolve_h2h,
+            processed=args.processed, season=args.season,
         )
     elif args.stage == "compare":
         payload = compare.write_comparison(
             picks_path=args.picks, history_path=args.history,
             processed=args.processed, season=args.season, model_path=args.model,
             gw=args.gw, out=args.out, event_live_path=args.event_live,
-            official_forecast=args.official_forecast,
+            official_forecast=args.official_forecast, entry_id=args.entry_id,
         )
         print(json.dumps(payload["summary"], indent=2))
     elif args.stage == "search":

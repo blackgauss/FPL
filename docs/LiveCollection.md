@@ -14,6 +14,14 @@ For an H2H league, use `--league-type h2h --resolve-h2h`. This collects the
 H2H fixtures and all league picks, then writes `resolved_standings.parquet`
 using event-live points plus the domain captain and auto-substitution rules.
 
+```bash
+uv run python -m fpl collect \
+  --league-id <h2h-league-id> \
+  --entry-id <manager-entry-id> \
+  --league-type h2h --resolve-h2h \
+  --season 2026-2027 --out data/raw/fpl_api/account
+```
+
 The manager entry ID is the number in the FPL team URL. The collector writes:
 
 - `league_standings.parquet` — league rank, totals, and manager names.
@@ -45,13 +53,15 @@ uv run python -m fpl compare \
   --picks data/raw/fpl_api/account/team_picks.parquet \
   --history data/raw/fpl_api/account/team_history.parquet \
   --event-live data/raw/fpl_api/account/event_live.parquet \
-  --season 2025-2026 --gw 1 \
+  --entry-id <manager-entry-id> \
+  --season 2026-2027 --gw 1 \
   --out data/raw/fpl_api/account/gw1_comparison.json
 ```
 
 The comparison reports player-level actual versus expected points and uses the
-official history score for the team total, including FPL captain fallback and
-automatic substitutions.
+event-live score settled with FPL captain fallback and automatic substitutions
+when `--event-live` is supplied. The entry-history score is retained separately
+while the gameweek is provisional.
 
 For the current season's opening gameweek, use `--official-forecast`: the
 local model has no preseason source-GW0 row yet, so FPL's `ep_this` is the only

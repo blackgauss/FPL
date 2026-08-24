@@ -3,6 +3,7 @@
 import json
 
 import polars as pl
+import pytest
 import requests
 
 from fpl.live.collection import COLLECTION_SCHEMA_VERSION, collect
@@ -127,3 +128,18 @@ def test_compare_team_uses_official_history_score_and_pick_xscore():
                        "history_score": 12.0, "score_source": "entry_history",
                        "error": -4.0, "player_count": 2}
     assert rows["actual_points"].to_list() == [6, 10]
+
+
+def test_compare_team_requires_entry_for_multi_team_pick_artifact():
+    picks = pl.DataFrame({"entry_id": [1, 2], "gw": [1, 1],
+                          "element": [10, 11], "position": [1, 1],
+                          "multiplier": [1, 1]})
+    with pytest.raises(ValueError, match="entry_id is required"):
+        compare_team(
+            picks=picks, history=pl.DataFrame({"event": [1], "points": [0]}),
+            players=pl.DataFrame({"player_id": [10], "player_code": [100],
+                                  "web_name": ["A"], "position": ["FWD"]}),
+            gw_stats=pl.DataFrame({"player_id": [10], "gw": [1],
+                                   "minutes": [90], "total_points": [1]}),
+            forecast=pl.DataFrame({"player_code": [100], "gw": [1],
+                                    "expected_points": [1.0]}), gw=1)
