@@ -23,6 +23,7 @@ from fpl.model.train import load_training
 
 def _fit_split(
     processed: str, seasons: list[str], fit_gw_max: int, test_gw_min: int,
+    seed: int = 0,
 ):
     """Train point model; fit sigma-model + global residual digest on its held-out slice."""
     import lightgbm as lgb
@@ -38,7 +39,10 @@ def _fit_split(
                      categorical_feature=first.categorical)
     point = lgb.train(
         {"objective": "regression", "metric": "mae", "num_leaves": 63,
-         "learning_rate": 0.05, "min_child_samples": 20, "verbosity": -1},
+         "learning_rate": 0.05, "min_child_samples": 20, "verbosity": -1,
+         "seed": seed, "bagging_seed": seed, "feature_fraction_seed": seed,
+         "data_random_seed": seed, "deterministic": True,
+         "force_col_wise": True},
         ds, num_boost_round=200,
     )
 
@@ -46,7 +50,14 @@ def _fit_split(
     X_test, y_test = last.X[mask_test], last.y[mask_test]
     pred_test = point.predict(X_test)
     sigma_model, digest = fit_sigma_and_digest(
-        y_test, pred_test, X_test, first.feature_names, first.categorical)
+        y_test, pred_test, X_test, first.feature_names, first.categorical,
+        learning_params={
+            "objective": "regression", "metric": "mae", "num_leaves": 31,
+            "learning_rate": 0.05, "min_child_samples": 30, "verbosity": -1,
+            "seed": seed, "bagging_seed": seed,
+            "feature_fraction_seed": seed, "data_random_seed": seed,
+            "deterministic": True, "force_col_wise": True,
+        })
     return point, sigma_model, digest
 
 
@@ -58,6 +69,7 @@ def distributional_forecast(
     *,
     fit_gw_max: int = 30,
     test_gw_min: int = 31,
+    seed: int = 0,
 ) -> pl.DataFrame:
     """Per-player-GW distributional forecast for [gw_start, gw_end].
 
@@ -66,7 +78,7 @@ def distributional_forecast(
     """
     point, sigma_model, digest = _fit_split(
         processed, ["2024-2025", "2025-2026"],
-        fit_gw_max=fit_gw_max, test_gw_min=test_gw_min,
+        fit_gw_max=fit_gw_max, test_gw_min=test_gw_min, seed=seed,
     )
 
     td = load_training(processed, [season])[season]

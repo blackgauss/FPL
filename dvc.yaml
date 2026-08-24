@@ -41,7 +41,9 @@ stages:
       - data/processed/features_${pipeline.season}.parquet
 
   train:
-    cmd: uv run python -m fpl.stages.train
+    cmd: uv run python -m fpl.stages.train --seed ${pipeline.train_seed}
+    params:
+      - pipeline.train_seed
     deps:
       - data/processed/features_2024-2025.parquet
       - data/processed/features_${pipeline.season}.parquet
@@ -58,11 +60,13 @@ stages:
       uv run python -m fpl.stages.fit_dist --processed data/processed
       --season ${pipeline.season} --gw ${pipeline.gw_start}
       --gw-end ${pipeline.gw_end} --fit-gw-max ${pipeline.fit_gw_max}
+      --seed ${pipeline.train_seed}
     params:
       - pipeline.season
       - pipeline.gw_start
       - pipeline.gw_end
       - pipeline.fit_gw_max
+      - pipeline.train_seed
     deps:
       - data/processed/points_lgbm.txt
       - data/processed/features_${pipeline.season}.parquet

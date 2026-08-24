@@ -1,6 +1,6 @@
 """Command-line entry point for the composable FPL pipeline."""
 
-from fpl.pipeline import main
+from fpl.cli import main
 
 if __name__ == "__main__":
     main()

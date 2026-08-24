@@ -9,6 +9,7 @@ Run:  python -m fpl.stages.train
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -27,7 +28,11 @@ TEST_GWS = (31, 38)
 
 
 def main() -> None:
-    processed = "data/processed"
+    parser = argparse.ArgumentParser(description="Train the point forecast model")
+    parser.add_argument("--processed", default="data/processed")
+    parser.add_argument("--seed", type=int, default=0)
+    args = parser.parse_args()
+    processed = args.processed
 
     by_season = load_training(processed, SEASONS)
     train_data, fit_data = by_season[SEASONS[0]], by_season[SEASONS[1]]
@@ -60,6 +65,12 @@ def main() -> None:
             "min_child_samples": 20,
             "num_boost_round": 200,
             "verbosity": -1,
+            "seed": args.seed,
+            "bagging_seed": args.seed,
+            "feature_fraction_seed": args.seed,
+            "data_random_seed": args.seed,
+            "deterministic": True,
+            "force_col_wise": True,
         },
         lgb_train,
         num_boost_round=200,

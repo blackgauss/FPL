@@ -24,12 +24,13 @@ def main() -> None:
     parser.add_argument("--gw-end", type=int, default=33)
     parser.add_argument("--fit-gw-max", type=int, default=30)
     parser.add_argument("--test-gw-min", type=int, default=31)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     gw_end = args.gw_end or args.gw
 
     df = distributional_forecast(
         args.processed, args.season, args.gw, gw_end,
-        fit_gw_max=args.fit_gw_max, test_gw_min=args.test_gw_min,
+        fit_gw_max=args.fit_gw_max, test_gw_min=args.test_gw_min, seed=args.seed,
     )
     out = Path(args.processed) / f"dist_{args.season}.parquet"
     df.write_parquet(out)

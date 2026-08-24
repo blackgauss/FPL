@@ -12,6 +12,7 @@ pipeline:
   gw_start: 31
   gw_end: 33
   fit_gw_max: 30
+  train_seed: 0
   search:
     enum: greedy
     value: h2h
