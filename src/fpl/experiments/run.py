@@ -7,6 +7,7 @@ gym evaluation, and the artifact contract.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import replace
 
@@ -58,6 +59,8 @@ def run_experiment(
     processed: str = "data/processed",
     git_sha: str | None = None,
     play_prob: Callable | None = None,
+    cache_dir: str | None = None,
+    n_workers: int | None = None,
 ) -> dict:
     """Execute one declared experiment dict and return a serializable result.
 
@@ -96,17 +99,28 @@ def run_experiment(
     train_data, fit_data = by_season[seasons[0]], by_season[seasons[-1]]
     masks = source_masks(split, fit_data.gw)
 
-    x_train = np.vstack([train_data.X, fit_data.X[masks["train"]]])
-    y_train = np.concatenate([train_data.y, fit_data.y[masks["train"]]])
+    # When arms run in the same process, throttle LightGBM's threads per fit:
+    # otherwise each fit saturates all cores and concurrent arms CONTEND
+    # (measured: parallel-3 was slower than sequential until thread-capped).
+    eff_params = dict(params or {})
+    if n_workers and n_workers > 1 and model_name == "lgbm":
+        threads = max(1, (os.cpu_count() or 1) // n_workers)
+        eff_params.setdefault("num_threads", threads)
+
+    # The combined X/y are only assembled when the fit is NOT cached: on a
+    # cache hit we skip both the vstack copy and LightGBM training.
+    def _build_predict():
+        x_train = np.vstack([train_data.X, fit_data.X[masks["train"]]])
+        y_train = np.concatenate([train_data.y, fit_data.y[masks["train"]]])
+        return REGISTRY[model_name](eff_params)(
+            x_train, y_train, train_data.categorical)
+
     fit_key = cache.fit_cache_key(
         processed=processed, seasons=tuple(seasons),
-        fit_gw_max=split.fit_gw_max, model=model_name, params=params,
+        fit_gw_max=split.fit_gw_max, model=model_name, params=eff_params,
         features=tuple(feats) if feats else None,
         categorical=tuple(cats) if cats else None)
-    predict = cache.cached_fit(
-        lambda: REGISTRY[model_name](params)(
-            x_train, y_train, train_data.categorical),
-        key=fit_key)
+    predict = cache.cached_fit(_build_predict, key=fit_key, disk_dir=cache_dir)
     model = _AsModel(predict)
 
     pred = predict(fit_data.X[masks["test"]])
@@ -141,9 +155,10 @@ def run_experiment(
         gw_start = gym_cfg["gw_start"]
         gw_end = gym_cfg["gw_end"]
         td_gym = by_season.get(season_gym, fit_data)
-        forecast = normalize_forecast(
-            _source_forecast(td_gym, predict, gw_start=gw_start, gw_end=gw_end),
-            kind="point")
+        forecast = normalize_forecast(cache.cached_forecast(
+            lambda: _source_forecast(td_gym, predict, gw_start=gw_start,
+                                     gw_end=gw_end),
+            key=fit_key + (season_gym, gw_start, gw_end)), kind="point")
         pack = candidate_squads(
             processed=processed, season=season_gym, gw_start=gw_start,
             gw_end=gw_end, model=model, n_teams=gym_cfg.get("n_teams", 4),
