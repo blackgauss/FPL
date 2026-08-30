@@ -6,7 +6,7 @@ export async function render(root) {
   root.append(el("h1", {}, "Transfers"));
   let data;
   try {
-    data = await api.transferSuggestions({ gw: window.FPL_META?.current_gw || undefined });
+    data = await api.transferSuggestions({});
   } catch (e) {
     root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
     return;

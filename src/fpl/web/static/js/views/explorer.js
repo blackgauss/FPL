@@ -66,7 +66,9 @@ export async function render(root) {
         el("td", {}, fmtPrice(price)),
         el("td", {}, el("span", { class: `chip ${cls}` }, txt)),
         el("td", {}, r.selected_by_percent != null ? fmtNum(r.selected_by_percent) : "–"),
-        el("td", {}, fmtNum(r.pred_next))));
+        el("td", {
+          title: r.pred_next == null && r.ep_next != null ? "official FPL ep_next (no model row)" : "",
+        }, fmtNum(r.pred_next ?? r.ep_next))));
     }
     return t;
   }
@@ -85,7 +87,10 @@ async function drawer(p) {
     el("div", { class: "loading" }, "Loading forecast…"),
   );
   if (code === undefined) return;
-  box.lastChild.replaceWith(await fetchForecast(code, gw));
+  let node;
+  try { node = await fetchForecast(code, gw); }
+  catch (e) { node = el("div", { class: "err" }, String(e?.message ?? e)); }
+  box.lastChild.replaceWith(node);
 }
 
 async function fetchForecast(code, gw, retries = 2) {
@@ -95,7 +100,10 @@ async function fetchForecast(code, gw, retries = 2) {
     const data = await api.forecast({ player_codes: code, gw_start: gw, horizon: 5 });
     const rows = (data.rows ?? data.forecast ?? (Array.isArray(data) ? data : []))
       .slice().sort((a, b) => a.gw - b.gw);
-    if (!rows.length) return empty("No forecast rows for this player.");
+    if (!rows.length) {
+      return empty("No model forecast yet for this player: the feature store has "
+        + "no rows in this GW window (run `dvc repro` after fixture/data updates).");
+    }
     holder.replaceChildren();
     const col = (keys) => rows.map(r => {
       for (const k of keys) if (r[k] !== undefined) return r[k];
@@ -106,8 +114,11 @@ async function fetchForecast(code, gw, retries = 2) {
     const xs = rows.map(r => r.gw), ys = rows.map(r => r.pred);
     const q05 = col(["q05", "q5"]), q25 = col(["q25"]), q75 = col(["q75"]), q95 = col(["q95"]);
     const chart = el("div", { class: "chart" });
-    holder.append(el("h2", {}, `Forecast GW${xs[0]}–${xs[xs.length - 1]}`), chart);
-    bandChart(chart, xs, ys, q05, q95, { lo2: q25, hi2: q75 });
+    holder.append(el("h2", {}, `Forecast GW${xs[0]}${xs.length > 1 ? "–" + xs[xs.length - 1] : ""}`), chart);
+    if (!bandChart(chart, xs, ys, q05, q95, { lo2: q25, hi2: q75 })) {
+      chart.replaceChildren(el("div", { class: "meta" },
+        "Single gameweek in window — quantiles listed below."));
+    }
     holder.append(el("table", {}, el("thead", {}, el("tr", {},
       ...["GW", "pred", "q05", "q25", "q75", "q95"].map(h => el("th", {}, h)))),
       el("tbody", {}, ...rows.map((r, i) => el("tr", {},

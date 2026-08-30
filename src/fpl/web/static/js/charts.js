@@ -3,7 +3,8 @@ export function bandChart(host, xs, ys, lo, hi, opts = {}) {
   host.innerHTML = "";
   const data = [xs, ys, lo, hi, opts.lo2, opts.hi2].filter(d => d);
   const W = host.clientWidth || 560, H = opts.height || 280;
-  if (!window.uPlot) { canvasBand(host, data, opts, W, H); return; }
+  if (xs.length < 2) return false; // single GW: number/table says it all
+  if (!window.uPlot) { canvasBand(host, data, opts, W, H); return true; }
   const names = opts.names || ["pred", "lo", "hi"];
   const bandPath = (lowerIdx) => (u, si, i0, i1) => {
     let d = "";
@@ -22,10 +23,11 @@ export function bandChart(host, xs, ys, lo, hi, opts = {}) {
     series.push({ label: "q75", stroke: "rgba(36,86,214,.55)", fill: "rgba(36,86,214,.25)", paths: bandPath(4) });
   }
   new window.uPlot({
-    target: host, width: W, height: H, data, series,
+    target: host, width: W, height: H, series,
     scales: { x: { time: false } },
     axes: [{ size: 40 }, { size: 40 }],
-  }, true);
+  }, data);
+  return true;
 }
 
 function canvasBand(host, [xs, ys, lo, hi, lo2, hi2], opts, W, H) {

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fpl.dist import QS
+from fpl.web import app as web_app
 from fpl.web.app import create_app
 from fpl.web.queries import Store
 
@@ -378,3 +381,36 @@ def test_research_metrics_rejects_traversal(client: TestClient) -> None:
 
 def test_research_metrics_missing(empty_client: TestClient) -> None:
     assert empty_client.get("/api/research/metrics").json()["available"] is False
+
+
+# -- headless render smoke: real view JS against real captured payloads -------
+
+def _capture_payloads(client: TestClient) -> dict:
+    meta = client.get("/api/meta").json()
+    gw = meta.get("current_gw") or 1
+    return {
+        "/api/meta": meta,
+        "/api/players": client.get("/api/players",
+                                   params={"limit": 25, "offset": 0}).json(),
+        "/api/forecast": client.get("/api/forecast", params={
+            "gw_start": gw + 1, "horizon": 5}).json(),
+        "/api/team/flags": client.get("/api/team/flags",
+                                      params={"gw": gw}).json(),
+        "/api/transfers/suggestions": client.get(
+            "/api/transfers/suggestions").json(),
+        "/api/league/standings": client.get("/api/league/standings").json(),
+    }
+
+
+def test_headless_render_smoke(client: TestClient, tmp_path: Path,
+                               monkeypatch: pytest.MonkeyPatch) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node not installed")
+    fake_forecast(monkeypatch)
+    payloads = tmp_path / "payloads.json"
+    payloads.write_text(json.dumps(_capture_payloads(client)), encoding="utf-8")
+    js_dir = Path(web_app.__file__).parent / "static" / "js"
+    r = subprocess.run([node, str(js_dir / "render_smoke.mjs"), str(payloads)],
+                       capture_output=True, text=True, timeout=120, cwd=js_dir)
+    assert r.returncode == 0, f"render smoke failed:\n{r.stdout}\n{r.stderr}"

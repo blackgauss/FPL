@@ -69,6 +69,15 @@ class Store:
             pass
         return 0
 
+    def entry_id(self) -> int | None:
+        """Our manager id from the last collection (None if never collected)."""
+        try:
+            return json.loads(
+                (self.account_dir / "collection.json").read_text()
+            ).get("entry_id")
+        except (OSError, ValueError):
+            return None
+
     # -- players (explorer table) -----------------------------------------------
 
     def players(self, *, search: str | None = None, position: str | None = None,
@@ -106,7 +115,8 @@ class Store:
         if lv is not None:
             live_keep = [c for c in
                          ["player_code", "now_cost", "status", "news",
-                          "chance_of_playing_next_round", "selected_by_percent"]
+                          "chance_of_playing_next_round", "selected_by_percent",
+                          "ep_next"]
                          if c == "player_code" or c not in df.columns]
             df = df.join(lv[0].select(live_keep), on="player_code", how="left")
             if status:

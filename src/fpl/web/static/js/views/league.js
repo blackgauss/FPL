@@ -1,44 +1,49 @@
-// League view: sortable standings with own-team highlight
+// League view: standings from collection (resolved H2H or classic)
 import { api, el, empty } from "../api.js";
+
+const COLUMNS = {
+  h2h_resolved: [
+    ["rank", "#"], ["entry_name", "Team"], ["player_name", "Manager"],
+    ["resolved_score", "Score"], ["league_points", "LPt"],
+    ["record", "W-D-L"],
+  ],
+  classic: [
+    ["rank", "#"], ["entry_name", "Team"], ["player_name", "Manager"],
+    ["total", "Total"], ["gw_points", "GW pts"], ["last_rank", "Last rank"],
+  ],
+};
 
 export async function render(root) {
   root.innerHTML = "";
   root.append(el("h1", {}, "League"));
-  const meta = window.FPL_META ?? {};
   let data;
   try {
-    data = await api.leagueStandings({ entry_id: meta.entry_id ?? undefined });
+    data = await api.leagueStandings({});
   } catch (e) {
     root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
     return;
   }
-  let rows = data.rows ?? data.standings ?? (Array.isArray(data) ? data : []);
-  if (!rows.length) { root.append(empty("No league standings collected yet.")); return; }
-  const cols = Object.keys(rows[0]).filter(k => !/^_/.test(k)).slice(0, 10);
-  const selfId = meta.entry_id ?? data.entry_id;
-  let sortKey = null, dir = -1;
-  const box = el("div");
-  const draw = () => {
-    if (sortKey) rows = rows.slice().sort((a, b) => {
-      const x = a[sortKey], y = b[sortKey];
-      return (typeof x === "number" && typeof y === "number" ? x - y
-        : String(x).localeCompare(String(y))) * dir;
-    });
-    const t = el("table", {}, el("thead", {}, el("tr", {},
-      ...cols.map(k => el("th", {
-        onclick: () => { if (sortKey === k) dir = -dir; else { sortKey = k; dir = -1; } draw(); },
-      }, k)))), el("tbody"));
-    for (const r of rows) {
-      const tr = el("tr", {},
-        ...cols.map(k => el("td", {}, r[k] === null || r[k] === undefined ? "–"
-          : typeof r[k] === "number" ? String(Math.round(r[k] * 10) / 10) : String(r[k]))));
-      if (selfId != null && (r.entry_id ?? r.entry ?? r.epx) === selfId) {
-        tr.className = "self-row";
-      }
-      t.lastChild.append(tr);
-    }
-    box.replaceChildren(t);
-  };
-  root.append(box);
-  draw();
+  const rows = (data.rows ?? []).map(r => r.record == null && r.wins != null
+    ? { ...r, record: `${r.wins}-${r.draws}-${r.losses}` } : r);
+  if (!rows.length) {
+    root.append(empty(data.reason ?? "No league standings collected yet."));
+    return;
+  }
+  const kind = data.kind === "h2h_resolved" ? "h2h_resolved" : "classic";
+  const cols = COLUMNS[kind];
+  root.append(el("div", { class: "meta" },
+    kind === "h2h_resolved"
+      ? `Resolved from event-live points · GW ${data.current_gw}`
+      : `Official FPL table · GW points for GW ${data.points_gw ?? "?"}`));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...cols.map(([, label]) => el("th", {}, label)))), el("tbody"));
+  for (const r of rows) {
+    const tr = el("tr", {},
+      ...cols.map(([k]) => el("td", {}, r[k] === null || r[k] === undefined ? "–"
+        : typeof r[k] === "number" ? String(Math.round(r[k] * 10) / 10)
+          : String(r[k]))));
+    if (r.is_self) tr.className = "self-row";
+    t.lastChild.append(tr);
+  }
+  root.append(t);
 }
