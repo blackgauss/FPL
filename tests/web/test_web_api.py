@@ -251,6 +251,7 @@ def test_meta(client: TestClient) -> None:
     body = r.json()
     assert body["season"] == SEASON
     assert body["current_gw"] == 1
+    assert body["max_forecast_gw"] == 2  # features at gw=1 target gw=2
     assert body["live"]["available"] is True
     assert body["live"]["fetched_at"]
     assert body["live"]["age_seconds"] >= 0

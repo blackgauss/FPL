@@ -73,6 +73,16 @@ class Store:
             pass
         return 0
 
+    def max_forecast_gw(self) -> int:
+        """Highest GW the feature store can still feed (features row at gw=k
+        targets GW k+1); 0 when the store is empty. Forecast windows above
+        this return no rows until the source GW's data lands."""
+        feats = self._safe_parquet(
+            self.processed / f"features_{self.season}.parquet")
+        if feats is None or not feats.height:
+            return 0
+        return int(feats.get_column("gw").max()) + 1
+
     def entry_id(self) -> int | None:
         """Our manager id from the last collection (None if never collected)."""
         try:

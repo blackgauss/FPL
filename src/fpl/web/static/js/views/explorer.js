@@ -125,14 +125,27 @@ async function fetchForecast(code, gw, retries = 2) {
   const holder = el("div");
   holder.replaceChildren(el("div", { class: "loading" }, "Loading forecast…"));
   try {
-    const data = await api.forecast({ player_codes: code, gw_start: gw, horizon: 5 });
-    const rows = (data.rows ?? data.forecast ?? (Array.isArray(data) ? data : []))
+    let data = await api.forecast({ player_codes: code, gw_start: gw, horizon: 5 });
+    let rows = (data.rows ?? data.forecast ?? (Array.isArray(data) ? data : []))
       .slice().sort((a, b) => a.gw - b.gw);
+    let fallbackNote = null;
+    const maxGw = window.FPL_META?.max_forecast_gw;
+    if (!rows.length && maxGw > 0) {
+      const alt = await api.forecast({ player_codes: code, gw_start: maxGw, horizon: 5 })
+        .catch(() => null);
+      const altRows = (alt?.rows ?? []).slice().sort((a, b) => a.gw - b.gw);
+      if (altRows.length) {
+        data = alt; rows = altRows;
+        fallbackNote = `GW${gw} features are not published yet (its source GW is `
+          + `still settling) — showing latest scoreable window instead.`;
+      }
+    }
     if (!rows.length) {
       return empty("No model forecast yet for this player: the feature store has "
         + "no rows in this GW window (run `dvc repro` after fixture/data updates).");
     }
     holder.replaceChildren();
+    if (fallbackNote) holder.append(el("div", { class: "card" }, fallbackNote));
     const col = (keys) => rows.map(r => {
       for (const k of keys) if (r[k] !== undefined) return r[k];
       const qq = r.quantiles ?? r.quantiles_struct;

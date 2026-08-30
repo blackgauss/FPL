@@ -42,6 +42,7 @@ def get_meta(request: Request) -> dict:
     return {
         "season": store.season,
         "current_gw": current_gw,
+        "max_forecast_gw": store.max_forecast_gw(),
         "entry_id": store.entry_id(),
         "live": live,
         "artifacts": store.artifacts(),
