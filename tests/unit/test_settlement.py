@@ -90,6 +90,18 @@ class TestSettlement:
         assert 7 not in out.playing
         assert len(out.playing) == 10
 
+    def test_formation_min_blocks_illegal_bench_sub(self):
+        squad = _squad()
+        played = {c: True for c in range(1, 16)}
+        played[11] = False                   # FWD starter doesn't play
+        played[15] = False                   # bench FWD (only FWD) also out
+        # playing bench MID/DEF would fill the FWD slot but drop FWDs to 0 ->
+        # not formation-legal, so the slot stays empty instead
+        out = squad.gw_settlement(played, _pts())
+        assert 11 not in out.playing
+        assert out.substituted_in == ()
+        assert len(out.playing) == 10
+
     def test_captain_out_uses_vice(self):
         squad = _squad()
         played = {c: True for c in range(1, 16)}

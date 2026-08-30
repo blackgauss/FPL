@@ -24,6 +24,20 @@ def _cdf(low: float, high: float) -> list[float]:
 
 
 class TestDist:
+    def test_learning_params_merge_with_defaults(self):
+        """A partial override must NOT drop the required defaults (objective
+        etc.) — it should merge on top of them."""
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(120, 2))
+        actual = rng.normal(size=120)
+        sigma_model, digest = fit_sigma_and_digest(
+            actual, np.zeros(120), X, ["x0", "x1"], [],
+            learning_params={"num_leaves": 7})
+        params = sigma_model.params
+        assert params["num_leaves"] == 7           # override applied
+        assert params["objective"] == "regression"  # default preserved
+        assert digest.n > 0
+
     def test_sigma_and_digest(self):
         rng = np.random.default_rng(0)
         # two-regime noise: sigma varies with feature x1

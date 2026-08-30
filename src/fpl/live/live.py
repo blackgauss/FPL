@@ -84,6 +84,22 @@ def to_live_frame(payload: dict) -> pl.DataFrame:
     )
 
 
+def _load_cache_record(cache: Path) -> dict | None:
+    """Cached snapshot record, or None when the file is missing/corrupt.
+
+    A truncated or corrupt cache (interrupted write) must degrade like a
+    missing one — never crash the caller that expects stale-but-present.
+    """
+    try:
+        record = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (not isinstance(record, dict)
+            or not {"payload", "fetched_at", "fetched_epoch"} <= record.keys()):
+        return None
+    return record
+
+
 def load_live_state(
     cache_path: str | Path,
     *,
@@ -100,18 +116,18 @@ def load_live_state(
     case LiveFetchError is raised.
     """
     cache = Path(cache_path)
-    if cache.exists():
-        cached = json.loads(cache.read_text())
-        age = time.time() - cached["fetched_epoch"]
+    record = _load_cache_record(cache) if cache.exists() else None
+    if record is not None:
+        age = time.time() - float(record["fetched_epoch"])
         if age < max_age_seconds:
-            return to_live_frame(cached["payload"]), cached["fetched_at"]
+            return to_live_frame(record["payload"]), record["fetched_at"]
 
     try:
         payload = fetch_bootstrap(session, timeout)
     except (requests.RequestException, OSError) as exc:
-        if cache.exists():
-            cached = json.loads(cache.read_text())
-            return to_live_frame(cached["payload"]), cached["fetched_at"]
+        record = _load_cache_record(cache)
+        if record is not None:
+            return to_live_frame(record["payload"]), record["fetched_at"]
         raise LiveFetchError(
             f"cannot reach FPL API and no cached snapshot at {cache_path}") from exc
 

@@ -68,6 +68,15 @@ class TestTransfer:
             squad, [make_mid(99, club=20, cost=500)],
             {out_code: 2.0, 99: 20.0}) == (None, None, 0.0)
 
+    def test_transfer_without_free_transfers_charges_penalty(self):
+        squad = make_squad()
+        new = make_mid(99, club=20)
+        _, incoming, gain = choose_transfer(
+            squad, [new], {code: 2.0 for code in squad.codes()} | {99: 8.0},
+            free_transfers=0)
+        assert incoming.code == 99
+        assert gain == pytest.approx(8.0 - 2.0 - 4.0)  # 4 points beyond the bank
+
     def test_invalid_transition_is_rejected_at_boundary(self):
         squad = make_squad()
         with pytest.raises(ValueError, match="preserve player position"):

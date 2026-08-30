@@ -9,7 +9,6 @@ from fpl.data.contract import SeasonData, load_season
 from tests.fixtures.synthetic import (
     GW_STATS_CSV,
     MATCH_STATS_CSV,
-    MATCHES_CSV,
     PLAYERS_CSV,
     TEAMS_CSV,
 )
@@ -24,11 +23,18 @@ def season_tree(tmp_path: Path) -> Path:
     (season_dir / "players.csv").write_text(PLAYERS_CSV, encoding="utf-8")
     (season_dir / "teams.csv").write_text(TEAMS_CSV, encoding="utf-8")
 
-    # GW1: normal prem matches + one europa-league match mixed in
-    gw1_matches = MATCHES_CSV + (
+    # GW1: m1 listed but unfinished (it gets postponed), m2/m3 prem, plus one
+    # europa-league match mixed in
+    gw1_matches = (
+        "gameweek,kickoff_time,home_team,home_team_elo,home_score,away_score,away_team,"
+        "away_team_elo,finished,match_id,match_url,tournament\n"
+        "1.0,2025-08-16T16:30:00+00:00,43.0,2050.0,,,3.0,2000.0,False,m1,url1,prem\n"
+        "2.0,2025-08-23T16:30:00+00:00,3.0,2000.0,0,3,43.0,2050.0,True,m2,url2,prem\n"
+        "3.0,2025-08-30T16:30:00+00:00,43.0,2050.0,1,0,14.0,1900.0,True,m3,url3,prem\n"
         "1.0,2025-08-14T19:00:00+00:00,43.0,2050.0,3,0,14.0,1900.0,True,m4,url4,europa-league\n"
     )
-    # GW2: repeats m1 (postponed duplicate) plus its own match
+    # GW2: repeats m1 with its final score (the postponed match replayed)
+    # plus its own match
     gw2_matches = (
         "gameweek,kickoff_time,home_team,home_team_elo,home_score,away_score,away_team,"
         "away_team_elo,finished,match_id,match_url,tournament\n"
@@ -63,6 +69,16 @@ def test_matches_dedupe_and_tournament_preserved(season_tree):
     assert sorted(matches.get_column("match_id")) == ["m1", "m2", "m3", "m4"]
     assert "europa-league" in set(matches.get_column("tournament"))
     assert set(matches.get_column("season")) == {"2025-2026"}
+
+
+def test_postponed_match_keeps_latest_scrape(season_tree):
+    """The re-scraped (finished) row from the later GW folder must win over
+    the stale unfinished row from the folder where it was first scheduled."""
+    data = load_season(season_tree, "2025-2026")
+    m1 = data.matches.filter(pl.col("match_id") == "m1")
+    assert m1.height == 1
+    assert m1.get_column("finished").item()
+    assert m1.get_column("home_score").item() == 2.0
 
 
 def test_gw_stats_unified_across_folders(season_tree):

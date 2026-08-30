@@ -116,6 +116,30 @@ class TestFetchAndCache:
         with pytest.raises(LiveFetchError):
             load_live_state(tmp_path / "missing.json", max_age_seconds=3600)
 
+    def test_corrupt_cache_refetches(self, tmp_path, monkeypatch, payload):
+        calls = {"n": 0}
+
+        def fake_get(self, url, **kwargs):
+            calls["n"] += 1
+            return FakeResponse(payload)
+
+        _patch_get(monkeypatch, fake_get)
+        cache = tmp_path / "live.json"
+        cache.write_text('{"fetched_at": "x", "fetched_epoch": 9e17, "pay')  # truncated
+        df, ts = load_live_state(cache, max_age_seconds=3600)
+        assert calls["n"] == 1, "corrupt cache must degrade like a missing one"
+        assert df.height == len(payload["elements"])
+
+    def test_corrupt_cache_and_fetch_failure_raises(self, tmp_path, monkeypatch):
+        def boom(self, url, **kwargs):
+            raise ConnectionError("rate limited")
+
+        _patch_get(monkeypatch, boom)
+        cache = tmp_path / "live.json"
+        cache.write_text("not json at all")
+        with pytest.raises(LiveFetchError):
+            load_live_state(cache, max_age_seconds=3600)
+
     def test_fetch_bootstrap_returns_json(self, monkeypatch, payload):
         class _Resp:
             def __init__(self, p):

@@ -386,7 +386,15 @@ class Squad:
         out: list[int] = []
         used: set[int] = set()
         subs: list[int] = []
-        for code in starters:
+
+        def _formation_ok(sim: list[int]) -> bool:
+            # >=3 DEF / >=1 FWD held by the settled slots plus pending
+            # starters (assumed to play; each pending slot gets this same
+            # check when its turn comes).
+            return (sum(by_code[c].position == Position.DEF for c in sim) >= 3
+                    and sum(by_code[c].position == Position.FWD for c in sim) >= 1)
+
+        for i, code in enumerate(starters):
             if played.get(code, False):
                 out.append(code)
                 continue
@@ -396,6 +404,10 @@ class Squad:
                 # GK slot only by GK; outfield slot only by outfield
                 if (by_code[code].position == Position.GKP) != \
                         (by_code[b].position == Position.GKP):
+                    continue
+                # keep the XI formation-legal: a sub that drops the XI below
+                # 3 DEF or 1 FWD is not eligible; try the next bench priority
+                if not _formation_ok(out + [b] + starters[i + 1:]):
                     continue
                 out.append(b)
                 used.add(b)
