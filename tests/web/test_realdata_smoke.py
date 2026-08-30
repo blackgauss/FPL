@@ -34,11 +34,23 @@ def client() -> TestClient:
     return TestClient(create_app(Store(root=REPO_DATA.parent)))
 
 
+def scoreable_gw(client: TestClient) -> int | None:
+    """Latest GW we can forecast with the features on disk (feature store
+    row at gw=k feeds GW k+1); none mid-season until data lands."""
+    feats = client.app.state.store._safe_parquet(  # noqa: SLF001
+        Store(root=REPO_DATA.parent).processed / "features_2026-2027.parquet")
+    if feats is None or not feats.height:
+        return None
+    return int(feats.get_column("gw").max()) + 1
+
+
 @requires_data
 def test_forecast_quantiles_are_valid_and_clamped(client: TestClient) -> None:
-    meta = client.get("/api/meta").json()
+    gw = scoreable_gw(client)
+    if gw is None:
+        pytest.skip("feature store empty")
     body = client.get("/api/forecast", params={
-        "gw_start": meta["current_gw"] + 1, "horizon": 5}).json()
+        "gw_start": gw, "horizon": 5}).json()
     rows = body["rows"]
     assert rows, "forecast window returned no rows for the current season"
     qkeys = [f"q{q}" for q in
@@ -53,18 +65,20 @@ def test_forecast_quantiles_are_valid_and_clamped(client: TestClient) -> None:
     codes = sorted(players_seen)[:5]
     per_player = client.get("/api/forecast", params={
         "player_codes": ",".join(map(str, codes)),
-        "gw_start": meta["current_gw"] + 1, "horizon": 5}).json()
+        "gw_start": gw, "horizon": 5}).json()
     assert {r["player_code"] for r in per_player["rows"]} == set(codes)
 
 
 @requires_data
 def test_forecast_cdf_real_data(client: TestClient) -> None:
-    meta = client.get("/api/meta").json()
+    gw = scoreable_gw(client)
+    if gw is None:
+        pytest.skip("feature store empty")
     rows = client.get("/api/forecast", params={
-        "gw_start": meta["current_gw"] + 1, "horizon": 1}).json()["rows"]
+        "gw_start": gw, "horizon": 1}).json()["rows"]
     code = sorted({r["player_code"] for r in rows})[3]
     body = client.get("/api/forecast/cdf", params={
-        "player_code": code, "gw": meta["current_gw"] + 1}).json()
+        "player_code": code, "gw": gw}).json()
     assert all(-1e-9 <= p <= 1 + 1e-9 for p in body["cdf"])
     assert body["cdf"][-1] >= 0.99 and body["cdf"][0] <= 0.01
     for a, b in pairwise(body["cdf"]):
