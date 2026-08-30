@@ -32,6 +32,9 @@ PROBE = """<!doctype html><html><head>
 <div id=b3 class=chart style="width:460px"></div>
 <div id=b4 style="width:200px"></div>
 <script type=module>
+window.addEventListener("error", (e) => {
+  window.__perr = "PAGEERR " + e.message + " @" + (e.lineno || "?");
+});
 import { bandChart, cdfChart, multiLineChart, sparkBars } from "/js/charts.js";
 const gss = (x0, y0) => Array.from({length: 4},
   (_, i) => Math.round(y0 * (1 - Math.abs(Math.sin(i + x0)))) + 1);
@@ -67,8 +70,9 @@ setTimeout(() => {
   };
   const bars = Array.from(b4.children)
     .filter((n) => /height:\s*[1-9]/.test(n.getAttribute("style") || "")).length;
-  document.title = "INK band=" + ink(b1) + " cdf=" + ink(b2)
-    + " multi=" + ink(b3) + " bars=" + bars;
+  document.title = window.__perr
+    || ("INK band=" + ink(b1) + " cdf=" + ink(b2)
+        + " multi=" + ink(b3) + " bars=" + bars);
 }, 400);
 </script></body></html>
 """
@@ -103,6 +107,8 @@ def test_charts_paint_real_pixels(tmp_path: Path) -> None:
     assert "INK band=" in r.stdout, (
         f"probe script never ran (chrome exit {r.returncode}):\n"
         f"{r.stderr[-800:]}")
+    page_err = re.search(r"<title>PAGEERR ([^<]*)</title>", r.stdout)
+    assert page_err is None, f"page threw during chart draw: {page_err.group(1)}"
     # scope to <title>: the dumped page source also contains the tokens
     m = re.search(r"<title>INK band=(\d+) cdf=(\d+) multi=(\d+) bars=(\d+)</title>",
                   r.stdout)

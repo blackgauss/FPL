@@ -71,21 +71,29 @@ export function bandChart(host, xs, ys, lo, hi, opts = {}) {
   if (xs.length < 2) return false; // single GW: number/table says it all
   if (!window.uPlot) { canvasBand(host, data, opts, W, H); return true; }
   const names = opts.names || ["pred", "lo", "hi"];
-  const bandPath = (lowerIdx) => (u, si, i0, i1) => {
-    let d = "";
-    for (let i = i0; i <= i1; i++) d += `${i === i0 ? "M" : "L"}${u.posX(si, i)} ${u.posY(si, i)}`;
-    for (let i = i1; i >= i0; i--) d += `L${u.posX(lowerIdx, i)} ${u.posY(lowerIdx, i)}`;
-    return [d + "Z"];
+  // uPlot 1.6.32 contract (decoded from the vendored build, since its docs
+  // vary by version): paths is a FUNCTION (u, si, i0, i1) -> {stroke, fill}
+  // of Path2D, positioned with u.valToPos (posX/posY were removed in 1.5).
+  // Wrong shapes fail silently at draw time — the paint gate is the check.
+  const band = (lowerIdx) => (u, si, i0, i1) => {
+    const X = (i) => u.valToPos(u.data[0][i], "x");
+    let d = "M";
+    for (let i = i0; i <= i1; i++)
+      d += `${i === i0 ? "" : "L"}${X(i)} ${u.valToPos(u.data[si][i], "y")}`;
+    for (let i = i1; i >= i0; i--)
+      d += `L${X(i)} ${u.valToPos(u.data[lowerIdx][i], "y")}`;
+    const p = new Path2D(d + "Z");
+    return { stroke: p, fill: p };
   };
   const series = [
     {},
     { label: names[0], stroke: "#2456d6", width: 2 },
     { label: names[1], stroke: "rgba(104,112,127,.45)" },
-    { label: names[2], stroke: "rgba(104,112,127,.45)", fill: "rgba(104,112,127,.14)", paths: bandPath(2) },
+    { label: names[2], stroke: "rgba(104,112,127,.45)", fill: "rgba(104,112,127,.14)", paths: band(2) },
   ];
   if (opts.lo2) {
     series.push({ label: "q25", stroke: "rgba(36,86,214,.4)" });
-    series.push({ label: "q75", stroke: "rgba(36,86,214,.55)", fill: "rgba(36,86,214,.25)", paths: bandPath(4) });
+    series.push({ label: "q75", stroke: "rgba(36,86,214,.55)", fill: "rgba(36,86,214,.25)", paths: band(4) });
   }
   const u = new window.uPlot({
     target: host, width: W, height: H, series,
