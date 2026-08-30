@@ -3,7 +3,9 @@
 `load_season(root, season)` walks the season folder and produces a `SeasonData`
 with unified frames, each carrying `season` (+ `gw` where the raw file lacks it)
 and `tournament` on match-level frames. Deduplication guards against postponed
-matches reappearing in later GW folders.
+matches reappearing in later GW folders: in `matches` the latest scrape (with
+final scores) wins; stats tables keep the row from the folder where the match
+first appeared, so folder-derived `gw` tags stay near the scheduled GW.
 
 Two source layouts are supported (auto-detected):
     modern (>=2025-26):  By Gameweek/GW{n}/{table}.csv, master {table}.csv
@@ -64,10 +66,11 @@ def _read_optional(path: Path, loader) -> pl.DataFrame | None:
     return None
 
 
-def _concat(frames: list[pl.DataFrame], subset: list[str]) -> pl.DataFrame:
+def _concat(frames: list[pl.DataFrame], subset: list[str],
+            keep: str = "first") -> pl.DataFrame:
     if not frames:
         return pl.DataFrame()
-    return pl.concat(frames, how="vertical").unique(subset=subset, keep="first")
+    return pl.concat(frames, how="vertical").unique(subset=subset, keep=keep)
 
 
 def detect_layout(season_dir: str | Path) -> str:
@@ -94,7 +97,11 @@ def _build(season: str, players: pl.DataFrame, teams: pl.DataFrame,
         teams=teams.with_columns(pl.lit(season).alias("season")),
         gw_stats=_concat(gw_frames, ["season", "player_id", "gw"]),
         match_stats=_concat(match_stat_frames, ["season", "player_id", "match_id"]),
-        matches=_concat(match_frames, ["season", "match_id"]),
+        # keep="last": a postponed match reappears in a later GW folder with
+        # its final scores; the folder order is ascending, so the (finished)
+        # re-scrape wins over the stale unfinished row. The match's own
+        # `gameweek` column (not the folder) stays the authoritative timing.
+        matches=_concat(match_frames, ["season", "match_id"], keep="last"),
         team_history=th,
     )
 

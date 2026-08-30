@@ -93,6 +93,24 @@ class TestAssemble:
             td.feature_names.index("position"),
         }
 
+    def test_position_codes_stable_across_seasons(self, frames):
+        """Two seasons' matrices are vstacked in experiments/run; position
+        codes must come from a fixed vocabulary, not each frame's own
+        first-appearance order (which differs between seasons' data)."""
+        features, players, gw_stats = frames
+        td_a = assemble(features, players, gw_stats, season="2024-2025")
+        # a season whose first appearance (by sort order) is a MID, not a FWD
+        features_b = features.with_columns(
+            player_code=pl.Series([118748, 118748, 223094]))
+        td_b = assemble(features_b, players, gw_stats, season="2025-2026")
+        pos_idx = td_a.feature_names.index("position")
+        fwd_a = td_a.X[td_a.meta["player_code"] == 223094, pos_idx][0]
+        fwd_b = td_b.X[td_b.meta["player_code"] == 223094, pos_idx][0]
+        # exact sorted-enum vocabulary DEF=0, FWD=1, GKP=2, MID=3, identical
+        # across seasons (the old per-frame Categorical gave FWD 0 vs 1 here)
+        assert fwd_a == fwd_b == 1
+        assert td_b.X[td_b.meta["player_code"] == 118748, pos_idx][0] == 3
+
 
 class TestStableIdentity:
     """Cross-season safety: player_id is season-local (803/804 reused for a

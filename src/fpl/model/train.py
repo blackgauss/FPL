@@ -17,11 +17,26 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
+from fpl.domain import Position
+
 FEATURE_COLUMNS = [
     "team_code", "position", "now_cost", "ep_next", "had_match",
     "was_home", "opponent_elo", "home_elo", "pts_avg_3", "pts_avg_5",
 ]
 CATEGORY_COLUMNS = ["team_code", "position"]
+
+
+def _stable_categories(column: str) -> list[str] | None:
+    """Fixed category vocabulary so integer codes agree ACROSS seasons.
+
+    Per-frame `cast(Categorical)` assigns codes by first-appearance order, so
+    vstacking two seasons' matrices (experiments/run) silently mismatches the
+    categorical columns. Enum casts use a vocabulary fixed in code instead;
+    returning None falls back to frame-local encoding.
+    """
+    if column == "position":
+        return sorted(p.value for p in Position)
+    return None
 
 
 @dataclass(frozen=True)
@@ -117,11 +132,19 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
         df = df.filter(pl.col("next_points").is_not_null())
 
     cat_selected = [c for c in cat_cols if c in feature_columns]
+
+    def _encode(c: str):
+        if df.schema[c] != pl.String:
+            return pl.col(c).cast(pl.Int64)  # team_code is already int
+        vocab = _stable_categories(c)
+        if vocab is not None:
+            return pl.col(c).cast(pl.Enum(vocab)).to_physical()
+        return pl.col(c).cast(pl.Categorical).to_physical()
+
     X = df.select(feature_columns).with_columns(
-        # encode string categoricals into int codes; team_code is already int
-        *[pl.col(c).cast(pl.Categorical).to_physical() if df.schema[c] == pl.String
-          else pl.col(c).cast(pl.Int64)
-          for c in cat_selected]
+        # encode string categoricals into int codes with a cross-season stable
+        # vocabulary where one exists; unknown values raise, not mis-code
+        *[_encode(c) for c in cat_selected]
     )
     feature_names = list(feature_columns)
     categorical = [feature_names.index(c) for c in cat_selected]

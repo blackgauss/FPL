@@ -57,9 +57,10 @@ def fit_sigma_and_digest(
     ds = lgb.Dataset(X, label=np.abs(residual),
                      feature_name=feature_names,
                      categorical_feature=categorical)
-    params = dict(learning_params or {}) or {
+    params = {
         "objective": "regression", "metric": "mae", "num_leaves": 31,
         "learning_rate": 0.05, "min_child_samples": 30, "verbosity": -1,
+        **(learning_params or {}),
     }
     sigma_model = lgb.train(params, ds, num_boost_round=100)
 
