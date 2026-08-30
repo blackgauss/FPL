@@ -3,7 +3,7 @@ export function cdfChart(host, xs, cdf, opts = {}) {
   host.innerHTML = "";
   const W = host.clientWidth || 520, H = opts.height || 230;
   if (!window.uPlot || xs.length < 2) return false;
-  new window.uPlot({
+  const u = new window.uPlot({
     target: host, width: W, height: H,
     series: [{}, { label: opts.label || "P(X ≤ x)", stroke: "#2456d6",
       fill: "rgba(36,86,214,.10)", width: 2 }],
@@ -11,6 +11,8 @@ export function cdfChart(host, xs, cdf, opts = {}) {
     axes: [{ size: 42, label: opts.xlabel || "points" },
       { size: 46, values: (u, t) => t.map(v => Math.round(v * 100) + "%") }],
   }, [xs, cdf]);
+  // uPlot 1.6 builds (but does not insert) u.root; append it visibly
+  if (u.root && !u.root.parentNode) host.append(u.root);
   return true;
 }
 
@@ -37,11 +39,12 @@ export function bandChart(host, xs, ys, lo, hi, opts = {}) {
     series.push({ label: "q25", stroke: "rgba(36,86,214,.4)" });
     series.push({ label: "q75", stroke: "rgba(36,86,214,.55)", fill: "rgba(36,86,214,.25)", paths: bandPath(4) });
   }
-  new window.uPlot({
+  const u = new window.uPlot({
     target: host, width: W, height: H, series,
     scales: { x: { time: false } },
     axes: [{ size: 40 }, { size: 40 }],
   }, data);
+  if (u.root && !u.root.parentNode) host.append(u.root);
   return true;
 }
 
