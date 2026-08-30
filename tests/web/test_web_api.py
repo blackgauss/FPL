@@ -110,7 +110,16 @@ def _write_root(root: Path) -> Path:
         "summary": {"gw": 1, "xscore": 40.2, "actual_score": 55.0,
                     "history_score": 55, "score_source": "event_live_settlement",
                     "error": -14.8, "player_count": 15},
-        "players": [],
+        "players": [
+            {"gw": 1, "position": 1, "player_id": 0, "player_code": 1001,
+             "web_name": "P01", "multiplier": 1, "is_captain": False,
+             "is_vice_captain": False, "minutes": 90, "actual_points": 8,
+             "expected_points": 5.4, "weighted_expected": 5.4},
+            {"gw": 1, "position": 12, "player_id": 11, "player_code": 1012,
+             "web_name": "P12", "multiplier": 1, "is_captain": False,
+             "is_vice_captain": False, "minutes": 0, "actual_points": 1,
+             "expected_points": 2.1, "weighted_expected": 2.1},
+        ],
     }))
     (account / "gw2_plan.json").write_text(json.dumps({
         "gw": 2, "bank_tenths": 1,
@@ -298,6 +307,7 @@ def test_team_flags(client: TestClient) -> None:
     assert by_id[1]["flag"] == "ok"
     assert "INJURED" in by_id[3]["flag"]
     assert body["comparison"]["xscore"] == 40.2
+    assert body["comparison"]["players"][0]["actual_points"] == 8
 
 
 def test_team_flags_explicit_params(client: TestClient) -> None:

@@ -27,6 +27,9 @@ tr.click { cursor:pointer; } tr.click:hover td { background:#eef2fb; }
 .cards { display:flex; flex-wrap:wrap; gap:10px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:140px; }
 .card .k { color:var(--mut); font-size:12px; } .card .v { font-size:18px; font-weight:600; }
+.card.stat .stat-v { font-size:24px; font-weight:700; }
+.card.stat.ok .stat-v { color:var(--ok); } .card.stat.bad .stat-v { color:var(--bad); }
+.mut { color:var(--mut); } tr.dim { opacity:.55; } .num-ok { color:var(--ok); } .num-bad { color:var(--bad); }
 .chip { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#eceff3; }
 .chip.ok{color:var(--ok);background:#e2f4e9;} .chip.bad{color:var(--bad);background:#fbe4e4;} .chip.warn{color:var(--warn);background:#f7ecd4;}
 .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }

@@ -22,12 +22,18 @@ def _default_entry(store: Store) -> int | None:
     return None
 
 
-def _comparison_summary(store: Store, gw: int) -> dict | None:
+def _comparison(store: Store, gw: int) -> dict | None:
     wanted = f"gw{gw}_comparison.json"
     for doc in store.account_json(r"gw\d+_comparison"):
         if doc.get("file") == wanted:
             summary = doc.get("summary")
-            return summary if isinstance(summary, dict) else None
+            if not isinstance(summary, dict):
+                return None
+            players = doc.get("players")
+            players = players if isinstance(players, list) else []
+            players = sorted(players, key=lambda p: p.get("actual_points") or 0,
+                             reverse=True)
+            return {**summary, "players": players}
     return None
 
 
@@ -54,9 +60,9 @@ def get_flags(request: Request, gw: int | None = None,
                 "reason": f"no collected picks for gw {gw}"}
 
     # Row-wise flags via fpl.live.filters.flag_squad_player over picks x live.
-    # Picks carry no price/club snapshot, so a Squad (squad_from_frame) is not
-    # buildable from disk data alone -> price-move / club-transfer flags are
-    # unavailable here; status flags are exact.
+    # Picks carry no price/club snapshot of the picked GW, so price fields are
+    # live-current (a Squad from a GW-frozen frame is not buildable from disk
+    # alone); status flags are exact.
     live_map: dict[int, dict] = {}
     lv = store.live()
     if lv is not None:
@@ -81,6 +87,9 @@ def get_flags(request: Request, gw: int | None = None,
             "multiplier": r.get("multiplier"),
             "is_captain": bool(r.get("is_captain")),
             "is_vice_captain": bool(r.get("is_vice_captain")),
+            "now_cost": live.get("now_cost"),
+            "ep_next": live.get("ep_next"),
+            "selected_by_percent": live.get("selected_by_percent"),
             "status": live.get("status"),
             "news": live.get("news"),
             "flag": flag,
@@ -98,5 +107,5 @@ def get_flags(request: Request, gw: int | None = None,
         "captain": captain,
         "vice_captain": vice_captain,
         "rows": out_rows,
-        "comparison": _comparison_summary(store, gw),
+        "comparison": _comparison(store, gw),
     }
