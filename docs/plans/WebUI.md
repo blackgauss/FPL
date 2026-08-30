@@ -58,9 +58,13 @@ layer is a view, not a second brain).
 ## Run
 
 ```
-uv sync --extra web
-python -m fpl.web            # http://127.0.0.1:8000  (docs at /docs)
+uv sync --all-extras --all-groups    # same install as CI; keeps pytest/ruff
+uv run python -m fpl.web             # http://127.0.0.1:8000  (docs at /docs)
 ```
+`uv run` uses the project venv — plain `python`/`python3` from a non-activated
+shell is the SYSTEM interpreter and will ImportError. A bare
+`uv sync --extra web` also *uninstalls* pytest/ruff (they live in the `dev`
+extra), hence `--all-extras --all-groups`.
 No UI-side network calls to the FPL API ever; stale cache beats live fetch
 (see `fpl.live.live` module docstring). UI is localhost, single-user, no auth.
 
