@@ -24,6 +24,7 @@ export const api = {
   meta: () => get("/api/meta"),
   players: (p) => get("/api/players", p),
   forecast: (p) => get("/api/forecast", p),
+  forecastCdf: (p) => get("/api/forecast/cdf", p),
   teamFlags: (p) => get("/api/team/flags", p),
   transferSuggestions: (p) => get("/api/transfers/suggestions", p),
   leagueStandings: (p) => get("/api/league/standings", p),

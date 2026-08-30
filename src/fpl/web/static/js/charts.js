@@ -1,4 +1,19 @@
 // Band+line chart over uPlot (canvas fallback if uPlot is absent)
+export function cdfChart(host, xs, cdf, opts = {}) {
+  host.innerHTML = "";
+  const W = host.clientWidth || 520, H = opts.height || 230;
+  if (!window.uPlot || xs.length < 2) return false;
+  new window.uPlot({
+    target: host, width: W, height: H,
+    series: [{}, { label: opts.label || "P(X ≤ x)", stroke: "#2456d6",
+      fill: "rgba(36,86,214,.10)", width: 2 }],
+    scales: { x: { time: false }, y: { min: 0, max: 1 } },
+    axes: [{ size: 42, label: opts.xlabel || "points" },
+      { size: 46, values: (u, t) => t.map(v => Math.round(v * 100) + "%") }],
+  }, [xs, cdf]);
+  return true;
+}
+
 export function bandChart(host, xs, ys, lo, hi, opts = {}) {
   host.innerHTML = "";
   const data = [xs, ys, lo, hi, opts.lo2, opts.hi2].filter(d => d);

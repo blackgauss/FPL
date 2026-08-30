@@ -1,6 +1,6 @@
 // Explorer view: faceted player table + forecast drawer
 import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
-import { bandChart } from "../charts.js";
+import { bandChart, cdfChart } from "../charts.js";
 
 const PAGE = 25;
 const CHIP = {
@@ -8,7 +8,8 @@ const CHIP = {
 };
 
 export async function render(root) {
-  const st = { search: "", position: "", availableOnly: false, maxPrice: "", offset: 0, total: 0 };
+  const st = { search: "", position: "", availableOnly: false, maxPrice: "",
+    offset: 0, total: 0, sort: "", dir: "asc" };
   const controls = el("div", { class: "controls" },
     el("input", {
       type: "search", placeholder: "search players…",
@@ -34,6 +35,8 @@ export async function render(root) {
     try {
       const data = await api.players({
         search: st.search, position: st.position, max_price: st.maxPrice,
+        sort: st.sort || undefined,
+        dir: st.sort ? st.dir : undefined,
         limit: PAGE, offset: st.offset,
       });
       let rows = data.rows ?? [];
@@ -52,10 +55,29 @@ export async function render(root) {
     } finally { controls._loading = false; }
   }
 
+  const COLUMNS = [
+    ["Player", "web_name"], ["Pos", "position"], ["Team", null],
+    ["Price", "now_cost"], ["Status", "status"],
+    ["Own %", "selected_by_percent"], ["Pred next", "pred_next"],
+  ];
+
+  function headerCell(h, key) {
+    if (!key) return el("th", {}, h);
+    const arrow = st.sort === key ? (st.dir === "asc" ? " ▲" : " ▼") : "";
+    return el("th", {
+      title: "sort by " + h,
+      onclick: () => {
+        if (st.sort === key) st.dir = st.dir === "asc" ? "desc" : "asc";
+        else { st.sort = key; st.dir = "asc"; }
+        st.offset = 0;
+        load();
+      },
+    }, h + arrow);
+  }
+
   function tbl(rows) {
     const t = el("table", {}, el("thead", {}, el("tr", {},
-      ...["Player", "Pos", "Team", "Price", "Status", "Own %", "Pred next"]
-        .map(h => el("th", {}, h)))), el("tbody"));
+      ...COLUMNS.map(([h, key]) => headerCell(h, key)))), el("tbody"));
     for (const r of rows) {
       const [cls, txt] = CHIP[r.status] ?? ["", r.status ?? "–"];
       const price = r.now_cost ?? r.price ?? r.cost_in_ten_thousands;
@@ -125,6 +147,39 @@ async function fetchForecast(code, gw, retries = 2) {
         el("td", {}, "GW" + r.gw), el("td", {}, fmtNum(ys[i])),
         el("td", {}, fmtNum(q05[i])), el("td", {}, fmtNum(q25[i])),
         el("td", {}, fmtNum(q75[i])), el("td", {}, fmtNum(q95[i])))))));
+
+    // full CDF from the t-digest quantiles: upside/downside shape
+    holder.append(el("h2", {}, "Points CDF"));
+    const gwSel = el("select", {},
+      ...rows.map(r => el("option", { value: String(r.gw) }, "GW" + r.gw)));
+    const cdfStats = el("div", { class: "meta" }, "loading…");
+    const cdfBox = el("div", { class: "chart" });
+    holder.append(el("div", { class: "controls" }, gwSel), cdfStats, cdfBox);
+    async function showCdf(gwv) {
+      cdfStats.textContent = "loading…";
+      try {
+        const d = await api.forecastCdf({ player_code: code, gw: gwv });
+        if (!cdfChart(cdfBox, d.xs, d.cdf)) cdfStats.textContent = "";
+        const step = d.xs[1] - d.xs[0];
+        const pAt = (x) => {
+          if (x <= d.xs[0]) return d.cdf[0];
+          if (x >= d.xs[d.xs.length - 1]) return 1;
+          const i = Math.min(d.cdf.length - 2, Math.floor(x / step));
+          return d.cdf[i] + (x / step - i) * (d.cdf[i + 1] - d.cdf[i]);
+        };
+        cdfStats.textContent =
+          `blank P(=0): ${Math.round(pAt(0.5) * 100)}% · ` +
+          `P(≥5): ${Math.round((1 - pAt(5)) * 100)}% · ` +
+          `P(≥10): ${Math.round((1 - pAt(10)) * 100)}% · ` +
+          `q05 ${fmtNum(d.quantiles.q5)} · median ${fmtNum(d.quantiles.q50)} · ` +
+          `q95 ${fmtNum(d.quantiles.q95)}`;
+      } catch (e) {
+        cdfStats.textContent = e.cold ? "computing forecast…" : `cdf: ${e.message}`;
+        cdfBox.replaceChildren();
+      }
+    }
+    gwSel.addEventListener("change", () => showCdf(gwSel.value));
+    showCdf(String(rows[0].gw));
     return holder;
   } catch (e) {
     if (e.cold && retries > 0) {

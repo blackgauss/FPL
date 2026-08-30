@@ -60,6 +60,11 @@ function findClass(n, cls, acc = []) {
   for (const c of n.children || []) findClass(c, cls, acc);
   return acc;
 }
+function findAttr(n, key, val, acc = []) {
+  if (n.attrs?.[key] === val || (key === "title" && n[key] === val)) acc.push(n);
+  for (const c of n.children || []) findAttr(c, key, val, acc);
+  return acc;
+}
 
 // uPlot stub validates its contract — a repeat of the (opts, true) data-slot
 // bug, or NaN series, throws exactly like the real thing would
@@ -90,15 +95,48 @@ globalThis.document = {
   body: node("body"),
 };
 const fetched = [];
+const Q_PCT = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99];
+// mirror of fpl.dist.probability_below: CDF from a quantile vector
+function probBelow(vals, th) {
+  const pairs = vals.map((v, i) => [v, Q_PCT[i]]).sort((a, b) => a[0] - b[0]);
+  if (th <= pairs[0][0]) return 0;
+  if (th >= pairs.at(-1)[0]) return 1;
+  for (let i = 0; i < pairs.length - 1; i++) {
+    const [x0, q0] = pairs[i], [x1, q1] = pairs[i + 1];
+    if (th >= x0 && th <= x1) return x0 === x1 ? q1 : q0 + (th - x0) / (x1 - x0) * (q1 - q0);
+  }
+  return 1;
+}
 globalThis.fetch = async (url) => {
   const u = String(url);
   fetched.push(u);
   const [path, query] = u.split("?");
+  const q = new URLSearchParams(query ?? "");
+  if (path === "/api/forecast/cdf") {
+    const code = Number(q.get("player_code")), gw = Number(q.get("gw"));
+    const row = (payloads["/api/forecast"]?.rows ?? [])
+      .find(r => r.player_code === code && r.gw === gw);
+    if (!row) {
+      return { ok: false, status: 404, statusText: "not found",
+        json: async () => ({ detail: "no forecast row for this player/gameweek" }) };
+    }
+    const vals = Q_PCT.map(pr => row.quantiles[`q${Math.round(pr * 100)}`]);
+    const top = Math.max(Math.max(...vals) * 1.05, (row.pred ?? 0) + 1, 5);
+    const n = 80, xs = [], cdf = [];
+    for (let i = 0; i < n; i++) {
+      const x = i * top / (n - 1);
+      xs.push(Math.round(x * 1000) / 1000);
+      cdf.push(probBelow(vals, x));
+    }
+    return { ok: true, status: 200, statusText: "OK",
+      json: async () => ({ player_code: code, gw, pred: row.pred,
+        web_name: row.web_name, xs, cdf, quantiles: row.quantiles }) };
+  }
   let body = payloads[path];
   if (path === "/api/forecast" && body?.rows) {
     // per-player drawer calls: filter the pre-captured full window
-    const codes = new Set((new URLSearchParams(query).get("player_codes") ?? "")
-      .split(",").filter(Boolean).map(Number));
+    const codes = new Set((q.get("player_codes") ?? "").split(",")
+      .filter(Boolean).map(Number));
     if (codes.size) body = { ...body, rows: body.rows.filter(r => codes.has(r.player_code)) };
   }
   if (body === undefined) {
@@ -124,6 +162,13 @@ try {
     for (let i = 0; i < 6; i++) await flush();
     const row = findClass(content, "click")[0];
     if (row) { await row._onclick(); for (let i = 0; i < 8; i++) await flush(); }
+    if (view === "explorer") {
+      // click a sortable header (price) once: exercises sort param plumbing
+      const th = findAttr(content, "title", "sort by Price")[0];
+      if (!th?._onclick) throw new Error("explorer: Price header not sortable");
+      th._onclick();
+      for (let i = 0; i < 8; i++) await flush();
+    }
     const txt = textOf(view === "explorer" ? content : content)
       + (view === "explorer" ? " " + textOf(byId.drawer ?? node()) : "");
     const bad = txt.match(/undefined|NaN|\[object Object\]/);

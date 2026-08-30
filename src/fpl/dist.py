@@ -111,3 +111,25 @@ def moments_from_quantiles(points_at_qs: np.ndarray, qs: list[float]) -> dict[st
 def sample_from_digest(digest: TDigest, rng) -> float:
     """Inverse-CDF sample from a t-digest (uniform -> percentile)."""
     return float(digest.percentile(rng.uniform() * 100))
+
+
+def probability_below(points_at_qs, threshold: float) -> float:
+    """Empirical P(X < threshold) from a CDF's quantile vector.
+
+    FPL points are discrete, zero-inflated, and far from Gaussian, so this
+    reads the probability off the stored non-parametric quantiles instead of
+    assuming a family. Linear interpolation on the quantile curve, clamped to
+    the first/last stored quantile.
+    """
+    qs = np.asarray(QS, dtype=float)
+    x = np.asarray(points_at_qs, dtype=float)
+    order = np.argsort(x)
+    qs, x = qs[order], x[order]
+    if threshold <= x[0]:
+        return 0.0
+    if threshold >= x[-1]:
+        return 1.0
+    idx = int(np.searchsorted(x, threshold, side="right"))
+    x0, x1 = x[idx - 1], x[idx]
+    q0, q1 = qs[idx - 1], qs[idx]
+    return float(q0 + (threshold - x0) / (x1 - x0) * (q1 - q0))

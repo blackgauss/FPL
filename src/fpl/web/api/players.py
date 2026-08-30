@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from fpl.web.queries import Store
 
@@ -28,23 +28,21 @@ def get_players(
     club: int | None = None,
     status: str | None = None,
     max_price: int | None = Query(None, description="tenths, e.g. 60 = £6.0m"),
+    sort: str | None = Query(None, description=f"one of {Store.SORTABLE}"),
+    dir: str = Query("asc", pattern="^(asc|desc)$"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> dict:
     store = get_store(request)
+    if sort is not None and sort not in Store.SORTABLE:
+        raise HTTPException(400, f"unsortable column {sort!r}")
     try:
         out = store.players(
             search=search, position=position, club=club, status=status,
-            max_price=max_price, limit=limit, offset=offset)
+            max_price=max_price, limit=limit, offset=offset,
+            sort=sort, descending=dir == "desc")
     except Exception:
         return {"available": False, "season": store.season, "total": 0, "rows": []}
 
-    gw = current_gw(store)
-    preds: dict[int, float] = {}
-    predicted = store.predicted_next(gw + 1)
-    if predicted is not None:
-        preds = {r["player_code"]: r["pred"] for r in predicted.to_dicts()}
-    for row in out["rows"]:
-        row["pred_next"] = preds.get(row.get("player_code"))
-    out["current_gw"] = gw
+    out["current_gw"] = current_gw(store)
     return out

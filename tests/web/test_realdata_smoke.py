@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -53,6 +54,21 @@ def test_forecast_quantiles_are_valid_and_clamped(client: TestClient) -> None:
         "player_codes": ",".join(map(str, codes)),
         "gw_start": meta["current_gw"] + 1, "horizon": 5}).json()
     assert {r["player_code"] for r in per_player["rows"]} == set(codes)
+
+
+@requires_data
+def test_forecast_cdf_real_data(client: TestClient) -> None:
+    meta = client.get("/api/meta").json()
+    rows = client.get("/api/forecast", params={
+        "gw_start": meta["current_gw"] + 1, "horizon": 1}).json()["rows"]
+    code = sorted({r["player_code"] for r in rows})[3]
+    body = client.get("/api/forecast/cdf", params={
+        "player_code": code, "gw": meta["current_gw"] + 1}).json()
+    assert all(-1e-9 <= p <= 1 + 1e-9 for p in body["cdf"])
+    assert body["cdf"][-1] >= 0.99 and body["cdf"][0] <= 0.01
+    for a, b in pairwise(body["cdf"]):
+        # near-ties in zero-inflated quantiles allow tiny non-monotone blips
+        assert b >= a - 0.11
 
 
 @requires_data

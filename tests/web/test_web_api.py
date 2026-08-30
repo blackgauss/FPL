@@ -424,3 +424,43 @@ def test_static_assets_revalidate(client: TestClient) -> None:
         assert r.status_code == 200
         assert r.headers["cache-control"] == "no-cache"
         assert "etag" in r.headers
+
+
+# -- sorting + CDF ------------------------------------------------------------
+
+def test_players_sort_price_desc(client: TestClient) -> None:
+    body = client.get("/api/players",
+                      params={"sort": "now_cost", "dir": "desc"}).json()
+    costs = [r["now_cost"] for r in body["rows"]]
+    assert costs == sorted(costs, reverse=True)
+
+
+def test_players_sort_nulls_last(client: TestClient) -> None:
+    # no forecast warmed => all pred_next null; sort must still work
+    body = client.get("/api/players",
+                      params={"sort": "pred_next", "dir": "desc"}).json()
+    assert all(r["pred_next"] is None for r in body["rows"])
+
+
+def test_players_sort_rejects_unknown_column(client: TestClient) -> None:
+    assert client.get("/api/players",
+                      params={"sort": "salary_usd"}).status_code == 400
+
+
+def test_forecast_cdf(client: TestClient,
+                      monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    body = client.get("/api/forecast/cdf", params={
+        "player_code": 1001, "gw": 3}).json()
+    assert body["gw"] == 3
+    assert all(0.0 <= p <= 1.0 for p in body["cdf"])
+    assert body["cdf"] == sorted(body["cdf"])   # monotone
+    assert body["cdf"][0] <= 0.01 and body["cdf"][-1] >= 0.99
+
+
+def test_forecast_cdf_missing_player(client: TestClient,
+                                     monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    r = client.get("/api/forecast/cdf",
+                   params={"player_code": 999999, "gw": 3})
+    assert r.status_code == 404

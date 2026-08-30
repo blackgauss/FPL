@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import polars as pl
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from fpl.dist import QS, probability_below
 from fpl.web.queries import Store
 
 router = APIRouter(prefix="/forecast")
@@ -32,6 +34,41 @@ class ForecastOut(BaseModel):
     gw_end: int
     available: bool = True
     rows: list[ForecastRow]
+
+
+@router.get("/cdf")
+def get_cdf(
+    request: Request,
+    player_code: int,
+    gw: int | None = Query(None, ge=1, description="defaults to the next GW"),
+    n: int = Query(80, ge=16, le=400, description="CDF grid points"),
+) -> dict:
+    """Empirical CDF P(X <= x) of one player's GW points, read off the
+    t-digest quantiles (the sigma-scaled residual shape) — the full
+    upside/downside picture, not just the mean."""
+    store = get_store(request)
+    if gw is None:
+        try:
+            gw = store.current_gw() + 1
+        except Exception:
+            gw = 1
+    try:
+        frame = store.forecast(gw, gw)
+    except Exception as exc:
+        raise HTTPException(503, f"forecast build failed: {exc}") from exc
+    row = frame.filter(pl.col("player_code") == player_code)
+    if row.height == 0:
+        raise HTTPException(404, "no forecast row for this player/gameweek")
+    rec = row.to_dicts()[0]
+    vals = [rec[f"q{int(q * 100)}"] for q in QS]
+    top = max(max(vals) * 1.05, rec["pred"] + 1.0, 5.0)
+    xs = [round(i * top / (n - 1), 3) for i in range(n)]
+    cdf = [probability_below(vals, float(x)) for x in xs]
+    return {
+        "player_code": player_code, "web_name": rec.get("web_name"),
+        "gw": gw, "pred": rec["pred"], "xs": xs, "cdf": cdf,
+        "quantiles": {k: rec[k] for k in Q_KEYS},
+    }
 
 
 @router.get("", response_model=ForecastOut)

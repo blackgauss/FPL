@@ -80,13 +80,17 @@ class Store:
 
     # -- players (explorer table) -----------------------------------------------
 
+    SORTABLE = {"web_name", "position", "team_code", "player_code",
+                "now_cost", "status", "selected_by_percent", "pred_next"}
+
     def players(self, *, search: str | None = None, position: str | None = None,
                 club: int | None = None, status: str | None = None,
                 max_price: int | None = None, limit: int = 100,
-                offset: int = 0) -> dict:
-        """Filterable player table joined with live status/price/ownership;
-        `pred_next` (GW mean for next GW) present when the forecast cache is
-        warm — computing it lazily is the caller's (router's) choice."""
+                offset: int = 0, sort: str | None = None,
+                descending: bool = False) -> dict:
+        """Filterable/sortable player table joined with live status/price/
+        ownership and the model's next-GW mean (`pred_next`, null when the
+        forecast cache is cold-unbuilt; trees sort nulls last)."""
         players = pl.read_parquet(
             self.processed / f"players_{self.season}.parquet")
         df = players
@@ -119,8 +123,21 @@ class Store:
                           "ep_next"]
                          if c == "player_code" or c not in df.columns]
             df = df.join(lv[0].select(live_keep), on="player_code", how="left")
+            if "selected_by_percent" in df.columns:
+                df = df.with_columns(pl.col("selected_by_percent").cast(
+                    pl.Float64, strict=False))
             if status:
                 df = df.filter(pl.col("status") == status)
+
+        pred = self.predicted_next(self.current_gw() + 1)
+        if pred is not None:
+            df = df.join(pred.rename({"pred": "pred_next"}),
+                         on="player_code", how="left")
+        else:
+            df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias(
+                "pred_next"))
+        if sort and sort in df.columns:
+            df = df.sort(sort, descending=descending, nulls_last=True)
         total = df.height
         df = df.slice(offset, limit)
         return {"season": self.season, "total": total, "rows": df.to_dicts()}
