@@ -1,5 +1,6 @@
 // Team view: GW result cards, per-player model-vs-actual review, squad flags
 import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
+import { bandChart } from "../charts.js";
 
 const num = (v, d = 1) => (v == null ? "–" : Number(v).toFixed(d));
 
@@ -101,6 +102,8 @@ export async function render(root) {
   }
   root.append(t);
 
+  ownFormSection(root).catch(() => { /* optional section */ });
+
   // next-GW model outlook for the owned players (only when forecast is warm)
   const codes = rows.map(r => r.player_code).filter(x => x != null);
   const nextGw = (window.FPL_META?.current_gw || gw) + 1;
@@ -125,4 +128,32 @@ export async function render(root) {
       }
     } catch { /* forecast cold or no rows for this window: skip section */ }
   }
+}
+
+async function ownFormSection(root) {
+  let data;
+  try { data = await api.teamHistory(); } catch { return; }
+  const rows = (data.rows ?? []).filter(r => r.gw != null);
+  if (!data.available || !rows.length) return;
+  root.append(el("h2", {}, "My form — points per GW"));
+  const xs = rows.map(r => r.gw);
+  const pts = rows.map(r => Number(r.points ?? 0));
+  const zeros = pts.map(() => 0);
+  const chart = el("div", { class: "chart" });
+  root.append(chart);
+  if (!bandChart(chart, xs, pts, zeros, pts, { height: 200, names: ["points", "", ""] })) {
+    chart.replaceChildren();
+  }
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["GW", "Points", "xScore", "Bench", "Transfers", "Rank"].map(h => el("th", {}, h)))), el("tbody"));
+  for (const r of rows) {
+    t.lastChild.append(el("tr", {},
+      el("td", {}, "GW" + r.gw),
+      el("td", {}, String(r.points ?? "–")),
+      el("td", { class: "mut" }, fmtNum(r.xscore)),
+      el("td", r.bench_points > 0 ? { class: "num-bad" } : {}, String(r.bench_points ?? "–")),
+      el("td", {}, String(r.transfers ?? "–")),
+      el("td", { class: "mut" }, String(r.rank ?? "–"))));
+  }
+  root.append(t);
 }

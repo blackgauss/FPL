@@ -28,6 +28,9 @@ export const api = {
   teamFlags: (p) => get("/api/team/flags", p),
   transferSuggestions: (p) => get("/api/transfers/suggestions", p),
   leagueStandings: (p) => get("/api/league/standings", p),
+  leagueReport: () => get("/api/league/standings/report"),
+  leagueOwnership: () => get("/api/league/ownership"),
+  teamHistory: () => get("/api/team/history"),
   researchMetrics: (run) => get("/api/research/metrics", { run }),
 };
 

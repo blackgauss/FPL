@@ -1,5 +1,6 @@
-// League view: standings from collection (resolved H2H or classic)
-import { api, el, empty } from "../api.js";
+// League view: standings + per-manager form, H2H record, league ownership
+import { api, el, empty, fmtNum } from "../api.js";
+import { sparkBars } from "../charts.js";
 
 const COLUMNS = {
   h2h_resolved: [
@@ -29,6 +30,12 @@ export async function render(root) {
     root.append(empty(data.reason ?? "No league standings collected yet."));
     return;
   }
+  let report = null;
+  try {
+    const rr = await api.leagueReport();
+    report = rr.available ? rr : null;
+  } catch { /* no collected matches: table only */ }
+
   const kind = data.kind === "h2h_resolved" ? "h2h_resolved" : "classic";
   const cols = COLUMNS[kind];
   root.append(el("div", { class: "meta" },
@@ -36,14 +43,70 @@ export async function render(root) {
       ? `Resolved from event-live points · GW ${data.current_gw}`
       : `Official FPL table · GW points for GW ${data.points_gw ?? "?"}`));
   const t = el("table", {}, el("thead", {}, el("tr", {},
-    ...cols.map(([, label]) => el("th", {}, label)))), el("tbody"));
+    ...cols.map(([, label]) => el("th", {}, label)),
+    ...(report ? [el("th", { title: "points per GW, newest right" }, "Form")] : []))), el("tbody"));
   for (const r of rows) {
-    const tr = el("tr", {},
-      ...cols.map(([k]) => el("td", {}, r[k] === null || r[k] === undefined ? "–"
-        : typeof r[k] === "number" ? String(Math.round(r[k] * 10) / 10)
-          : String(r[k]))));
+    const cells = cols.map(([k]) => el("td", {}, r[k] === null || r[k] === undefined ? "–"
+      : typeof r[k] === "number" ? String(Math.round(r[k] * 10) / 10)
+        : String(r[k])));
+    if (report) {
+      const series = report.managers[String(r.entry_id)] ?? {};
+      const vals = report.events.map(g => (series[String(g)] ?? {}).points ?? null);
+      const spark = el("span", {});
+      sparkBars(spark, vals, {});
+      cells.push(el("td", {}, spark));
+    }
+    const tr = el("tr", {}, ...cells);
     if (r.is_self) tr.className = "self-row";
     t.lastChild.append(tr);
+  }
+  root.append(t);
+
+  if (report && data.entry_id != null) drawRecord(root, report, data.entry_id);
+  ownershipSection(root).catch(() => { /* optional panel */ });
+}
+
+function drawRecord(root, report, me) {
+  const mine = report.managers[String(me)] ?? {};
+  const gwKeys = Object.keys(mine).map(Number).sort((a, b) => a - b);
+  if (!gwKeys.length) return;
+  root.append(el("h2", {}, "My matches"));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["GW", "Me", "Opponent", "They", "Result"].map(h => el("th", {}, h)))), el("tbody"));
+  for (const gw of gwKeys) {
+    const cell = mine[String(gw)];
+    const res = cell.result;
+    t.lastChild.append(el("tr", {},
+      el("td", {}, "GW" + gw),
+      el("td", {}, fmtNum(cell.points)),
+      el("td", { class: "mut" }, `#${cell.opponent}`),
+      el("td", { class: "mut" }, fmtNum(cell.opponent_points)),
+      el("td", {}, el("span", { class: `chip ${res === "W" ? "ok" : res === "L" ? "bad" : ""}` }, res))));
+  }
+  root.append(t);
+}
+
+async function ownershipSection(root) {
+  let data;
+  try { data = await api.leagueOwnership(); } catch { return; }
+  if (!data.available || !data.rows?.length) return;
+  root.append(el("h2", {}, `League ownership — ${data.rows.length} owned players`));
+  root.append(el("div", { class: "meta" }, data.basis
+    + " · diff = league % minus official %; + big = over-owned by friends (differential upside elsewhere)"));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["Player", "Pos", "Team", "League %", "Official %", "Diff", "Pred next"]
+      .map(h => el("th", {}, h)))), el("tbody"));
+  for (const r of data.rows.slice(0, 40)) {
+    t.lastChild.append(el("tr", {},
+      el("td", {}, r.web_name ?? String(r.player_code)),
+      el("td", {}, r.position ?? ""),
+      el("td", {}, r.team ?? ""),
+      el("td", {}, fmtNum(r.own_league) + "%"),
+      el("td", { class: "mut" }, r.own_official == null ? "–" : fmtNum(r.own_official) + "%"),
+      el("td", r.diff != null && r.diff >= 15 ? { class: "num-bad" }
+        : r.diff != null && r.diff <= -5 ? { class: "num-ok" } : {},
+      r.diff == null ? "–" : (r.diff > 0 ? "+" : "") + fmtNum(r.diff)),
+      el("td", {}, fmtNum(r.pred_next))));
   }
   root.append(t);
 }

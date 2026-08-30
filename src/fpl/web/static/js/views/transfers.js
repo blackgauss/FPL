@@ -1,5 +1,6 @@
-// Transfers view: suggested in/out cards from the weekly plan
+// Transfers view: weekly plan options with impact bars + in/out CDF preview
 import { api, el, empty, fmtNum, fmtPrice } from "../api.js";
+import { multiLineChart } from "../charts.js";
 
 export async function render(root) {
   root.innerHTML = "";
@@ -11,34 +12,87 @@ export async function render(root) {
     root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
     return;
   }
-  const plans = data.plans ?? data.suggestions ??
-    (Array.isArray(data) ? data : [data]);
-  if (!plans.length || plans.every(p => !(p.in && p.out)) && !plans.some(p => p.in?.length || p.out?.length)) {
-    root.append(empty("No plan collected yet."));
+  const options = data.suggestions ?? [];
+  if (!data.available || !options.length) {
+    root.append(empty(data.reason ?? "No plan collected yet (run the weekly planner)."));
     return;
   }
-  for (const plan of plans) {
-    const ins = [].concat(plan.in ?? plan.in_players ?? []);
-    const outs = [].concat(plan.out ?? plan.out_players ?? []);
-    if (!ins.length && !outs.length) continue;
-    root.append(el("h2", {}, plan.gw != null ? `GW${plan.gw} plan` : plan.file ?? "Plan"));
-    root.append(el("div", { class: "cards" },
-      ...outs.map(p => transferCard(p, "out")),
-      ...ins.map(p => transferCard(p, "in"))));
+  root.append(el("div", { class: "meta" },
+    `GW${data.gw} plan · from ${data.source}`
+    + (data.bank_tenths != null ? ` · bank ${fmtPrice(Math.abs(data.bank_tenths * 10)).replace("£", data.bank_tenths < 0 ? "-£" : "£")}` : "")
+    + (data.ownership_basis ? ` · ownership: ${data.ownership_basis}` : "")));
+
+  const gainMin = Math.min(0, ...options.map(o => o.expected_gain ?? 0));
+  const gainMax = Math.max(1, ...options.map(o => o.expected_gain ?? 0));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["#", "In", "Out", "Expected gain", "Exp. score", "Own in", "Own out", "C / VC", "Compare"]
+      .map(h => el("th", {}, h)))), el("tbody"));
+
+  options.forEach((o, i) => {
+    const gain = o.expected_gain ?? 0;
+    const w = Math.round(((gain - gainMin) / (gainMax - gainMin || 1)) * 60);
+    const bar = el("span", {
+      style: `display:inline-block;height:8px;width:${w}px;background:${
+        gain >= 0 ? "#17803d" : "#c62f2f"};border-radius:2px;margin-right:6px;vertical-align:middle`,
+    });
+    const ownChip = (v) => el("td", {}, el("span", {
+      class: `chip ${v != null && v > 30 ? "warn" : ""}`,
+    }, v == null ? "–" : fmtNum(v) + "%"));
+    const detail = el("div", { class: "meta" }, "loading forecast comparison…");
+    const det = el("details", {}, el("summary", {}, "CDF in vs out"), detail);
+    let loaded = false;
+    det.addEventListener("toggle", () => {
+      if (!det.open || loaded) return;
+      loaded = true;
+      compareCdf(detail, o, data.gw);
+    });
+    t.lastChild.append(el("tr", {},
+      el("td", {}, String(i + 1)),
+      el("td", {}, String(o.transfer_in ?? "?")),
+      el("td", { class: "mut" }, String(o.transfer_out ?? "?")),
+      el("td", gain >= 0 ? { class: "num-ok" } : { class: "num-bad" },
+        bar, "+" + fmtNum(gain) + " pts"),
+      el("td", {}, fmtNum(o.expected_score)),
+      ownChip(o.ownership_in),
+      ownChip(o.ownership_out),
+      el("td", {}, el("span", {}, `C ${capName(data, o.captain)} · VC ${capName(data, o.vice_captain)}`))));
+    t.lastChild.lastChild.append(el("td", {}, det));
+  });
+  root.append(t);
+}
+
+function capName(data, code) {
+  if (code == null) return "–";
+  return typeof code === "string" ? code : `#${code}`;
+}
+
+async function compareCdf(box, o, gw) {
+  const codes = [o.transfer_in_code, o.transfer_out_code].filter(c => c != null);
+  if (codes.length < 2) { box.textContent = "codes unavailable for CDF."; return; }
+  try {
+    const [inn, out] = await Promise.all(codes.map(c =>
+      api.forecastCdf({ player_code: c, gw: gw, n: 48 })));
+    const pAt = (d) => (x) => {
+      const step = d.xs[1] - d.xs[0];
+      const i = Math.min(d.cdf.length - 2, Math.max(0, Math.floor(x / step)));
+      return d.cdf[i] + (x / step - i) * (d.cdf[i + 1] - d.cdf[i]);
+    };
+    const label = (d, side) => `${side} ${d.web_name ?? d.player_code}`;
+    if (!multiLineChart(box2(box), inn.xs, [
+      { label: label(inn, "in"), ys: inn.cdf },
+      { label: label(out, "out"), ys: out.cdf },
+    ], { yPercent: true, xlabel: "points" })) box.textContent = "chart unavailable";
+    const hi = 5;
+    box.append(el("div", { class: "meta" },
+      `P(≥${hi} pts): in ${Math.round((1 - pAt(inn)(hi)) * 100)}% vs `
+      + `out ${Math.round((1 - pAt(out)(hi)) * 100)}%`));
+  } catch (e) {
+    box.textContent = e.cold ? "computing forecast…" : `cdf: ${e.message}`;
   }
 }
 
-function transferCard(p, dir) {
-  const name = typeof p === "string" ? p : (p.web_name ?? p.name ?? "?");
-  const gain = typeof p === "object" ? (p.expected_gain ?? p.gain) : undefined;
-  const penalty = typeof p === "object" ? (p.penalty ?? p.suggested?.penalty) : undefined;
-  return el("div", { class: "card" },
-    el("div", { class: "k" }, dir === "in" ? "IN · " : "OUT · ",
-      String(p?.position ?? p?.pos ?? "")),
-    el("div", { class: "v" }, name),
-    el("div", { class: dir === "in" ? "flag-ok" : "flag-bad" },
-      gain != null ? `Δ ${fmtNum(gain)} pts` : ""),
-    el("div", { class: "k" },
-      penalty != null ? `penalty ${fmtNum(penalty)} pts` :
-      (p && typeof p === "object" && p.price != null ? fmtPrice(p.price) : "")));
+function box2(holder) {
+  const b = el("div", { class: "chart" });
+  holder.replaceChildren(b);
+  return b;
 }

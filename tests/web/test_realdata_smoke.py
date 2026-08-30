@@ -14,6 +14,7 @@ import subprocess
 from itertools import pairwise
 from pathlib import Path
 
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
@@ -111,3 +112,24 @@ def test_headless_render_smoke_real_data(client: TestClient,
     r = subprocess.run([node, str(js_dir / "render_smoke.mjs"), str(payloads)],
                        capture_output=True, text=True, timeout=240, cwd=js_dir)
     assert r.returncode == 0, f"render smoke failed:\n{r.stdout}\n{r.stderr}"
+
+
+@requires_data
+def test_difficulty_ownership_and_report_real_data(client: TestClient) -> None:
+    rows = client.get("/api/players", params={"limit": 500}).json()["rows"]
+    rated = [r for r in rows if r["xdg_next"] is not None]
+    assert rated, "no player got a fixture-difficulty rating"
+    assert all(0.0 <= r["xdg_next"] <= 100.0 for r in rated)
+
+    owned = client.get("/api/league/ownership").json()
+    assert owned["available"]
+    for r in owned["rows"]:
+        assert 0 < r["own_league"] <= 100
+        assert r["managers"] and r["managers"] <= 19
+
+    report = client.get("/api/league/standings/report").json()
+    assert report["available"]
+    hist = pl.read_parquet(
+        Path("data/raw/fpl_api/account/league_matches.parquet"))
+    assert set(report["events"]) == set(
+        hist.get_column("event").to_list())

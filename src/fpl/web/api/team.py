@@ -109,3 +109,34 @@ def get_flags(request: Request, gw: int | None = None,
         "rows": out_rows,
         "comparison": _comparison(store, gw),
     }
+
+
+@router.get("/history")
+def get_history(request: Request) -> dict:
+    """Points per GW from collected team history (own-form curve, bench
+    points, transfers), with GW-comparison xScores where collected."""
+    store = get_store(request)
+    history = store.account("team_history")
+    if history is None or not history.height:
+        return {"available": False, "reason": "no collected team_history"}
+    entry_id = store.entry_id()
+    rows = history.to_dicts()
+    if entry_id is not None:
+        mine = [r for r in rows if r.get("entry_id") == entry_id]
+        rows = mine or rows
+    rows.sort(key=lambda r: r.get("event") or 0)
+    xs: dict[int, float] = {}
+    for doc in store.account_json(r"gw\d+_comparison"):
+        summary = doc.get("summary")
+        if isinstance(summary, dict) and summary.get("xscore") is not None:
+            xs[int(summary.get("gw", -1))] = float(summary["xscore"])
+    return {
+        "available": True,
+        "season": store.season,
+        "rows": [{"gw": r.get("event"), "points": r.get("points"),
+                  "total_points": r.get("total_points"),
+                  "bench_points": r.get("points_on_bench"),
+                  "transfers": r.get("event_transfers"),
+                  "xscore": xs.get(r.get("event")), "rank": r.get("rank")}
+                 for r in rows],
+    }

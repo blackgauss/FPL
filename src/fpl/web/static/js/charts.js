@@ -1,4 +1,52 @@
 // Band+line chart over uPlot (canvas fallback if uPlot is absent)
+const PALETTE = ["#2456d6", "#c62f2f", "#17803d", "#b07404", "#7a3cc2"];
+
+// Multi-series overlay (e.g. per-GW CDFs) — series: [{label, ys}]
+export function multiLineChart(host, xs, series, opts = {}) {
+  host.innerHTML = "";
+  const W = host.clientWidth || 520, H = opts.height || 240;
+  if (!window.uPlot || xs.length < 2 || !series.length) return false;
+  const s = [{}, ...series.map((se, i) => ({
+    label: se.label, stroke: PALETTE[i % PALETTE.length], width: 2,
+  }))];
+  const cfg = {
+    target: host, width: W, height: H, series: s,
+    scales: { x: { time: false },
+      ...(opts.scaleY ? { y: opts.scaleY } : {}) },
+    axes: [{ size: 42, label: opts.xlabel || "" },
+      { size: 46, ...(opts.yPercent
+        ? { values: (u, t) => t.map((v) => Math.round(v * 100) + "%") }
+        : {}) }],
+  };
+  const u = new window.uPlot(cfg, [xs, ...series.map((se) => se.ys)]);
+  if (u.root && !u.root.parentNode) host.append(u.root);
+  return true;
+}
+
+// Tiny inline sparkline of bars (no uPlot needed)
+export function sparkBars(host, values, opts = {}) {
+  host.innerHTML = "";
+  const max = Math.max(opts.min || 1, ...values.map((v) => v ?? 0));
+  for (const v of values) {
+    const h = v == null ? 0 : Math.max(2, Math.round(v / max * (opts.height || 18)));
+    host.append(el2("span", {
+      style: `display:inline-block;width:6px;margin:0 1px;height:${h}px;`
+        + `vertical-align:bottom;background:${opts.color || "#2456d6"};`
+        + `border-radius:1px;opacity:${v == null ? 0.25 : 0.85}`,
+      title: v == null ? "–" : String(v),
+    }));
+  }
+}
+
+function el2(tag, attrs) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "style") n.setAttribute("style", v);
+    else if (k === "title") n.title = v;
+  }
+  return n;
+}
+
 export function cdfChart(host, xs, cdf, opts = {}) {
   host.innerHTML = "";
   const W = host.clientWidth || 520, H = opts.height || 230;

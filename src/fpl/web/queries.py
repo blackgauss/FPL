@@ -36,6 +36,9 @@ class Store:
         self.forecast_cache = self.root / forecast_cache
         self._live: tuple[pl.DataFrame, str] | None = None
         self._teams: dict[int, str] | None = None
+        self._ratings: dict[int, float] | None = None
+        self._fixtures_df: pl.DataFrame | None = None
+        self._fixtures_read = False
         self._forecast: dict[tuple[int, int], pl.DataFrame | None] = {}
 
     # -- live snapshot (disk cache ONLY, never the network) --------------------
@@ -94,8 +97,142 @@ class Store:
                 self._teams = {}
         return self._teams
 
+    # -- fixture difficulty + league-owned derived data ----------------------------
+
+    def club_ratings(self) -> dict[int, float]:
+        """Club code -> 0..100 strength on the last KNOWN ELO per club (this
+        season fills first, older seasons cover clubs without one; unrated
+        clubs get the mean). ELO is null until a match settles, hence the
+        cross-season fallback."""
+        if self._ratings is None:
+            elo: dict[int, float] = {}
+            clubs: set[int] = set()
+            for path in sorted(self.processed.glob("matches_*.parquet"),
+                               reverse=True):
+                frame = self._safe_parquet(path)
+                if frame is None or "home_team_elo" not in frame.columns:
+                    continue
+                if frame.get_column("home_team").dtype != pl.Int64:
+                    frame = frame.with_columns(
+                        pl.col("home_team", "away_team").cast(pl.Int64))
+                frame = frame.sort("gw")
+                for row in frame.iter_rows(named=True):
+                    for club, col in ((row.get("home_team"),
+                                       "home_team_elo"),
+                                      (row.get("away_team"),
+                                       "away_team_elo")):
+                        if club is None:
+                            continue
+                        clubs.add(int(club))
+                        val = row.get(col)
+                        if val is not None and elo.get(int(club)) is None:
+                            elo[int(club)] = float(val)
+            if elo:
+                lo, hi = min(elo.values()), max(elo.values())
+                span = (hi - lo) or 1.0
+                mid = sum(elo.values()) / len(elo)
+                self._ratings = {
+                    c: round((elo.get(c, mid) - lo) / span * 100.0, 1)
+                    for c in clubs}
+            else:
+                self._ratings = {}
+        return self._ratings
+
+    def fixtures_frame(self) -> pl.DataFrame | None:
+        """(gw, team_code, opponent_code) both-venues view of this season's
+        fixture list, or None when the season's matches parquet is absent."""
+        if not self._fixtures_read:
+            self._fixtures_read = True
+            frame = self._safe_parquet(
+                self.processed / f"matches_{self.season}.parquet")
+            if frame is not None:
+                home = frame.select(
+                    "gw", pl.col("home_team").alias("team_code"),
+                    pl.col("away_team").alias("opponent_code"))
+                away = frame.select(
+                    "gw", pl.col("away_team").alias("team_code"),
+                    pl.col("home_team").alias("opponent_code"))
+                self._fixtures_df = pl.concat([home, away]).drop_nulls()
+        return self._fixtures_df
+
+    def difficulty_frame(self, gw_from: int, gw_to: int) -> pl.DataFrame:
+        """(player_code, gw, xdg) fixture difficulty 0..100 (stronger foe =
+        higher) for future GWs; empty when fixtures/ratings are unknown."""
+        fixtures, ratings = self.fixtures_frame(), self.club_ratings()
+        if fixtures is None or not ratings:
+            return pl.DataFrame(schema={
+                "player_code": pl.Int64, "gw": pl.Int64, "xdg": pl.Float64})
+        players = self._safe_parquet(
+            self.processed / f"players_{self.season}.parquet")
+        if players is None:
+            return pl.DataFrame(schema={
+                "player_code": pl.Int64, "gw": pl.Int64, "xdg": pl.Float64})
+        out = (
+            fixtures.filter(
+                (pl.col("gw") >= gw_from) & (pl.col("gw") <= gw_to))
+            .join(players.select("player_code", "team_code"),
+                  on="team_code", how="inner")
+            .join(
+                pl.DataFrame({"opponent_code": list(ratings),
+                              "xdg": list(ratings.values())}),
+                on="opponent_code", how="inner")
+            .sort(["player_code", "gw"], maintain_order=True)
+            .group_by(["player_code", "gw"], maintain_order=True)
+            .first().select("player_code", "gw",
+                            pl.col("xdg").cast(pl.Float64))
+        )
+        return out
+
+    def league_ownership(self) -> dict[int, dict]:
+        """player_id -> {pct, managers} among collected league picks (latest
+        GW); entry-per-unique-manager basis, same as the weekly planner."""
+        picks = self.account("team_picks")
+        if picks is None or not picks.height:
+            return {}
+        gw = int(picks.get_column("gw").max())
+        latest = picks.filter(pl.col("gw") == gw)
+        n = latest.get_column("entry_id").n_unique()
+        if not n:
+            return {}
+        counts = (latest.unique(["entry_id", "element"])
+                  .group_by("element").agg(pl.len().alias("managers")))
+        return {int(r["element"]): {"pct": round(100.0 * r["managers"] / n, 1),
+                                    "managers": int(r["managers"])}
+                for r in counts.iter_rows(named=True)}
+
+    def league_report(self) -> dict | None:
+        """Per-manager GW scores + head-to-head results derived from
+        collected league matches (FPL's own winner fields are unsettled, so
+        results fall back to the score comparison resolve_h2h uses)."""
+        matches = self.account("league_matches")
+        if matches is None or not matches.height:
+            return None
+        series: dict[int, dict[int, dict]] = {}
+        for row in matches.sort("event").iter_rows(named=True):
+            if row.get("is_bye"):
+                continue
+            sides = [
+                (row.get("entry_1_entry"), row.get("entry_1_points"),
+                 row.get("entry_2_entry"), row.get("entry_2_points")),
+                (row.get("entry_2_entry"), row.get("entry_2_points"),
+                 row.get("entry_1_entry"), row.get("entry_1_points")),
+            ]
+            for eid, pts, opp, opp_pts in sides:
+                if eid is None or pts is None:
+                    continue
+                result = ("W" if opp_pts is None or pts > opp_pts
+                          else "D" if pts == opp_pts else "L")
+                series.setdefault(int(eid), {})[int(row["event"])] = {
+                    "points": float(pts), "opponent": opp,
+                    "opponent_points": opp_pts, "result": result}
+        events = sorted({gw for per in series.values() for gw in per})
+        return {"events": events, "managers": {
+            str(eid): {str(gw): cell for gw, cell in per.items()}
+            for eid, per in series.items()}}
+
     SORTABLE = {"web_name", "position", "team", "team_code", "player_code",
-                "now_cost", "status", "selected_by_percent", "pred_next"}
+                "now_cost", "status", "selected_by_percent", "pred_next",
+                "xdg_next", "xdg_next5", "own_league"}
 
     def players(self, *, search: str | None = None, position: str | None = None,
                 club: int | None = None, status: str | None = None,
@@ -149,6 +286,32 @@ class Store:
                 (pl.col("team_code").cast(pl.Int64, strict=False)
                  .replace_strict(names, default=None, return_dtype=pl.String)
                  if names else pl.lit(None, dtype=pl.String)).alias("team"))
+
+        gw = self.current_gw()
+        diff = self.difficulty_frame(gw + 1, gw + 5)
+        if diff.height:
+            nxt = diff.filter(pl.col("gw") == gw + 1).select(
+                "player_code", pl.col("xdg").alias("xdg_next"))
+            nxt5 = diff.group_by("player_code").agg(
+                pl.col("xdg").mean().alias("xdg_next5"))
+            df = df.join(nxt, on="player_code", how="left").join(
+                nxt5, on="player_code", how="left")
+        else:
+            df = df.with_columns(
+                pl.lit(None, dtype=pl.Float64).alias("xdg_next"),
+                pl.lit(None, dtype=pl.Float64).alias("xdg_next5"))
+
+        ownership = self.league_ownership()
+        if ownership and "player_id" in df.columns:
+            df = df.with_columns(
+                pl.col("player_id").cast(pl.Int64, strict=False)
+                .replace_strict(
+                    {k: v["pct"] for k, v in ownership.items()},
+                    default=None, return_dtype=pl.Float64
+                ).alias("own_league"))
+        elif "own_league" not in df.columns:
+            df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias(
+                "own_league"))
 
         pred = self.predicted_next(self.current_gw() + 1)
         if pred is not None:

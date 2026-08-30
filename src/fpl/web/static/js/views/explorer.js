@@ -1,6 +1,6 @@
 // Explorer view: faceted player table + forecast drawer
 import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
-import { bandChart, cdfChart } from "../charts.js";
+import { bandChart, multiLineChart } from "../charts.js";
 
 const PAGE = 25;
 const CHIP = {
@@ -58,7 +58,8 @@ export async function render(root) {
   const COLUMNS = [
     ["Player", "web_name"], ["Pos", "position"], ["Team", "team"],
     ["Price", "now_cost"], ["Status", "status"],
-    ["Own %", "selected_by_percent"], ["Pred next", "pred_next"],
+    ["Own %", "selected_by_percent"], ["Own % lg", "own_league"],
+    ["Pred next", "pred_next"], ["xDG nxt", "xdg_next"], ["xDG ~5", "xdg_next5"],
   ];
 
   function headerCell(h, key) {
@@ -88,9 +89,14 @@ export async function render(root) {
         el("td", {}, fmtPrice(price)),
         el("td", {}, el("span", { class: `chip ${cls}` }, txt)),
         el("td", {}, r.selected_by_percent != null ? fmtNum(r.selected_by_percent) : "–"),
+        el("td", { title: "owned by league managers (latest collected picks)" },
+          r.own_league != null ? fmtNum(r.own_league) + "%" : "–"),
         el("td", {
           title: r.pred_next == null && r.ep_next != null ? "official FPL ep_next (no model row)" : "",
-        }, fmtNum(r.pred_next ?? r.ep_next))));
+        }, fmtNum(r.pred_next ?? r.ep_next)),
+        el("td", { title: "opponent strength next GW, 0 (weak) – 100 (strong)" },
+          r.xdg_next != null ? fmtNum(r.xdg_next) : "–"),
+        el("td", {}, r.xdg_next5 != null ? fmtNum(r.xdg_next5) : "–")));
     }
     return t;
   }
@@ -148,18 +154,25 @@ async function fetchForecast(code, gw, retries = 2) {
         el("td", {}, fmtNum(q05[i])), el("td", {}, fmtNum(q25[i])),
         el("td", {}, fmtNum(q75[i])), el("td", {}, fmtNum(q95[i])))))));
 
-    // full CDF from the t-digest quantiles: upside/downside shape
-    holder.append(el("h2", {}, "Points CDF"));
-    const gwSel = el("select", {},
-      ...rows.map(r => el("option", { value: String(r.gw) }, "GW" + r.gw)));
-    const cdfStats = el("div", { class: "meta" }, "loading…");
+    // full CDFs from the t-digest quantiles, overlaid across the window
+    holder.append(el("h2", {}, "Points CDF by GW"));
+    const cdfNote = el("div", { class: "meta" }, "loading…");
     const cdfBox = el("div", { class: "chart" });
-    holder.append(el("div", { class: "controls" }, gwSel), cdfStats, cdfBox);
-    async function showCdf(gwv) {
-      cdfStats.textContent = "loading…";
-      try {
-        const d = await api.forecastCdf({ player_code: code, gw: gwv });
-        if (!cdfChart(cdfBox, d.xs, d.cdf)) cdfStats.textContent = "";
+    const cdfTbl = el("table", {}, el("thead", {}, el("tr", {},
+      ...["GW", "median", "P(≥5)", "P(≥10)", "blank"].map(h => el("th", {}, h)))), el("tbody"));
+    holder.append(cdfNote, cdfBox, cdfTbl);
+    (async () => {
+      const per = [];
+      for (const gwv of [...new Set(rows.map(r => r.gw))]) {
+        try { per.push(await api.forecastCdf({ player_code: code, gw: gwv })); }
+        catch { /* cold or outside window: remaining GWs still draw */ }
+      }
+      if (!per.length) { cdfNote.textContent = "CDF unavailable (cold forecast)"; return; }
+      cdfNote.textContent = "cumulative probability of GW points";
+      multiLineChart(cdfBox, per[0].xs,
+        per.map((d) => ({ label: "GW" + d.gw, ys: d.cdf })),
+        { yPercent: true, xlabel: "points" });
+      for (const d of per) {
         const step = d.xs[1] - d.xs[0];
         const pAt = (x) => {
           if (x <= d.xs[0]) return d.cdf[0];
@@ -167,19 +180,14 @@ async function fetchForecast(code, gw, retries = 2) {
           const i = Math.min(d.cdf.length - 2, Math.floor(x / step));
           return d.cdf[i] + (x / step - i) * (d.cdf[i + 1] - d.cdf[i]);
         };
-        cdfStats.textContent =
-          `blank P(=0): ${Math.round(pAt(0.5) * 100)}% · ` +
-          `P(≥5): ${Math.round((1 - pAt(5)) * 100)}% · ` +
-          `P(≥10): ${Math.round((1 - pAt(10)) * 100)}% · ` +
-          `q05 ${fmtNum(d.quantiles.q5)} · median ${fmtNum(d.quantiles.q50)} · ` +
-          `q95 ${fmtNum(d.quantiles.q95)}`;
-      } catch (e) {
-        cdfStats.textContent = e.cold ? "computing forecast…" : `cdf: ${e.message}`;
-        cdfBox.replaceChildren();
+        cdfTbl.lastChild.append(el("tr", {},
+          el("td", {}, "GW" + d.gw),
+          el("td", {}, fmtNum(d.quantiles.q50)),
+          el("td", {}, Math.round((1 - pAt(5)) * 100) + "%"),
+          el("td", {}, Math.round((1 - pAt(10)) * 100) + "%"),
+          el("td", {}, Math.round(pAt(0.5) * 100) + "%")));
       }
-    }
-    gwSel.addEventListener("change", () => showCdf(gwSel.value));
-    showCdf(String(rows[0].gw));
+    })();
     return holder;
   } catch (e) {
     if (e.cold && retries > 0) {

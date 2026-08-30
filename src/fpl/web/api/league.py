@@ -66,3 +66,43 @@ def get_standings(request: Request, entry_id: int | None = None) -> dict:
 
     return {"available": True, "kind": "classic", "current_gw": current_gw,
             "points_gw": points_gw, "entry_id": entry_id, "rows": rows}
+
+
+@router.get("/standings/report")
+def get_report(request: Request) -> dict:
+    store = get_store(request)
+    report = store.league_report()
+    if report is None:
+        return {"available": False,
+                "reason": "no collected league_matches"}
+    return {"available": True, **report}
+
+
+@router.get("/ownership")
+def get_ownership(request: Request) -> dict:
+    """Friend-owned players with official-ownership deltas: what my league
+    is collectively riding on, and where I can differentiate."""
+    store = get_store(request)
+    ownership = store.league_ownership()
+    if not ownership:
+        return {"available": False,
+                "reason": "no collected team_picks for the league"}
+    table = store.players(limit=1000)
+    rows = []
+    for r in table["rows"]:
+        own = r.get("own_league")
+        if own is None:
+            continue
+        official = r.get("selected_by_percent")
+        rows.append({
+            "player_code": r.get("player_code"), "web_name": r.get("web_name"),
+            "position": r.get("position"), "team": r.get("team"),
+            "own_league": own, "managers": ownership.get(
+                r.get("player_id"), {}).get("managers"),
+            "own_official": official,
+            "diff": round(own - official, 1) if official is not None else None,
+            "pred_next": r.get("pred_next"),
+        })
+    rows.sort(key=lambda r: -(r["own_league"] or 0))
+    return {"available": True, "basis": "latest collected picks",
+            "rows": rows}

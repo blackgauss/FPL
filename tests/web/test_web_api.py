@@ -75,7 +75,7 @@ def _write_root(root: Path) -> Path:
         "total_points": [5] * N_PLAYERS,
     }).write_parquet(account / "event_live.parquet")
 
-    pl.DataFrame({
+    picks_frame = pl.DataFrame({
         "entry_id": [ENTRY] * 15,
         "gw": [1] * 15,
         "element": list(range(1, 16)),
@@ -87,12 +87,57 @@ def _write_root(root: Path) -> Path:
     }, schema={"entry_id": pl.Int64, "gw": pl.Int64, "element": pl.Int64,
                "position": pl.Int64, "multiplier": pl.Int64,
                "is_captain": pl.Boolean, "is_vice_captain": pl.Boolean,
-               "element_type": pl.Int64}).write_parquet(account / "team_picks.parquet")
+               "element_type": pl.Int64})
+    # two rival managers' picks make league ownership meaningful (3 entries)
+    rivals = pl.concat([
+        pl.DataFrame({"entry_id": [111] * 10, "gw": [1] * 10,
+                      "element": list(range(1, 11)),
+                      "position": list(range(1, 11))}),
+        pl.DataFrame({"entry_id": [333] * 10, "gw": [1] * 10,
+                      "element": list(range(11, 21)),
+                      "position": list(range(1, 11))}),
+    ])
+    pl.concat([picks_frame, rivals.select(
+        "entry_id", "gw", "element", "position",
+        pl.lit(1, dtype=pl.Int64).alias("multiplier"),
+        pl.lit(False).alias("is_captain"),
+        pl.lit(False).alias("is_vice_captain"),
+        pl.lit(1, dtype=pl.Int64).alias("element_type"))],
+        how="vertical_relaxed").write_parquet(account / "team_picks.parquet")
 
     pl.DataFrame({
-        "entry_id": [ENTRY], "event": [1], "points": [55], "total_points": [55],
-        "rank": [100],
+        "entry_id": [ENTRY] * 2 + [111, 333],
+        "event": [1, 2, 1, 2],
+        "points": [55, 61, 52, 48],
+        "total_points": [55, 116, 52, 100],
+        "rank": [100, 90, 40, 55],
+        "points_on_bench": [2, 6, 0, 1],
+        "event_transfers": [0, 1, 0, 0],
     }).write_parquet(account / "team_history.parquet")
+
+    # fixtures: GW1 settled with ELO, GW2 upcoming (difficulty fallback uses it)
+    gw_home = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] + [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    gw_away = [11, 12, 13, 14, 15, 16, 17, 18, 19, 20] + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    pl.DataFrame({
+        "match_id": list(range(1, 21)),
+        "gw": [1] * 10 + [2] * 10,
+        "kickoff_time": ["x"] * 20,
+        "home_team": gw_home,
+        "away_team": gw_away,
+        "home_score": [2] * 20, "away_score": [1] * 20,
+        "home_team_elo": [1600 + 20 * i for i in range(1, 11)] + [None] * 10,
+        "away_team_elo": [1500 + 20 * i for i in range(1, 11)] + [None] * 10,
+        "tournament": ["epl"] * 20, "finished": [True] * 10 + [False] * 10,
+        "season": [SEASON] * 20,
+    }).write_parquet(processed / f"matches_{SEASON}.parquet")
+
+    pl.DataFrame({
+        "entry_1_entry": [111, ENTRY], "entry_1_points": [52, 61],
+        "entry_2_entry": [ENTRY, 333], "entry_2_points": [55, 48],
+        "entry_1_player_name": ["Ann Other", "Erik IJ"],
+        "entry_2_player_name": ["Erik IJ", "Sam Other"],
+        "event": [1, 2], "is_bye": [False, False],
+    }).write_parquet(account / "league_matches.parquet")
 
     pl.DataFrame({
         "league_id": [1005115] * 3,
@@ -105,7 +150,8 @@ def _write_root(root: Path) -> Path:
         "last_rank": [0, 0, 0],
     }).write_parquet(account / "league_standings.parquet")
 
-    (account / "collection.json").write_text(json.dumps({"entry": {"id": ENTRY}}))
+    (account / "collection.json").write_text(json.dumps(
+        {"entry": {"id": ENTRY}, "entry_id": ENTRY}))
     (account / "gw1_comparison.json").write_text(json.dumps({
         "summary": {"gw": 1, "xscore": 40.2, "actual_score": 55.0,
                     "history_score": 55, "score_source": "event_live_settlement",
@@ -356,7 +402,7 @@ def test_league_standings(client: TestClient) -> None:
     assert len(body["rows"]) == 3
     mine = next(r for r in body["rows"] if r["entry_id"] == ENTRY)
     assert mine["is_self"] is True
-    assert mine["gw_points"] == 55  # from collected team_history event 1
+    assert mine["gw_points"] == 61  # from collected team_history, latest event
     assert mine in body["rows"][1:]
 
 
@@ -411,6 +457,10 @@ def _capture_payloads(client: TestClient) -> dict:
         "/api/transfers/suggestions": client.get(
             "/api/transfers/suggestions").json(),
         "/api/league/standings": client.get("/api/league/standings").json(),
+        "/api/league/standings/report": client.get(
+            "/api/league/standings/report").json(),
+        "/api/league/ownership": client.get("/api/league/ownership").json(),
+        "/api/team/history": client.get("/api/team/history").json(),
     }
 
 
@@ -484,3 +534,40 @@ def test_players_have_team_names(client: TestClient) -> None:
     asc = client.get("/api/players",
                      params={"sort": "team", "dir": "asc"}).json()["rows"]
     assert [r["team"] for r in asc] == sorted(r["team"] for r in asc)
+
+
+# -- difficulty, league ownership, form, history --------------------------------
+
+def test_players_has_xdg_and_league_ownership(client: TestClient) -> None:
+    rows = client.get("/api/players", params={"limit": 50}).json()["rows"]
+    by_id = {r["player_id"]: r for r in rows}
+    assert 0.0 <= by_id[1]["xdg_next"] <= 100.0   # GW2 foe rated from GW1 ELO
+    assert by_id[1]["xdg_next5"] is not None
+    assert by_id[1]["own_league"] == 66.7         # me + rival 111 of 3 entries
+    assert by_id[20]["own_league"] == 33.3        # only rival 333 owns element 20
+    assert client.get("/api/players", params={
+        "sort": "xdg_next", "dir": "desc"}).json()["rows"][0]
+
+
+def test_league_report_derives_results(client: TestClient) -> None:
+    body = client.get("/api/league/standings/report").json()
+    assert body["available"] and body["events"] == [1, 2]
+    mine = body["managers"][str(ENTRY)]
+    assert mine["1"]["result"] == "W" and mine["1"]["points"] == 55.0
+    assert mine["2"]["result"] == "W" and mine["2"]["opponent_points"] == 48
+
+
+def test_league_ownership_endpoint(client: TestClient) -> None:
+    body = client.get("/api/league/ownership").json()
+    assert body["available"]
+    row = next(r for r in body["rows"] if r["player_code"] == 1001)
+    assert row["own_league"] == 66.7 and row["managers"] == 2
+    assert all(r["own_league"] > 0 for r in body["rows"])
+
+
+def test_team_history_endpoint(client: TestClient) -> None:
+    body = client.get("/api/team/history").json()
+    assert body["available"]
+    assert [r["gw"] for r in body["rows"]] == [1, 2]
+    assert body["rows"][0]["xscore"] == 40.2   # joined from gw1 comparison
+    assert body["rows"][1]["bench_points"] == 6
