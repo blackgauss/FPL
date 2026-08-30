@@ -149,7 +149,9 @@ def _write_root(root: Path) -> Path:
     (root / "data/raw/fpl_api/live.json").write_text(json.dumps({
         "fetched_at": datetime.now(UTC).isoformat(),
         "fetched_epoch": time.time(),
-        "payload": {"elements": elements},
+        "payload": {"elements": elements, "teams": [
+            {"code": c, "short_name": f"T{c}", "name": f"Team {c}"}
+            for c in range(1, 21)]},
     }))
 
     (artifacts / "ranking.metrics.json").write_text(json.dumps(
@@ -474,3 +476,11 @@ def test_forecast_cdf_missing_player(client: TestClient,
     r = client.get("/api/forecast/cdf",
                    params={"player_code": 999999, "gw": 3})
     assert r.status_code == 404
+
+
+def test_players_have_team_names(client: TestClient) -> None:
+    rows = client.get("/api/players").json()["rows"]
+    assert all(r["team"] and r["team"].startswith("T") for r in rows)
+    asc = client.get("/api/players",
+                     params={"sort": "team", "dir": "asc"}).json()["rows"]
+    assert [r["team"] for r in asc] == sorted(r["team"] for r in asc)

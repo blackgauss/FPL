@@ -56,7 +56,7 @@ export async function render(root) {
   }
 
   const COLUMNS = [
-    ["Player", "web_name"], ["Pos", "position"], ["Team", null],
+    ["Player", "web_name"], ["Pos", "position"], ["Team", "team"],
     ["Price", "now_cost"], ["Status", "status"],
     ["Own %", "selected_by_percent"], ["Pred next", "pred_next"],
   ];

@@ -35,6 +35,7 @@ class Store:
         self.artifacts_dir = self.root / artifacts_dir
         self.forecast_cache = self.root / forecast_cache
         self._live: tuple[pl.DataFrame, str] | None = None
+        self._teams: dict[int, str] | None = None
         self._forecast: dict[tuple[int, int], pl.DataFrame | None] = {}
 
     # -- live snapshot (disk cache ONLY, never the network) --------------------
@@ -80,7 +81,20 @@ class Store:
 
     # -- players (explorer table) -----------------------------------------------
 
-    SORTABLE = {"web_name", "position", "team_code", "player_code",
+    def team_names(self) -> dict[int, str]:
+        """FPL club code -> short name, from the cached bootstrap payload."""
+        if self._teams is None:
+            try:
+                record = json.loads(self.live_cache.read_text(encoding="utf-8"))
+                self._teams = {
+                    int(t["code"]): str(t.get("short_name") or t.get("name") or "")
+                    for t in record["payload"].get("teams", [])
+                    if isinstance(t, dict) and t.get("code") is not None}
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                self._teams = {}
+        return self._teams
+
+    SORTABLE = {"web_name", "position", "team", "team_code", "player_code",
                 "now_cost", "status", "selected_by_percent", "pred_next"}
 
     def players(self, *, search: str | None = None, position: str | None = None,
@@ -128,6 +142,13 @@ class Store:
                     pl.Float64, strict=False))
             if status:
                 df = df.filter(pl.col("status") == status)
+
+        names = self.team_names()
+        if "team" not in df.columns:
+            df = df.with_columns(
+                (pl.col("team_code").cast(pl.Int64, strict=False)
+                 .replace_strict(names, default=None, return_dtype=pl.String)
+                 if names else pl.lit(None, dtype=pl.String)).alias("team"))
 
         pred = self.predicted_next(self.current_gw() + 1)
         if pred is not None:
