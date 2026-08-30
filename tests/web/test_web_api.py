@@ -414,3 +414,13 @@ def test_headless_render_smoke(client: TestClient, tmp_path: Path,
     r = subprocess.run([node, str(js_dir / "render_smoke.mjs"), str(payloads)],
                        capture_output=True, text=True, timeout=120, cwd=js_dir)
     assert r.returncode == 0, f"render smoke failed:\n{r.stdout}\n{r.stderr}"
+
+
+def test_static_assets_revalidate(client: TestClient) -> None:
+    """Deployed JS must never be served from a heuristic browser cache:
+    a stale explorer.js once made a shipped fix look like a live bug."""
+    for path in ("/", "/js/views/explorer.js"):
+        r = client.get(path)
+        assert r.status_code == 200
+        assert r.headers["cache-control"] == "no-cache"
+        assert "etag" in r.headers

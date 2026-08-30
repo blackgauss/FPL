@@ -12,6 +12,20 @@ from fpl.web.queries import Store
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+class RevalidateStatic(StaticFiles):
+    """Always revalidate (ETag/Last-Modified -> cheap 304s).
+
+    Without Cache-Control, browsers apply heuristic freshness and can serve
+    days-old JS after a deploy — a shipped-but-inert fix looks like a
+    still-broken bug (exactly what happened with explorer.js).
+    """
+
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 def create_app(store: Store | None = None) -> FastAPI:
     app = FastAPI(
         title="FPL web UI (PoC)", version="0.1",
@@ -24,5 +38,5 @@ def create_app(store: Store | None = None) -> FastAPI:
     for router in api.API_ROUTERS:
         app.include_router(router, prefix="/api", tags=[router.prefix or "api"])
 
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    app.mount("/", RevalidateStatic(directory=STATIC_DIR, html=True), name="static")
     return app

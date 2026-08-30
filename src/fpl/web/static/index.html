@@ -60,6 +60,23 @@ pre.json { background:#f2f4f7; padding:8px; border-radius:6px; overflow:auto; }
 </header>
 <main id="content"><div class="loading"><span class="spinner"></span> Loading…</div></main>
 <div id="drawer" class="drawer hidden"></div>
+<div id="jserr" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#7a1d1d;color:#fff;padding:8px 14px;font:12px ui-monospace,monospace;white-space:pre-wrap;z-index:99;max-height:30vh;overflow:auto"></div>
+<script>
+// Uncaught errors surface at the bottom of the page (report this text if the
+// UI misbehaves); stale-asset deploys can otherwise fail silently in browser.
+window.addEventListener("error", (e) => {
+  const box = document.getElementById("jserr");
+  box.style.display = "block";
+  box.textContent = "JS error: " + (e.message || e.error)
+    + " @ " + (e.filename || "?") + ":" + (e.lineno || "?")
+    + (e.stack ? "\n" + String(e.stack).split("\n").slice(0, 4).join("\n") : "");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const box = document.getElementById("jserr");
+  box.style.display = "block";
+  box.textContent = "JS promise error: " + (e.reason?.stack || e.reason);
+});
+</script>
 <script type="module">
 const meta = { season: "", current_gw: 0, artifacts: [] };
 window.FPL_META = meta;
