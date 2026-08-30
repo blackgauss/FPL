@@ -82,7 +82,10 @@ def distributional_forecast(
         fit_gw_max=fit_gw_max, test_gw_min=test_gw_min, seed=seed,
     )
 
-    td = load_training(processed, [season])[season]
+    # horizon rows exist BEFORE targets do (that's the point of forecasting a
+    # GW), so keep rows without next_points; require_target would empty the
+    # frame mid-season and crash the struct cast below
+    td = load_training(processed, [season], require_target=False)[season]
     players = pl.read_parquet(f"{processed}/players_{season}.parquet")
 
     # horizon prediction rows are td rows with gw in [gw_start-1, gw_end-1]

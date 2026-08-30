@@ -111,6 +111,19 @@ class TestAssemble:
         assert fwd_a == fwd_b == 1
         assert td_b.X[td_b.meta["player_code"] == 118748, pos_idx][0] == 3
 
+    def test_unknown_position_encodes_missing_not_crash(self, frames):
+        """Real trap: players_{new-season} carry position "UNK" before the
+        season shapes out; the vocabulary cast must yield null, not raise."""
+        import math
+
+        from fpl.model.train import FEATURE_COLUMNS
+        features, players, gw_stats = frames
+        players_unk = players.with_columns(position=pl.Series(["UNK", "MID"]))
+        td = assemble(features, players_unk, gw_stats, season="2026-2027")
+        pos_idx = FEATURE_COLUMNS.index("position")
+        unk_rows = td.meta["player_code"].to_list().index(223094)
+        assert math.isnan(td.X[unk_rows, pos_idx])
+
 
 class TestStableIdentity:
     """Cross-season safety: player_id is season-local (803/804 reused for a

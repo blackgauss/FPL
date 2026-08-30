@@ -1,0 +1,380 @@
+"""API contract tests over a synthetic data root (tmp Store, no disk repo data)."""
+
+from __future__ import annotations
+
+import json
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+
+import polars as pl
+import pytest
+from fastapi.testclient import TestClient
+
+from fpl.dist import QS
+from fpl.web.app import create_app
+from fpl.web.queries import Store
+
+SEASON = "2026-2027"
+ENTRY = 4242
+N_PLAYERS = 20
+POS = ["GKP", "DEF", "MID", "FWD"]
+ETYPE = {"GKP": 1, "DEF": 2, "MID": 3, "FWD": 4}
+
+
+def _player_record(i: int) -> dict:
+    pos = POS[i % 4]
+    return {
+        "player_id": i, "player_code": 1000 + i, "web_name": "Salah" if i == 10 else f"P{i:02d}",
+        "position": pos, "team_code": 1 + (i - 1) % 20, "element_type": ETYPE[pos],
+    }
+
+
+PLAYERS = [_player_record(i) for i in range(1, N_PLAYERS + 1)]
+
+
+def _write_root(root: Path) -> Path:
+    processed = root / "data/processed"
+    account = root / "data/raw/fpl_api/account"
+    artifacts = root / "experiments/artifacts"
+    for d in (processed, account, root / "data/raw/fpl_api",
+              root / "data/webcache", artifacts):
+        d.mkdir(parents=True, exist_ok=True)
+
+    pl.DataFrame({
+        "player_code": [p["player_code"] for p in PLAYERS],
+        "player_id": [p["player_id"] for p in PLAYERS],
+        "first_name": [f"First{p['player_id']}" for p in PLAYERS],
+        "second_name": ["Faker" if p["player_id"] != 10 else "Salah" for p in PLAYERS],
+        "web_name": [p["web_name"] for p in PLAYERS],
+        "team_code": [p["team_code"] for p in PLAYERS],
+        "position": [p["position"] for p in PLAYERS],
+        "season": [SEASON] * N_PLAYERS,
+    }).write_parquet(processed / f"players_{SEASON}.parquet")
+
+    pl.DataFrame({
+        "player_id": list(range(1, N_PLAYERS + 1)),
+        "gw": [1] * N_PLAYERS,
+        "now_cost": [60 + i for i in range(1, N_PLAYERS + 1)],
+        "total_points": [5] * N_PLAYERS,
+    }).write_parquet(processed / f"gw_stats_{SEASON}.parquet")
+
+    pl.DataFrame({
+        "player_id": list(range(1, N_PLAYERS + 1)),
+        "player_code": [1000 + i for i in range(1, N_PLAYERS + 1)],
+        "gw": [1] * N_PLAYERS,
+    }).write_parquet(processed / f"features_{SEASON}.parquet")
+
+    pl.DataFrame({
+        "gw": [1] * N_PLAYERS,
+        "player_id": list(range(1, N_PLAYERS + 1)),
+        "minutes": [90] * N_PLAYERS,
+        "total_points": [5] * N_PLAYERS,
+    }).write_parquet(account / "event_live.parquet")
+
+    pl.DataFrame({
+        "entry_id": [ENTRY] * 15,
+        "gw": [1] * 15,
+        "element": list(range(1, 16)),
+        "position": list(range(1, 16)),
+        "multiplier": [2 if e == 5 else 1 for e in range(1, 16)],
+        "is_captain": [e == 5 for e in range(1, 16)],
+        "is_vice_captain": [e == 9 for e in range(1, 16)],
+        "element_type": [p["element_type"] for p in PLAYERS[:15]],
+    }, schema={"entry_id": pl.Int64, "gw": pl.Int64, "element": pl.Int64,
+               "position": pl.Int64, "multiplier": pl.Int64,
+               "is_captain": pl.Boolean, "is_vice_captain": pl.Boolean,
+               "element_type": pl.Int64}).write_parquet(account / "team_picks.parquet")
+
+    pl.DataFrame({
+        "entry_id": [ENTRY], "event": [1], "points": [55], "total_points": [55],
+        "rank": [100],
+    }).write_parquet(account / "team_history.parquet")
+
+    pl.DataFrame({
+        "league_id": [1005115] * 3,
+        "entry_id": [111, ENTRY, 333],
+        "rank": [1, 2, 3],
+        "player_name": ["Ann Other", "Erik IJ", "Sam Other"],
+        "entry_name": ["Alpha", "Mine", "Gamma"],
+        "total": [60, 55, 40],
+        "event_total": [60, 55, 40],
+        "last_rank": [0, 0, 0],
+    }).write_parquet(account / "league_standings.parquet")
+
+    (account / "collection.json").write_text(json.dumps({"entry": {"id": ENTRY}}))
+    (account / "gw1_comparison.json").write_text(json.dumps({
+        "summary": {"gw": 1, "xscore": 40.2, "actual_score": 55.0,
+                    "history_score": 55, "score_source": "event_live_settlement",
+                    "error": -14.8, "player_count": 15},
+        "players": [],
+    }))
+    (account / "gw2_plan.json").write_text(json.dumps({
+        "gw": 2, "bank_tenths": 1,
+        "current_squad": [1001 + i for i in range(1, 15)],
+        "ownership_basis": "unique league entries selecting the player",
+        "options": [{
+            "transfer_out": "P03", "transfer_in": "New Guy",
+            "transfer_out_code": 1013, "transfer_in_code": 999999,
+            "expected_score": 60.1, "expected_delta": 2.4,
+            "ownership_in": 0.1, "ownership_out": 0.68,
+            "captain": 1005, "vice_captain": 999999,
+        }],
+    }))
+
+    elements = [{
+        "id": p["player_id"], "code": p["player_code"], "web_name": p["web_name"],
+        "team": 1, "team_code": p["team_code"], "element_type": p["element_type"],
+        "now_cost": 60 + p["player_id"],
+        "status": "i" if p["player_id"] == 3 else "a",
+        "news": "", "news_added": None,
+        "chance_of_playing_this_round": None,
+        "chance_of_playing_next_round": None,
+        "selected_by_percent": "3.0", "minutes": 90,
+        "ep_next": "4.5", "ep_this": "4.1",
+        "removed": False, "can_select": True, "can_transact": True,
+    } for p in PLAYERS]
+    (root / "data/raw/fpl_api/live.json").write_text(json.dumps({
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "fetched_epoch": time.time(),
+        "payload": {"elements": elements},
+    }))
+
+    (artifacts / "ranking.metrics.json").write_text(json.dumps(
+        {"lgbm_all": {"spearman_rho": 0.67}}))
+    (artifacts / "ranking.json").write_text(json.dumps({"models": ["lgbm"]}))
+    (artifacts / "search.metrics.json").write_text(json.dumps({"best": 61.0}))
+    return root
+
+
+def _client(root: Path) -> TestClient:
+    return TestClient(create_app(Store(root=root, season=SEASON)))
+
+
+@pytest.fixture()
+def client(tmp_path: Path) -> TestClient:
+    return _client(_write_root(tmp_path / "full"))
+
+
+@pytest.fixture()
+def empty_client(tmp_path: Path) -> TestClient:
+    root = tmp_path / "empty"
+    root.mkdir()
+    return _client(root)
+
+
+def fake_forecast(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch the model cold-build with a deterministic frame over our players."""
+    def fake(processed: str, season: str, gw_start: int, gw_end: int, **kw):
+        qcols = {f"q{int(q * 100)}": [] for q in QS}
+        rows: dict[str, list] = {"player_code": [], "web_name": [],
+                                 "position": [], "gw": [], "pred": []}
+        for p in PLAYERS:
+            for gw in range(gw_start, gw_end + 1):
+                rows["player_code"].append(p["player_code"])
+                rows["web_name"].append(p["web_name"])
+                rows["position"].append(p["position"])
+                rows["gw"].append(gw)
+                rows["pred"].append(4.0 + gw)
+                for q in QS:
+                    qcols[f"q{int(q * 100)}"].append(gw * 0.5 + q * p["player_code"] / 100)
+        return (pl.DataFrame(rows)
+                .with_columns(pl.DataFrame(qcols).to_struct("quantiles_struct")))
+    monkeypatch.setattr("fpl.team.distribution.distributional_forecast", fake)
+
+
+# -- meta ------------------------------------------------------------------
+
+def test_meta(client: TestClient) -> None:
+    r = client.get("/api/meta")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["season"] == SEASON
+    assert body["current_gw"] == 1
+    assert body["live"]["available"] is True
+    assert body["live"]["fetched_at"]
+    assert body["live"]["age_seconds"] >= 0
+    assert {"name", "mtime", "size"} <= set(body["artifacts"][0])
+
+
+def test_meta_missing_data(empty_client: TestClient) -> None:
+    body = empty_client.get("/api/meta").json()
+    assert body["current_gw"] == 0
+    assert body["live"] == {"available": False, "fetched_at": None,
+                            "age_seconds": None}
+    assert body["artifacts"] == []
+
+
+# -- players ----------------------------------------------------------------
+
+def test_players_rows(client: TestClient) -> None:
+    r = client.get("/api/players")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["season"] == SEASON
+    assert body["current_gw"] == 1
+    assert body["total"] == N_PLAYERS
+    row = next(x for x in body["rows"] if x["web_name"] == "Salah")
+    assert row["status"] == "a" and "now_cost" in row and "pred_next" in row
+
+
+def test_players_search_and_position(client: TestClient) -> None:
+    body = client.get("/api/players", params={"search": "salah"}).json()
+    assert body["total"] == 1
+    assert body["rows"][0]["web_name"] == "Salah"
+
+    body = client.get("/api/players", params={"position": "GKP"}).json()
+    assert body["total"] == N_PLAYERS // 4
+    assert all(r["position"] == "GKP" for r in body["rows"])
+
+
+def test_players_max_price(client: TestClient) -> None:
+    body = client.get("/api/players", params={"max_price": 64}).json()
+    assert body["total"] == 4  # now_cost 61..64
+
+
+def test_players_pred_next(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    body = client.get("/api/players").json()
+    assert all(isinstance(r["pred_next"], (int, float)) for r in body["rows"])
+    assert next(r for r in body["rows"] if r["web_name"] == "P01")["pred_next"] == 6.0
+
+
+def test_players_missing_data(empty_client: TestClient) -> None:
+    body = empty_client.get("/api/players").json()
+    assert body["available"] is False
+    assert body["rows"] == []
+
+
+# -- forecast -----------------------------------------------------------------
+
+def test_forecast_rows(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    codes = "1001,1002"
+    body = client.get("/api/forecast",
+                      params={"player_codes": codes, "gw_start": 3,
+                              "horizon": 2}).json()
+    assert body["gw_start"] == 3 and body["gw_end"] == 4
+    assert {r["player_code"] for r in body["rows"]} == {1001, 1002}
+    assert {r["gw"] for r in body["rows"]} == {3, 4}
+    qkeys = {f"q{int(q * 100)}" for q in QS}
+    assert set(body["rows"][0]["quantiles"]) == qkeys
+
+
+def test_forecast_default_window_and_position(client: TestClient,
+                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    body = client.get("/api/forecast", params={"position": "GKP"}).json()
+    assert body["gw_start"] == 2 and body["gw_end"] == 6  # current_gw + 1, +5
+    assert all(r["web_name"] in {"P04", "P08", "P12", "P16", "P20"}
+               for r in body["rows"])
+
+
+def test_forecast_horizon_capped(client: TestClient) -> None:
+    assert client.get("/api/forecast", params={"horizon": 11}).status_code == 422
+
+
+def test_forecast_unbuildable_is_503(empty_client: TestClient) -> None:
+    r = empty_client.get("/api/forecast")
+    assert r.status_code == 503
+    assert "forecast build failed" in r.json()["detail"]
+
+
+# -- team flags ------------------------------------------------------------
+
+def test_team_flags(client: TestClient) -> None:
+    r = client.get("/api/team/flags")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["gw"] == 1 and body["entry_id"] == ENTRY  # defaults from data
+    assert len(body["rows"]) == 15
+    assert body["captain"]["player_id"] == 5
+    assert body["vice_captain"]["player_id"] == 9
+    by_id = {row["player_id"]: row for row in body["rows"]}
+    assert by_id[1]["flag"] == "ok"
+    assert "INJURED" in by_id[3]["flag"]
+    assert body["comparison"]["xscore"] == 40.2
+
+
+def test_team_flags_explicit_params(client: TestClient) -> None:
+    body = client.get("/api/team/flags",
+                      params={"gw": 1, "entry_id": ENTRY}).json()
+    assert body["available"] is True
+    body = client.get("/api/team/flags", params={"gw": 9}).json()
+    assert body["available"] is False
+
+
+def test_team_flags_missing(empty_client: TestClient) -> None:
+    assert empty_client.get("/api/team/flags").json()["available"] is False
+
+
+# -- transfers ---------------------------------------------------------------
+
+def test_transfers_suggestions(client: TestClient) -> None:
+    r = client.get("/api/transfers/suggestions")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["gw"] == 2 and body["source"] == "gw2_plan.json"
+    sug = body["suggestions"][0]
+    assert sug["transfer_in"] == "New Guy"
+    assert sug["transfer_out_code"] == 1013
+    assert sug["expected_gain"] == 2.4
+    assert body["bank_tenths"] == 1
+
+
+def test_transfers_wrong_gw_and_missing(client: TestClient,
+                                        empty_client: TestClient) -> None:
+    assert client.get("/api/transfers/suggestions",
+                      params={"gw": 9}).json()["available"] is False
+    assert empty_client.get("/api/transfers/suggestions").json()["available"] is False
+
+
+# -- league -----------------------------------------------------------------
+
+def test_league_standings(client: TestClient) -> None:
+    r = client.get("/api/league/standings", params={"entry_id": ENTRY})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True and body["current_gw"] == 1
+    assert len(body["rows"]) == 3
+    mine = next(r for r in body["rows"] if r["entry_id"] == ENTRY)
+    assert mine["is_self"] is True
+    assert mine["gw_points"] == 55  # from collected team_history event 1
+    assert mine in body["rows"][1:]
+
+
+def test_league_missing(empty_client: TestClient) -> None:
+    body = empty_client.get("/api/league/standings").json()
+    assert body["available"] is False and body["rows"] == []
+
+
+# -- research -----------------------------------------------------------------
+
+def test_research_metrics_default(client: TestClient) -> None:
+    r = client.get("/api/research/metrics")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["run"] == "ranking.metrics.json"
+    assert body["metrics"]["lgbm_all"]["spearman_rho"] == 0.67
+    assert body["config"] == {"models": ["lgbm"]}
+
+
+def test_research_metrics_named_and_missing(client: TestClient) -> None:
+    body = client.get("/api/research/metrics",
+                      params={"run": "search.metrics.json"}).json()
+    assert body["available"] is True and body["metrics"]["best"] == 61.0
+    assert client.get("/api/research/metrics",
+                      params={"run": "nope.metrics.json"}
+                      ).json()["available"] is False
+
+
+def test_research_metrics_rejects_traversal(client: TestClient) -> None:
+    r = client.get("/api/research/metrics", params={"run": "../secret.json"})
+    assert r.status_code == 400
+
+
+def test_research_metrics_missing(empty_client: TestClient) -> None:
+    assert empty_client.get("/api/research/metrics").json()["available"] is False
