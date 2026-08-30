@@ -220,9 +220,11 @@ def resolve_h2h_standings(
     This intentionally uses the domain settlement rules rather than the
     partially-finalized scores returned by the entry/league endpoints.
     """
-    scores: dict[int, float] = {}
-    for entry_id, group in picks.group_by("entry_id", maintain_order=True):
-        eid = int(entry_id[0])
+    scores: dict[int, float] = {}        # entry -> season total (collected GWs)
+    scores_by_gw: dict[tuple[int, int], float] = {}  # (entry, gw) -> settled
+    for (eid, gw), group in picks.group_by(["entry_id", "gw"],
+                                           maintain_order=True):
+        eid, gw = int(eid), int(gw)
         group = group.sort("position")
         selected = group.join(
             players.select("player_id", "player_code", "web_name", "position",
@@ -232,7 +234,7 @@ def resolve_h2h_standings(
         frame = selected.select("player_code", "web_name", "position_right",
                                 "team_code", "price_tenths").rename(
                                     {"position_right": "position"})
-        squad = squad_from_frame(frame, gw=int(group["gw"][0]))
+        squad = squad_from_frame(frame, gw=gw)
         code_by_element = dict(zip(selected["element"], selected["player_code"],
                                    strict=False))
         squad = squad.__class__(
@@ -246,13 +248,17 @@ def resolve_h2h_standings(
                              ["player_code"].item()),
         )
         actual = selected.select("element", "player_code").join(
-            event_live, left_on="element", right_on="player_id", how="left",
+            event_live.filter(pl.col("gw") == gw)
+            if "gw" in event_live.columns else event_live,
+            left_on="element", right_on="player_id", how="left",
         ).with_columns(pl.col("minutes").fill_null(0),
                        pl.col("total_points").fill_null(0))
-        scores[eid] = float(squad.gw_settlement(
+        total = float(squad.gw_settlement(
             dict(zip(actual["player_code"], actual["minutes"] > 0, strict=False)),
             dict(zip(actual["player_code"], actual["total_points"], strict=False)),
         ).gw_total)
+        scores_by_gw[(eid, gw)] = total
+        scores[eid] = scores.get(eid, 0.0) + total
 
     table = {int(row["entry"]): {
         "entry_id": int(row["entry"]), "entry_name": row.get("entry_name"),
@@ -264,12 +270,21 @@ def resolve_h2h_standings(
         if a is None or b is None or int(a) not in table or int(b) not in table:
             continue
         a, b = int(a), int(b)
-        if scores[a] == scores[b]:
+        if row.get("is_bye"):
+            continue
+        ev = row.get("event")
+        # compare THIS event's settled score when collected; a match whose
+        # GW hasn't been collected yet must not vote on W-D-L
+        sa = scores_by_gw.get((a, int(ev))) if ev is not None else None
+        sb = scores_by_gw.get((b, int(ev))) if ev is not None else None
+        if sa is None or sb is None:
+            continue
+        if sa == sb:
             for eid in (a, b):
                 table[eid]["draws"] += 1
                 table[eid]["league_points"] += 1
         else:
-            winner, loser = (a, b) if scores[a] > scores[b] else (b, a)
+            winner, loser = (a, b) if sa > sb else (b, a)
             table[winner]["wins"] += 1
             table[winner]["league_points"] += 3
             table[loser]["losses"] += 1

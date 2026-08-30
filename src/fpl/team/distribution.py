@@ -98,6 +98,14 @@ def distributional_forecast(
     quant = mu[:, None] + sigma[:, None] * z_q[None, :]
 
     meta = td.meta.filter(pl.col("gw").is_between(gw_start - 1, gw_end - 1))
+    if meta.height == 0:
+        # window has no source features yet (e.g. GW2 still settling); empty
+        # output beats crashing list.to_struct on a null-typed column
+        return pl.DataFrame(schema={
+            "player_code": pl.Int64, "web_name": pl.String,
+            "position": pl.String, "gw": pl.Int64, "pred": pl.Float64,
+            "quantiles_struct": pl.Struct(
+                {f"q{int(q * 100)}": pl.Float64 for q in QS})})
     frame = (
         meta.with_columns(
             pl.Series("pred", mu),
