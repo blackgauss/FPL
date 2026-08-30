@@ -461,6 +461,8 @@ def _capture_payloads(client: TestClient) -> dict:
             "/api/league/standings/report").json(),
         "/api/league/ownership": client.get("/api/league/ownership").json(),
         "/api/team/history": client.get("/api/team/history").json(),
+        "/api/team/performance": client.get(
+            "/api/team/performance").json(),
     }
 
 
@@ -571,3 +573,20 @@ def test_team_history_endpoint(client: TestClient) -> None:
     assert [r["gw"] for r in body["rows"]] == [1, 2]
     assert body["rows"][0]["xscore"] == 40.2   # joined from gw1 comparison
     assert body["rows"][1]["bench_points"] == 6
+
+
+def test_team_performance_percentiles(client: TestClient,
+                                      monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    body = client.get("/api/team/performance").json()
+    assert body["available"] and body["gw"] == 1
+    rows = body["rows"]
+    assert len(rows) == 2
+    p1 = next(r for r in rows if r["player_code"] == 1001)
+    p12 = next(r for r in rows if r["player_code"] == 1012)
+    # actual 8 sits mid-digest (q5 ~5, q99 ~10.4): plausible, not flagged
+    assert 0.05 < p1["p_exceed"] < 0.95 and 5 < p1["percentile"] < 95
+    # actual 1 sits below q05: left-tail — underperform
+    assert p12["percentile"] <= 5.0 and p12["p_exceed"] >= 0.95
+    assert body["summary"]["below_5th"] == ["P12"]
+    assert all(r["q05"] <= r["q95"] for r in rows)

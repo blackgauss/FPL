@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from fpl.live.filters import flag_squad_player
 from fpl.web.queries import Store
@@ -109,6 +109,65 @@ def get_flags(request: Request, gw: int | None = None,
         "rows": out_rows,
         "comparison": _comparison(store, gw),
     }
+
+
+@router.get("/performance")
+def get_performance(request: Request, gw: int | None = None) -> dict:
+    """How surprising was each GW? For every settled player row, place the
+    actual score inside the player's own forecast CDF (t-digest quantiles):
+    percentile of the actual plus tail probability — CDF-based credible
+    interval reading, not just a point error."""
+    from fpl.dist import QS, probability_below
+
+    store = get_store(request)
+    try:
+        current = gw if gw is not None else store.current_gw()
+    except Exception:
+        return {"available": False, "reason": "no gameweek state"}
+    wanted = f"gw{current}_comparison.json"
+    doc = next((d for d in store.account_json(r"gw\d+_comparison")
+                if d.get("file") == wanted), None)
+    players = (doc or {}).get("players")
+    if not isinstance(players, list) or not players:
+        return {"available": False, "gw": current,
+                "reason": f"no collected {wanted} (run: fpl compare --gw {current})"}
+    try:
+        frame = store.forecast(current, current)
+    except Exception as exc:
+        raise HTTPException(503, f"forecast build failed: {exc}") from exc
+    by_code = {r["player_code"]: r for r in frame.to_dicts()}
+
+    rows, beat_95, under_5 = [], [], []
+    for p in players:
+        fc = by_code.get(p.get("player_code"))
+        row = {**{k: p.get(k) for k in
+                  ("player_code", "web_name", "position", "minutes",
+                   "actual_points", "expected_points", "is_captain",
+                   "is_vice_captain", "multiplier")},
+               "gw": current, "model_pred": None, "q05": None, "q50": None,
+               "q95": None, "percentile": None, "p_exceed": None}
+        if fc is not None:
+            vals = [fc[f"q{int(q * 100)}"] for q in QS]
+            actual = float(p.get("actual_points") or 0.0)
+            below = probability_below(vals, actual)
+            row.update(
+                model_pred=fc.get("pred"),
+                q05=vals[1], q50=vals[4], q95=vals[7],
+                percentile=round(below * 100, 1),
+                p_exceed=round(1.0 - below, 4),
+            )
+            if below >= 0.95 and actual >= 3:
+                beat_95.append(row["web_name"])
+            elif below <= 0.05:
+                under_5.append(row["web_name"])
+        rows.append(row)
+    rows.sort(key=lambda r: -(r["percentile"] if r["percentile"] is not None
+                              else -1))
+    return {"available": True, "gw": current, "rows": rows,
+            "summary": {"beat_95th": beat_95, "below_5th": under_5,
+                        "n": len(rows)},
+            "note": "percentile = P(X <= actual) from the player's forecast "
+                    "digest; 95+ = overperformed, <5 = underperformed"}
 
 
 @router.get("/history")

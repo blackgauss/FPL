@@ -1,6 +1,8 @@
-// Team view: GW result cards, per-player model-vs-actual review, squad flags
+// Team view: GW result cards, CDF performance analysis, squad detail grid,
+// per-GW form, next-GW projection
 import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
 import { bandChart } from "../charts.js";
+import { openPlayerDrawer } from "./explorer.js";
 
 const num = (v, d = 1) => (v == null ? "–" : Number(v).toFixed(d));
 
@@ -18,17 +20,15 @@ function statCard(label, value, sub, cls = "") {
     sub ? el("div", { class: "mut" }, sub) : null);
 }
 
-function deltaCell(delta, maxAbs) {
-  const w = Math.min(Math.abs(delta) / (maxAbs || 1), 1) * 46;
-  const pos = delta >= 0;
-  const bar = el("span", {
-    style: `display:inline-block;height:8px;width:${w.toFixed(0)}px;`
-      + `background:${pos ? "#17803d" : "#c62f2f"};border-radius:2px;`
-      + `margin-right:6px;vertical-align:middle`,
-  });
-  return el("td", { style: `text-align:${pos ? "left" : "right"}`,
-    class: pos ? "num-ok" : "num-bad" },
-    ...(pos ? [bar] : []), num(delta) + " pts", ...(pos ? [] : [bar]));
+function pctBar(pct) {
+  if (pct == null) return el("td", {}, "–");
+  const color = pct >= 95 ? "#17803d" : pct <= 5 ? "#c62f2f" : "#2456d6";
+  return el("td", {},
+    el("span", { style: "display:inline-block;width:44px;height:8px;"
+      + "background:#eceff3;border-radius:2px;vertical-align:middle;margin-right:6px",
+    }, el("span", { style: `display:block;height:8px;width:${pct.toFixed(0)}%;`
+      + `background:${color};border-radius:2px` })),
+    `${pct.toFixed(0)}%`);
 }
 
 export async function render(root) {
@@ -59,28 +59,9 @@ export async function render(root) {
         `actual − model · ${c.score_source ?? ""}`, err >= 0 ? "ok" : "bad")));
   }
 
-  if (c?.players?.length) {
-    const ps = c.players;
-    const maxAbs = Math.max(10, ...ps.map(p => Math.abs((p.actual_points ?? 0) - (p.expected_points ?? 0))));
-    root.append(el("h2", {}, "Model vs actual"));
-    const t = el("table", {}, el("thead", {}, el("tr", {},
-      ...["Player", "Min", "Actual", "Model", "Δ"].map(h => el("th", {}, h)))), el("tbody"));
-    for (const p of ps) {
-      const d = (p.actual_points ?? 0) - (p.expected_points ?? 0);
-      const chips = [];
-      if (p.is_captain) chips.push(el("span", { class: "chip ok" }, "C"));
-      if (p.is_vice_captain) chips.push(el("span", { class: "chip" }, "A"));
-      t.lastChild.append(el("tr", { class: p.minutes ? "" : "dim" },
-        el("td", {}, p.web_name ?? String(p.player_code), ...chips),
-        el("td", {}, String(p.minutes ?? "–")),
-        el("td", {}, num(p.actual_points, 0)),
-        el("td", { class: "mut" }, num(p.expected_points)),
-        deltaCell(d, maxAbs)));
-    }
-    root.append(t);
-    if (c.score_source) root.append(el("div", { class: "mut" },
-      `Actuals from ${c.score_source}. Rows with 0 minutes are bench/unused.`));
-  }
+  performanceSection(root).catch(() => { /* forecast cold */ });
+  squadGrid(root, rows).catch(() => { /* optional */ });
+  ownFormSection(root).catch(() => { /* optional */ });
 
   root.append(el("h2", {}, `Squad — GW${gw} picks`));
   const t = el("table", {}, el("thead", {}, el("tr", {},
@@ -101,33 +82,77 @@ export async function render(root) {
       el("td", {}, ...chips)));
   }
   root.append(t);
+}
 
-  ownFormSection(root).catch(() => { /* optional section */ });
-
-  // next-GW model outlook for the owned players (only when forecast is warm)
-  const codes = rows.map(r => r.player_code).filter(x => x != null);
-  const nextGw = (window.FPL_META?.current_gw || gw) + 1;
-  if (codes.length) {
-    try {
-      const fc = await api.forecast({ player_codes: codes.join(","), gw_start: nextGw, horizon: 1 });
-      const by = Object.fromEntries((fc.rows ?? []).map(r => [r.player_code, r]));
-      if (fc.rows?.length) {
-        root.append(el("h2", {}, `Projected GW${nextGw}`));
-        const ft = el("table", {}, el("thead", {}, el("tr", {},
-          ...["Player", "pred", "q25", "q75"].map(h => el("th", {}, h)))), el("tbody"));
-        for (const r of rows) {
-          const p = by[r.player_code];
-          if (!p) continue;
-          ft.lastChild.append(el("tr", {},
-            el("td", {}, r.web_name ?? String(r.player_code)),
-            el("td", {}, fmtNum(p.pred)),
-            el("td", { class: "mut" }, fmtNum(p.quantiles?.q25)),
-            el("td", { class: "mut" }, fmtNum(p.quantiles?.q75))));
-        }
-        root.append(ft);
-      }
-    } catch { /* forecast cold or no rows for this window: skip section */ }
+// -- CDF-based performance: percentiles / tail probabilities -------------------
+async function performanceSection(root) {
+  let perf;
+  try { perf = await api.teamPerformance({ gw: window.FPL_META?.current_gw || undefined }); }
+  catch { return; }
+  if (!perf.available) return;
+  root.append(el("h2", {}, `Performance vs model — GW${perf.gw} percentiles`));
+  const s = perf.summary ?? {};
+  root.append(el("div", { class: "meta" },
+    `${(s.beat_95th ?? []).length} over the 95th percentile`
+    + ((s.beat_95th ?? []).length ? ` (${s.beat_95th.join(", ")})` : "")
+    + ` · ${(s.below_5th ?? []).length} below the 5th`
+    + ((s.below_5th ?? []).length ? ` (${s.below_5th.join(", ")})` : "")));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["Player", "Min", "Actual", "Model", "90% interval",
+        "Percentile of actual", "P(X ≥ actual)", "Δ"].map(h => el("th", {}, h)))), el("tbody"));
+  for (const r of perf.rows) {
+    const d = (r.actual_points ?? 0) - (r.model_pred ?? r.expected_points ?? 0);
+    const pe = r.p_exceed;
+    let pCell;
+    if (pe == null) pCell = el("td", {}, "–");
+    else if (pe < 0.05) pCell = el("td", { class: "num-ok" }, pe.toFixed(3) + " ↑ over");
+    else if (pe > 0.95) pCell = el("td", { class: "num-bad" }, (1 - pe).toFixed(3) + " ↓ under");
+    else pCell = el("td", {}, pe.toFixed(2));
+    t.lastChild.append(el("tr", { class: r.minutes ? "" : "dim", style: "cursor:pointer",
+      onclick: () => openPlayerDrawer({ player_code: r.player_code, web_name: r.web_name }),
+    },
+      el("td", {}, r.web_name ?? String(r.player_code),
+        ...(r.is_captain ? [el("span", { class: "chip ok" }, "C")] : []),
+        ...(r.is_vice_captain ? [el("span", { class: "chip" }, "A")] : [])),
+      el("td", {}, String(r.minutes ?? "–")),
+      el("td", {}, num(r.actual_points, 0)),
+      el("td", { class: "mut" }, num(r.model_pred ?? r.expected_points)),
+      el("td", { class: "mut", title: "central 90% credible interval (q05–q95)" },
+        r.q05 == null ? "–" : `${num(r.q05)} – ${num(r.q95)}`),
+      pctBar(r.percentile),
+      pCell,
+      el("td", d >= 0 ? { class: "num-ok" } : { class: "num-bad" },
+        (d >= 0 ? "+" : "") + num(d))));
   }
+  root.append(t);
+  if (perf.note) root.append(el("div", { class: "mut" }, perf.note));
+}
+
+// -- explorer-grade detail for just my squad ------------------------------------
+async function squadGrid(root, rows) {
+  let table;
+  try { table = await api.players({ limit: 1000 }); }
+  catch { return; }
+  const byCode = new Map((table.rows ?? []).map(r => [r.player_code, r]));
+  const mine = rows.map(r => byCode.get(r.player_code)).filter(Boolean);
+  if (!mine.length) return;
+  root.append(el("h2", {}, "Squad detail (click for forecast)"));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["Player", "Pos", "Team", "Price", "Status", "Own %", "Own % lg",
+        "Pred next", "xDG nxt"].map(h => el("th", {}, h)))), el("tbody"));
+  for (const r of mine) {
+    t.lastChild.append(el("tr", { class: "click", onclick: () => openPlayerDrawer(r) },
+      el("td", {}, r.web_name ?? "?"),
+      el("td", {}, r.position ?? ""),
+      el("td", {}, r.team ?? ""),
+      el("td", {}, fmtPrice(r.now_cost)),
+      el("td", {}, r.status === "a" ? "ok" : String(r.status ?? "–")),
+      el("td", {}, r.selected_by_percent != null ? fmtNum(r.selected_by_percent) : "–"),
+      el("td", {}, r.own_league != null ? fmtNum(r.own_league) + "%" : "–"),
+      el("td", {}, fmtNum(r.pred_next ?? r.ep_next)),
+      el("td", {}, r.xdg_next != null ? fmtNum(r.xdg_next) : "–")));
+  }
+  root.append(t);
 }
 
 async function ownFormSection(root) {

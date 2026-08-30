@@ -210,3 +210,5 @@ function debounce(fn, ms) {
   let t;
   return (ev) => { clearTimeout(t); const e = { target: ev.target }; t = setTimeout(() => fn(e), ms); };
 }
+
+export { drawer as openPlayerDrawer };
