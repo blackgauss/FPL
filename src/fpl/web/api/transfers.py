@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from fastapi import APIRouter, Request
 
 from fpl.web.queries import Store
@@ -15,21 +13,16 @@ def get_store(request: Request) -> Store:
     return request.app.state.store
 
 
-def _plan_gw(doc: dict) -> int:
-    m = re.match(r"gw(\d+)_plan", str(doc.get("file", "")))
-    return int(m.group(1)) if m else -1
 
 
 @router.get("/suggestions")
 def get_suggestions(request: Request, gw: int | None = None,
                     entry_id: int | None = None) -> dict:
     store = get_store(request)
-    plans = store.account_json(r"gw\d+_plan")
-    if not plans:
+    newest = store.latest_account("plan")
+    if newest is None:
         return {"available": False,
-                "reason": "no collected gw{N}_plan.json (run the weekly planner)"}
-
-    newest = max(plans, key=_plan_gw)
+                "reason": "no collected gw{N}_plan.json (run: fpl plan)"}
     if gw is not None and newest.get("gw") != gw:
         return {"available": False, "plan_gw": newest.get("gw"),
                 "source": newest.get("file"), "requested_gw": gw,

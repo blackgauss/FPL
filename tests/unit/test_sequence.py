@@ -51,3 +51,41 @@ def test_one_week_plan_returns_legal_transfer_and_lineup_options():
     assert best["captain"] in best["starters"]
     assert best["vice_captain"] in best["starters"]
     assert best["captain"] != best["vice_captain"]
+
+
+def test_planner_survives_midwindow_club_transfers(tmp_path, monkeypatch):
+    """Live bootstrap can legally show 4 players of one club after the
+    window rotates clubs; the squad is built from collected (deadline-time)
+    clubs so planning must not crash."""
+    picks, players, live, expected = _inputs()
+    live4 = live.with_columns(
+        pl.when(pl.col("player_id").is_in([3, 4, 5])).then(pl.lit(106))
+        .otherwise(pl.col("team_code")).alias("team_code"))
+    result = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live4,
+        expected=expected, gw=1, bank_tenths=0, top=3)
+    assert result["gw"] == 2  # squad validated on snapshot clubs, not live
+
+    import fpl.weekly.sequence as seq
+    picks.write_parquet(tmp_path / "picks.parquet")
+    pl.DataFrame().write_parquet(tmp_path / "hist.parquet")
+    players.write_parquet(tmp_path / "players_S.parquet")
+    calls: dict = {}
+    monkeypatch.setattr(seq, "fetch_bootstrap", lambda: {})
+    monkeypatch.setattr(seq, "to_live_frame", lambda _: live4)
+    monkeypatch.setattr(seq, "load_training",
+                        lambda *a, **k: calls.update(tr=True) or {"S": "td"})
+    monkeypatch.setattr(seq, "load_model", lambda p: "model")
+
+    def boom(*a, **k):
+        raise ValueError("no feature rows for gameweeks 2..2 (need rows at gw-1)")
+
+    monkeypatch.setattr(seq, "score_players", boom)
+    out = tmp_path / "gw2_plan.json"
+    result = seq.run_from_files(
+        picks_path=str(tmp_path / "picks.parquet"),
+        history_path=str(tmp_path / "hist.parquet"),
+        processed=str(tmp_path), season="S", model_path="m", gw=1,
+        bank_tenths=0, top=3, out=str(out), entry_id=None)
+    assert result["expected_source"] == "official_ep"
+    assert result["gw"] == 2 and out.exists()  # scored with ep_next values

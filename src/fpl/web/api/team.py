@@ -14,13 +14,6 @@ def get_store(request: Request) -> Store:
     return request.app.state.store
 
 
-def _default_entry(store: Store) -> int | None:
-    for doc in store.account_json(r"^collection\.json$"):
-        entry = doc.get("entry")
-        if isinstance(entry, dict) and entry.get("id") is not None:
-            return int(entry["id"])
-    return None
-
 
 def _comparison(store: Store, gw: int) -> dict | None:
     wanted = f"gw{gw}_comparison.json"
@@ -48,7 +41,7 @@ def get_flags(request: Request, gw: int | None = None,
     rows = picks.to_dicts()
     if entry_id is None:
         ids = {r["entry_id"] for r in rows if r.get("entry_id") is not None}
-        entry_id = ids.pop() if len(ids) == 1 else _default_entry(store)
+        entry_id = ids.pop() if len(ids) == 1 else store.entry_id()
     if entry_id is not None:
         rows = [r for r in rows if r.get("entry_id") == entry_id]
     if gw is None:

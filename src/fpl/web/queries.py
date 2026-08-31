@@ -84,13 +84,18 @@ class Store:
         return int(feats.get_column("gw").max()) + 1
 
     def entry_id(self) -> int | None:
-        """Our manager id from the last collection (None if never collected)."""
+        """Our manager id from the last collection (None if never collected).
+        Reads either the top-level `entry_id` or the nested `entry.id` that
+        older collection dumps carry — single source for all routers."""
         try:
-            return json.loads(
-                (self.account_dir / "collection.json").read_text()
-            ).get("entry_id")
+            doc = json.loads(
+                (self.account_dir / "collection.json").read_text())
         except (OSError, ValueError):
             return None
+        entry = doc.get("entry_id")
+        if entry is None and isinstance(doc.get("entry"), dict):
+            entry = doc["entry"].get("id")
+        return int(entry) if entry is not None else None
 
     # -- players (explorer table) -----------------------------------------------
 
@@ -394,6 +399,15 @@ class Store:
         """All account JSON matching pattern (e.g. 'gw.*_plan'), newest first,
         each tagged with its filename."""
         return self._json_dir(self.account_dir, pattern)
+
+    def latest_account(self, stem: str) -> dict | None:
+        """Newest `gw{N}_{stem}.json` from the account dump, or None. Single
+        source for 'which gwN_* artifact is current' (plan/comparison/...)."""
+        docs = self.account_json(rf"gw\d+_{stem}")
+        if not docs:
+            return None
+        return max(docs, key=lambda d: int(
+            re.match(r"gw(\d+)_", str(d.get("file", ""))).group(1)))
 
     def artifacts(self) -> list[dict]:
         """Inventory of research artifacts (json only) with update times."""
