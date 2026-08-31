@@ -413,9 +413,8 @@ def test_with_live_single_join_implementation(tmp_path: Path,
     row_by = {r["element"]: r for r in joined.to_dicts()}
     assert row_by[1]["web_name"] and row_by[1]["status"]
     assert row_by[999_999]["web_name"] is None           # left join, no drop
-    (Store(root=tmp_path / "bare").with_live(
-        picked, on="element")
-     .columns == ["element"])
+    assert Store(root=tmp_path / "bare").with_live(
+        picked, on="element").columns == ["element"]
 
 
 def test_players_expected_points_carry_source_tag(
