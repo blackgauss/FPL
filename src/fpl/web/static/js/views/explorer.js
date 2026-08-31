@@ -59,7 +59,7 @@ export async function render(root) {
     ["Player", "web_name"], ["Pos", "position"], ["Team", "team"],
     ["Price", "now_cost"], ["Status", "status"],
     ["Own %", "selected_by_percent"], ["Own % lg", "own_league"],
-    ["Pred next", "pred_next"], ["xDG nxt", "xdg_next"], ["xDG ~5", "xdg_next5"],
+    ["Expect", "expected"], ["xDG nxt", "xdg_next"], ["xDG ~5", "xdg_next5"],
   ];
 
   function headerCell(h, key) {
@@ -92,8 +92,8 @@ export async function render(root) {
         el("td", { title: "owned by league managers (latest collected picks)" },
           r.own_league != null ? fmtNum(r.own_league) + "%" : "–"),
         el("td", {
-          title: r.pred_next == null && r.ep_next != null ? "official FPL ep_next (no model row)" : "",
-        }, fmtNum(r.pred_next ?? r.ep_next)),
+          title: r.expected_source === "official" ? "official FPL ep_next (no model row)" : "",
+        }, fmtNum(r.expected)),
         el("td", { title: "opponent strength next GW, 0 (weak) – 100 (strong)" },
           r.xdg_next != null ? fmtNum(r.xdg_next) : "–"),
         el("td", {}, r.xdg_next5 != null ? fmtNum(r.xdg_next5) : "–")));

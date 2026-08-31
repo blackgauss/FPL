@@ -78,7 +78,7 @@ export async function render(root) {
       name,
       el("td", {}, `#${r.slot ?? "?"}`),
       el("td", {}, fmtPrice(r.now_cost)),
-      el("td", {}, fmtNum(r.ep_next)),
+      el("td", { title: r.expected_source === "official" ? "official FPL ep_next (no model row)" : "" }, fmtNum(r.expected)),
       el("td", {}, ...chips)));
   }
   root.append(t);
@@ -139,7 +139,7 @@ async function squadGrid(root, rows) {
   root.append(el("h2", {}, "Squad detail (click for forecast)"));
   const t = el("table", {}, el("thead", {}, el("tr", {},
     ...["Player", "Pos", "Team", "Price", "Status", "Own %", "Own % lg",
-        "Pred next", "xDG nxt"].map(h => el("th", {}, h)))), el("tbody"));
+        "Expect", "xDG nxt"].map(h => el("th", {}, h)))), el("tbody"));
   for (const r of mine) {
     t.lastChild.append(el("tr", { class: "click", onclick: () => openPlayerDrawer(r) },
       el("td", {}, r.web_name ?? "?"),
@@ -149,7 +149,7 @@ async function squadGrid(root, rows) {
       el("td", {}, r.status === "a" ? "ok" : String(r.status ?? "–")),
       el("td", {}, r.selected_by_percent != null ? fmtNum(r.selected_by_percent) : "–"),
       el("td", {}, r.own_league != null ? fmtNum(r.own_league) + "%" : "–"),
-      el("td", {}, fmtNum(r.pred_next ?? r.ep_next)),
+      el("td", { title: r.expected_source === "official" ? "official FPL ep_next (no model row)" : "" }, fmtNum(r.expected)),
       el("td", {}, r.xdg_next != null ? fmtNum(r.xdg_next) : "–")));
   }
   root.append(t);
