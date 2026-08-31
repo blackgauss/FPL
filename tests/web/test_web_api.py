@@ -608,8 +608,9 @@ def test_latest_account_picks_highest_gw_not_mtime(tmp_path: Path) -> None:
     """Recency of file mtime must never win over game-week number — a stale
     re-gw2 run after a gw5 plan must not resurrect it."""
     (tmp_path / "account").mkdir()
-    w = lambda name, gw: (tmp_path / "account" / name).write_text(
-        json.dumps({"gw": gw}))
+
+    def w(name: str, gw: int) -> None:
+        (tmp_path / "account" / name).write_text(json.dumps({"gw": gw}))
     w("gw5_plan.json", 5)
     w("gw12_plan.json", 12)
     w("gw3_comparison.json", 3)
