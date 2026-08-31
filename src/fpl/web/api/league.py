@@ -23,10 +23,7 @@ def get_store(request: Request) -> Store:
 @router.get("/standings")
 def get_standings(request: Request, entry_id: int | None = None) -> dict:
     store = get_store(request)
-    try:
-        current_gw = store.current_gw()
-    except Exception:
-        current_gw = 0
+    current_gw = store.clock()["current"]
     if entry_id is None:
         entry_id = store.entry_id()
 

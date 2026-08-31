@@ -1,5 +1,5 @@
 // Explorer view: faceted player table + forecast drawer
-import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
+import { api, el, empty, fmtPrice, fmtNum, resolveForecastGw } from "../api.js";
 import { bandChart, multiLineChart } from "../charts.js";
 
 const PAGE = 25;
@@ -125,21 +125,15 @@ async function fetchForecast(code, gw, retries = 2) {
   const holder = el("div");
   holder.replaceChildren(el("div", { class: "loading" }, "Loading forecast…"));
   try {
-    let data = await api.forecast({ player_codes: code, gw_start: gw, horizon: 5 });
-    let rows = (data.rows ?? data.forecast ?? (Array.isArray(data) ? data : []))
+    const target = resolveForecastGw(gw);
+    const data = await api.forecast({ player_codes: code, gw_start: target,
+                                      horizon: 5 });
+    const rows = (data.rows ?? data.forecast ?? (Array.isArray(data) ? data : []))
       .slice().sort((a, b) => a.gw - b.gw);
-    let fallbackNote = null;
-    const maxGw = window.FPL_META?.max_forecast_gw;
-    if (!rows.length && maxGw > 0) {
-      const alt = await api.forecast({ player_codes: code, gw_start: maxGw, horizon: 5 })
-        .catch(() => null);
-      const altRows = (alt?.rows ?? []).slice().sort((a, b) => a.gw - b.gw);
-      if (altRows.length) {
-        data = alt; rows = altRows;
-        fallbackNote = `GW${gw} features are not published yet (its source GW is `
-          + `still settling) — showing latest scoreable window instead.`;
-      }
-    }
+    const fallbackNote = target !== gw
+      ? `GW${gw} features are not published yet (its source GW is still `
+        + "settling) — showing latest scoreable window instead."
+      : null;
     if (!rows.length) {
       return empty("No model forecast yet for this player: the feature store has "
         + "no rows in this GW window (run `dvc repro` after fixture/data updates).");

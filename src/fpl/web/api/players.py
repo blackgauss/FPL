@@ -13,13 +13,6 @@ def get_store(request: Request) -> Store:
     return request.app.state.store
 
 
-def current_gw(store: Store) -> int:
-    try:
-        return store.current_gw()
-    except Exception:
-        return 0
-
-
 @router.get("")
 def get_players(
     request: Request,
@@ -44,5 +37,5 @@ def get_players(
     except Exception:
         return {"available": False, "season": store.season, "total": 0, "rows": []}
 
-    out["current_gw"] = current_gw(store)
+    out["current_gw"] = store.clock()["current"]
     return out
