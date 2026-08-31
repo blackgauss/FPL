@@ -275,7 +275,7 @@ class Store:
 
     SORTABLE = {"web_name", "position", "team", "team_code", "player_code",
                 "now_cost", "status", "selected_by_percent", "pred_next",
-                "xdg_next", "xdg_next5", "own_league"}
+                "xdg_next", "xdg_next5", "own_league", "expected"}
 
     def players(self, *, search: str | None = None, position: str | None = None,
                 club: int | None = None, status: str | None = None,
@@ -360,6 +360,18 @@ class Store:
         else:
             df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias(
                 "pred_next"))
+        exp = self.expected_next(self.current_gw() + 1)
+        df = df.with_columns(
+            (pl.col("player_code").replace_strict(
+                {c: v for c, (v, _) in exp.items()},
+                default=None, return_dtype=pl.Float64)
+             if exp else pl.lit(None, dtype=pl.Float64)).alias("expected"),
+            (pl.col("player_code").replace_strict(
+                {c: s for c, (_, s) in exp.items()},
+                default=None, return_dtype=pl.String)
+             if exp else pl.lit(None, dtype=pl.String)).alias(
+                "expected_source"),
+        )
         if sort and sort in df.columns:
             df = df.sort(sort, descending=descending, nulls_last=True)
         total = df.height
@@ -367,6 +379,25 @@ class Store:
         return {"season": self.season, "total": total, "rows": df.to_dicts()}
 
     # -- distributional forecasts (memoized) -------------------------------------
+
+    def expected_next(self, gw: int | None = None) -> dict[int, tuple[float, str]]:
+        """One honest expected-points map per player: model mean for the
+        target GW when the point model covers the player, else FPL official
+        ep_next — tagged 'model'/'official' so payloads can say WHERE the
+        number came from instead of the UI `??`-guessing."""
+        target = gw if gw is not None else self.clock()["next"]
+        out: dict[int, tuple[float, str]] = {}
+        for r in (self.live() or (pl.DataFrame(), ""))[0].to_dicts():
+            ep = r.get("ep_next")
+            if ep is not None:
+                out[int(r["player_code"])] = (float(ep), "official")
+        pred = self.predicted_next(target)
+        if pred is not None:
+            for code, p in zip(pred["player_code"], pred["pred"],
+                               strict=True):
+                if p is not None:
+                    out[int(code)] = (float(p), "model")
+        return out
 
     def forecast(self, gw_start: int, gw_end: int) -> pl.DataFrame:
         """Per player-GW {pred, q1..q99} over [gw_start, gw_end]; the

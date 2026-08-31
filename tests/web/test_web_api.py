@@ -669,3 +669,34 @@ def test_with_live_single_join_implementation(tmp_path: Path,
     assert row_by[1]["web_name"] and row_by[1]["status"]
     assert row_by[999_999]["web_name"] is None           # left join, no drop
     assert Store(root=tmp_path).with_live(picked, on="element").columns == ["element"]
+
+
+def test_players_expected_points_carry_source_tag(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """UI must never `??` between model and official EP — the store resolves
+    once and says which it used."""
+    fake_forecast(monkeypatch)
+    rows = client.get("/api/players").json()["rows"]
+    assert all(r["expected"] == r["pred_next"] for r in rows)
+    assert all(r["expected_source"] == "model" for r in rows)
+    # narrow the model's coverage to one player: everyone else flips to
+    # officially-tagged ep_next WITHOUT the client knowing about ep at all
+    monkeypatch.setattr(
+        "fpl.web.queries.Store.predicted_next",
+        lambda self, gw: pl.DataFrame({"player_code": [1002], "pred": [3.0]}))
+    rows = client.get("/api/players").json()["rows"]
+    m = next(r for r in rows if r["player_code"] == 1002)
+    p = next(r for r in rows if r["player_code"] == 1001)
+    assert m["expected_source"] == "model" and m["expected"] == 3.0
+    assert p["expected_source"] == "official"
+    assert p["expected"] == 4.5  # fixture live ep_next
+
+
+def test_team_flags_rows_carry_expected(client: TestClient,
+                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_forecast(monkeypatch)
+    rows = client.get("/api/team/flags").json()["rows"]
+    assert rows and all(r["expected"] is not None
+                        and r["expected_source"] in ("model", "official")
+                        and not r["flag"].startswith(("missing", "error"))
+                        for r in rows)

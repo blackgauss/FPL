@@ -65,6 +65,7 @@ def get_flags(request: Request, gw: int | None = None,
     # alone); status flags are exact.
     frame = store.with_live(frame.sort("position"), on="element")
     have_live = store.live() is not None
+    expected = store.expected_next()
 
     out_rows: list[dict] = []
     captain: dict | None = None
@@ -86,6 +87,9 @@ def get_flags(request: Request, gw: int | None = None,
             "selected_by_percent": r.get("selected_by_percent"),
             "status": r.get("status"),
             "news": r.get("news"),
+            "expected": expected.get(r.get("player_code"), (None, "none"))[0],
+            "expected_source": expected.get(r.get("player_code"),
+                                            (None, "none"))[1],
             "flag": flag,
         }
         if r.get("is_captain"):
