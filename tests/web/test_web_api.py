@@ -656,3 +656,16 @@ def test_forecast_cdf_tails_are_server_interpolated(
     bad = client.get("/api/forecast/cdf",
                      params={"player_code": 1001, "gw": 3, "at": "5,lol"})
     assert bad.status_code == 422
+
+
+def test_with_live_single_join_implementation(tmp_path: Path,
+                                              client: TestClient) -> None:
+    """`Store.with_live` is the only legal picks/live seam: element-keyed
+    (picks) and player_code-keyed (dimensions) callers both work; no
+    snapshot passes the frame through untouched."""
+    picked = pl.DataFrame({"element": [1, 12, 999_999]})
+    joined = client.app.state.store.with_live(picked, on="element")
+    row_by = {r["element"]: r for r in joined.to_dicts()}
+    assert row_by[1]["web_name"] and row_by[1]["status"]
+    assert row_by[999_999]["web_name"] is None           # left join, no drop
+    assert Store(root=tmp_path).with_live(picked, on="element").columns == ["element"]

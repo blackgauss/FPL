@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import polars as pl
 from fastapi import APIRouter, HTTPException, Request
 
 from fpl.live.filters import flag_squad_player
@@ -30,6 +31,21 @@ def _comparison(store: Store, gw: int) -> dict | None:
     return None
 
 
+def _latest_squad_picks(store, frame, entry_id: int | None,
+                        gw: int | None) -> tuple[pl.DataFrame, int | None, int]:
+    """Filter picks to one entry (default: the collection's own) and one GW
+    (default: latest). Shared by flags — single 'which 15 players' reader."""
+    if entry_id is None and "entry_id" in frame.columns:
+        ids = frame.get_column("entry_id").drop_nulls().unique().to_list()
+        entry_id = ids[0] if len(ids) == 1 else store.entry_id()
+    if entry_id is not None and "entry_id" in frame.columns:
+        frame = frame.filter(pl.col("entry_id") == entry_id)
+    if gw is None:
+        gws = frame.get_column("gw").drop_nulls().to_list()
+        gw = max(gws) if gws else 0
+    return frame.filter(pl.col("gw") == gw), entry_id, gw
+
+
 @router.get("/flags")
 def get_flags(request: Request, gw: int | None = None,
               entry_id: int | None = None) -> dict:
@@ -38,17 +54,8 @@ def get_flags(request: Request, gw: int | None = None,
     if picks is None:
         return {"available": False, "reason": "no collected team_picks"}
 
-    rows = picks.to_dicts()
-    if entry_id is None:
-        ids = {r["entry_id"] for r in rows if r.get("entry_id") is not None}
-        entry_id = ids.pop() if len(ids) == 1 else store.entry_id()
-    if entry_id is not None:
-        rows = [r for r in rows if r.get("entry_id") == entry_id]
-    if gw is None:
-        gws = [r["gw"] for r in rows if r.get("gw") is not None]
-        gw = max(gws) if gws else 0
-    rows = [r for r in rows if r.get("gw") == gw]
-    if not rows:
+    frame, entry_id, gw = _latest_squad_picks(store, picks, entry_id, gw)
+    if frame.height == 0:
         return {"available": False, "gw": gw, "entry_id": entry_id,
                 "reason": f"no collected picks for gw {gw}"}
 
@@ -56,35 +63,29 @@ def get_flags(request: Request, gw: int | None = None,
     # Picks carry no price/club snapshot of the picked GW, so price fields are
     # live-current (a Squad from a GW-frozen frame is not buildable from disk
     # alone); status flags are exact.
-    live_map: dict[int, dict] = {}
-    lv = store.live()
-    if lv is not None:
-        live_map = {r["player_id"]: r for r in lv[0].to_dicts()
-                    if r.get("player_id") is not None}
+    frame = store.with_live(frame.sort("position"), on="element")
+    have_live = store.live() is not None
 
     out_rows: list[dict] = []
     captain: dict | None = None
     vice_captain: dict | None = None
-    for r in sorted(rows, key=lambda r: r.get("position") or 0):
-        live = live_map.get(r["element"], {})
-        if lv is None:
-            flag = "no live snapshot"
-        else:
-            flag = flag_squad_player({"status": live.get("status")})
+    for r in frame.to_dicts():
+        flag = ("no live snapshot" if not have_live
+                else flag_squad_player({"status": r.get("status")}))
         row = {
             "player_id": r["element"],
-            "web_name": live.get("web_name"),
-            "player_code": live.get("player_code"),
+            "web_name": r.get("web_name"),
+            "player_code": r.get("player_code"),
             "slot": r.get("position"),
             "element_type": r.get("element_type"),
             "multiplier": r.get("multiplier"),
             "is_captain": bool(r.get("is_captain")),
             "is_vice_captain": bool(r.get("is_vice_captain")),
-            "now_cost": live.get("now_cost"),
-            "ep_next": live.get("ep_next"),
-            "selected_by_percent": live.get("selected_by_percent"),
-            "status": live.get("status"),
-            "news": live.get("news"),
+            "now_cost": r.get("now_cost"),
+            "ep_next": r.get("ep_next"),
+            "selected_by_percent": r.get("selected_by_percent"),
+            "status": r.get("status"),
+            "news": r.get("news"),
             "flag": flag,
         }
         if r.get("is_captain"):

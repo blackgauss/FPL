@@ -83,6 +83,26 @@ class Store:
             return 0
         return int(feats.get_column("gw").max()) + 1
 
+    def with_live(self, frame: pl.DataFrame, *, on: str = "player_id",
+                  cols: list[str] | None = None) -> pl.DataFrame:
+        """Left-join the disk-cached live snapshot onto any frame — the ONE
+        picks/players-lives join (routers must not build live_maps by hand).
+        Columns already present in `frame` are not duplicated; without a
+        snapshot the frame comes back unchanged (callers guard on presence).
+        """
+        lv = self.live()
+        if lv is None:
+            return frame
+        want = cols or ["player_code", "web_name", "now_cost", "team_code",
+                        "status", "news", "ep_next", "selected_by_percent",
+                        "chance_of_playing_next_round"]
+        keep = [on] + [c for c in want
+                       if c not in frame.columns and c in lv[0].columns]
+        right_on = on if on in lv[0].columns else (
+            "player_id" if on == "element" else on)
+        return frame.join(lv[0].select([right_on, *keep[1:]]),
+                          left_on=on, right_on=right_on, how="left")
+
     def clock(self) -> dict:
         """The GW clock in one call: settled `current`, the next GW to
         forecast plan against, and `scoreable` (ceil the feature store can
@@ -289,19 +309,16 @@ class Store:
                     on="player_id", how="left")
                 df = df.filter(pl.col("now_cost") <= max_price)
 
-        lv = self.live()
-        if lv is not None:
-            live_keep = [c for c in
-                         ["player_code", "now_cost", "status", "news",
-                          "chance_of_playing_next_round", "selected_by_percent",
-                          "ep_next"]
-                         if c == "player_code" or c not in df.columns]
-            df = df.join(lv[0].select(live_keep), on="player_code", how="left")
-            if "selected_by_percent" in df.columns:
-                df = df.with_columns(pl.col("selected_by_percent").cast(
-                    pl.Float64, strict=False))
-            if status:
-                df = df.filter(pl.col("status") == status)
+        df = self.with_live(
+            df, on="player_code",
+            cols=["player_code", "now_cost", "status", "news",
+                  "chance_of_playing_next_round", "selected_by_percent",
+                  "ep_next"])
+        if "selected_by_percent" in df.columns:
+            df = df.with_columns(pl.col("selected_by_percent").cast(
+                pl.Float64, strict=False))
+        if status and "status" in df.columns:
+            df = df.filter(pl.col("status") == status)
 
         names = self.team_names()
         if "team" not in df.columns:
