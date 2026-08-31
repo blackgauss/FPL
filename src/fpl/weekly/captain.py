@@ -35,7 +35,7 @@ def set_captains(squad: Squad, expected: Mapping[int, float]) -> Squad:
     """Return a new Squad with the basic captain policy applied."""
     captain, vice = choose_captains(squad, expected)
     updated = replace(squad, captain=captain, vice_captain=vice)
-    problems = updated.validate()
+    problems = updated.validate(club_baseline=squad.club_counts())
     if problems:
         raise ValueError("captain policy produced invalid squad: "
                          + "; ".join(problems))

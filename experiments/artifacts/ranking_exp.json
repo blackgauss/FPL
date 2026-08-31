@@ -1,7 +1,7 @@
 {
   "metadata": {
     "config": "config/experiments_ranking.yaml",
-    "git_sha": "2f9af0ba41591decfc27dac2711c1db50d51f863",
+    "git_sha": "df995ded9d39cab50feca975f07e4471c6824c56",
     "parallel": 3,
     "seasons": [
       "2024-2025",

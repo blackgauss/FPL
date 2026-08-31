@@ -37,7 +37,7 @@ def apply_transfer(squad: Squad, out: Player, new: Player, *, gw: int) -> Squad:
         vice_captain=None if squad.vice_captain == out.code else squad.vice_captain,
         transfers_in=squad.transfers_in + (new.code,),
     )
-    problems = updated.validate()
+    problems = updated.validate(club_baseline=squad.club_counts())
     if problems:
         raise ValueError("transfer produced invalid squad: " + "; ".join(problems))
     return updated
@@ -59,9 +59,10 @@ def choose_transfer(
     net_gain)`` or ``(None, None, 0.0)`` when no transfer clears `min_gain`.
     """
     existing = {p.code for p in squad.players}
-    if squad.validate():
+    if squad.validate(club_baseline=squad.club_counts()):
         raise ValueError("cannot transfer from invalid squad: "
-                         + "; ".join(squad.validate()))
+                         + "; ".join(squad.validate(
+                             club_baseline=squad.club_counts())))
     best: tuple[Player | None, Player | None, float] = (None, None, min_gain)
     cost = 0.0 if free_transfers > 0 else transfer_penalty
     for out in squad.players:
@@ -74,7 +75,7 @@ def choose_transfer(
                 # Invalid candidates are rejected; direct callers still get
                 # the precise transition error from apply_transfer().
                 continue
-            if proposal.validate():
+            if proposal.validate(club_baseline=squad.club_counts()):
                 # non-empty problem list => candidate swap is invalid; skip.
                 continue
             gain = expected.get(new.code, 0.0) - expected.get(out.code, 0.0) - cost
