@@ -66,12 +66,25 @@ function capName(data, code) {
   return typeof code === "string" ? code : `#${code}`;
 }
 
+async function cdfFor(code, gw) {
+  try {
+    return await api.forecastCdf({ player_code: code, gw: gw, n: 48 });
+  } catch (e) {
+    const alt = (window.FPL_META || {}).max_forecast_gw;
+    if (alt && alt !== gw) {
+      try {
+        return await api.forecastCdf({ player_code: code, gw: alt, n: 48 });
+      } catch { /* fall through with original error */ }
+    }
+    throw e;
+  }
+}
+
 async function compareCdf(box, o, gw) {
   const codes = [o.transfer_in_code, o.transfer_out_code].filter(c => c != null);
   if (codes.length < 2) { box.textContent = "codes unavailable for CDF."; return; }
   try {
-    const [inn, out] = await Promise.all(codes.map(c =>
-      api.forecastCdf({ player_code: c, gw: gw, n: 48 })));
+    const [inn, out] = await Promise.all(codes.map(c => cdfFor(c, gw)));
     const pAt = (d) => (x) => {
       const step = d.xs[1] - d.xs[0];
       const i = Math.min(d.cdf.length - 2, Math.max(0, Math.floor(x / step)));
@@ -85,7 +98,11 @@ async function compareCdf(box, o, gw) {
     const hi = 5;
     box.append(el("div", { class: "meta" },
       `P(≥${hi} pts): in ${Math.round((1 - pAt(inn)(hi)) * 100)}% vs `
-      + `out ${Math.round((1 - pAt(out)(hi)) * 100)}%`));
+      + `out ${Math.round((1 - pAt(out)(hi)) * 100)}%`
+      + ((inn.gw != null && inn.gw !== gw)
+        ? ` · ${gw > inn.gw ? `GW${gw} window not published yet — GW${inn.gw} distributions shown`
+          : `GW${inn.gw} window`}`
+        : "")));
   } catch (e) {
     box.textContent = e.cold ? "computing forecast…" : `cdf: ${e.message}`;
   }

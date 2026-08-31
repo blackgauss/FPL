@@ -241,6 +241,7 @@ def fake_forecast(monkeypatch: pytest.MonkeyPatch) -> None:
         return (pl.DataFrame(rows)
                 .with_columns(pl.DataFrame(qcols).to_struct("quantiles_struct")))
     monkeypatch.setattr("fpl.team.distribution.distributional_forecast", fake)
+    monkeypatch.setattr("fpl.web.queries.Store.max_forecast_gw", lambda self: 99)
 
 
 # -- meta ------------------------------------------------------------------
@@ -510,6 +511,16 @@ def test_players_sort_nulls_last(client: TestClient) -> None:
 def test_players_sort_rejects_unknown_column(client: TestClient) -> None:
     assert client.get("/api/players",
                       params={"sort": "salary_usd"}).status_code == 400
+
+
+def test_forecast_cdf_unscoreable_window_explains(client: TestClient) -> None:
+    """GWs past the last scored one must say *why*, not 'no forecast row' —
+    the transfers CDF compare depends on this to distinguish 'not yet'
+    from 'this player has no forecast'."""
+    r = client.get("/api/forecast/cdf",
+                   params={"player_code": 1001, "gw": 99})
+    assert r.status_code == 404
+    assert "scoreable" in r.json()["detail"]
 
 
 def test_forecast_cdf(client: TestClient,

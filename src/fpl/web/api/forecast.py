@@ -52,13 +52,19 @@ def get_cdf(
             gw = store.current_gw() + 1
         except Exception:
             gw = 1
+    scoreable = store.max_forecast_gw()
+    if gw > scoreable:
+        raise HTTPException(
+            404, f"GW{gw} is not scoreable yet (latest scored GW is {scoreable})")
     try:
         frame = store.forecast(gw, gw)
     except Exception as exc:
         raise HTTPException(503, f"forecast build failed: {exc}") from exc
+    if frame.height == 0:
+        raise HTTPException(404, "forecast window is empty")
     row = frame.filter(pl.col("player_code") == player_code)
     if row.height == 0:
-        raise HTTPException(404, "no forecast row for this player/gameweek")
+        raise HTTPException(404, f"no forecast row for this player in GW{gw}")
     rec = row.to_dicts()[0]
     vals = [rec[f"q{int(q * 100)}"] for q in QS]
     top = max(max(vals) * 1.05, rec["pred"] + 1.0, 5.0)
