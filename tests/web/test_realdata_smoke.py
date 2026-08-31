@@ -35,13 +35,9 @@ def client() -> TestClient:
 
 
 def scoreable_gw(client: TestClient) -> int | None:
-    """Latest GW we can forecast with the features on disk (feature store
-    row at gw=k feeds GW k+1); none mid-season until data lands."""
-    feats = client.app.state.store._safe_parquet(  # noqa: SLF001
-        Store(root=REPO_DATA.parent).processed / "features_2026-2027.parquet")
-    if feats is None or not feats.height:
-        return None
-    return int(feats.get_column("gw").max()) + 1
+    """Latest GW the feature store can feed (see Store.clock); None until
+    any GW has settled."""
+    return client.app.state.store.clock()["scoreable"] or None
 
 
 @requires_data

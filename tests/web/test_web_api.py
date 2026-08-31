@@ -626,3 +626,15 @@ def test_entry_id_nested_collection_variant(tmp_path: Path) -> None:
     (tmp_path / "account" / "collection.json").write_text(
         json.dumps({"entry": {"id": 123}}))
     assert Store(root=tmp_path, account_dir="account").entry_id() == 123
+
+
+def test_clock_single_source_of_gw_truth(client: TestClient,
+                                         empty_client: TestClient) -> None:
+    """Meta fields and clock must never disagree, and an empty store yields
+    the documented zeros instead of raising (routers rely on this)."""
+    assert client.app.state.store.clock() == {"current": 1, "next": 2,
+                                              "scoreable": 2}
+    assert empty_client.app.state.store.clock() == {"current": 0, "next": 1,
+                                                    "scoreable": 0}
+    meta = client.get("/api/meta").json()
+    assert (meta["current_gw"], meta["max_forecast_gw"]) == (1, 2)

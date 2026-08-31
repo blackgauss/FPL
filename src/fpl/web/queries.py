@@ -83,6 +83,14 @@ class Store:
             return 0
         return int(feats.get_column("gw").max()) + 1
 
+    def clock(self) -> dict:
+        """The GW clock in one call: settled `current`, the next GW to
+        forecast plan against, and `scoreable` (ceil the feature store can
+        feed). Never raises; zeros when nothing is on disk. All 'which GW
+        are we talking about' decisions go through this."""
+        cur = self.current_gw()
+        return {"current": cur, "next": cur + 1, "scoreable": self.max_forecast_gw()}
+
     def entry_id(self) -> int | None:
         """Our manager id from the last collection (None if never collected).
         Reads either the top-level `entry_id` or the nested `entry.id` that

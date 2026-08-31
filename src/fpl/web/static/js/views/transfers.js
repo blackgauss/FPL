@@ -1,5 +1,5 @@
 // Transfers view: weekly plan options with impact bars + in/out CDF preview
-import { api, el, empty, fmtNum, fmtPrice } from "../api.js";
+import { api, el, empty, fmtNum, fmtPrice, resolveForecastGw } from "../api.js";
 import { multiLineChart } from "../charts.js";
 
 export async function render(root) {
@@ -67,17 +67,9 @@ function capName(data, code) {
 }
 
 async function cdfFor(code, gw) {
-  try {
-    return await api.forecastCdf({ player_code: code, gw: gw, n: 48 });
-  } catch (e) {
-    const alt = (window.FPL_META || {}).max_forecast_gw;
-    if (alt && alt !== gw) {
-      try {
-        return await api.forecastCdf({ player_code: code, gw: alt, n: 48 });
-      } catch { /* fall through with original error */ }
-    }
-    throw e;
-  }
+  const g = resolveForecastGw(gw);  // one clamp policy (see api.js)
+  const d = await api.forecastCdf({ player_code: code, gw: g, n: 48 });
+  return d;
 }
 
 async function compareCdf(box, o, gw) {

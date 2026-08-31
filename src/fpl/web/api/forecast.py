@@ -47,15 +47,13 @@ def get_cdf(
     t-digest quantiles (the sigma-scaled residual shape) — the full
     upside/downside picture, not just the mean."""
     store = get_store(request)
+    clock = store.clock()
     if gw is None:
-        try:
-            gw = store.current_gw() + 1
-        except Exception:
-            gw = 1
-    scoreable = store.max_forecast_gw()
-    if gw > scoreable:
+        gw = clock["next"]
+    if gw > clock["scoreable"]:
         raise HTTPException(
-            404, f"GW{gw} is not scoreable yet (latest scored GW is {scoreable})")
+            404, f"GW{gw} is not scoreable yet "
+            f"(latest scored GW is {clock['scoreable']})")
     try:
         frame = store.forecast(gw, gw)
     except Exception as exc:
@@ -89,10 +87,7 @@ def get_forecast(
 ) -> ForecastOut:
     store = get_store(request)
     if gw_start is None:
-        try:
-            gw_start = store.current_gw() + 1
-        except Exception:
-            gw_start = 1
+        gw_start = store.clock()["next"]
     gw_end = gw_start + horizon - 1
 
     codes: set[int] | None = None

@@ -114,7 +114,7 @@ def get_performance(request: Request, gw: int | None = None) -> dict:
 
     store = get_store(request)
     try:
-        current = gw if gw is not None else store.current_gw()
+        current = gw if gw is not None else store.clock()["current"]
     except Exception:
         return {"available": False, "reason": "no gameweek state"}
     wanted = f"gw{current}_comparison.json"

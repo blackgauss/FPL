@@ -35,6 +35,16 @@ export const api = {
   researchMetrics: (run) => get("/api/research/metrics", { run }),
 };
 
+export function resolveForecastGw(preferred) {
+  // ONE policy for "which GW has published features": a future GW whose
+  // source GW is still settling clamps to the latest scoreable window.
+  // Both fallback paths (drawer forecast, transfer CDF compare) use this.
+  const m = window.FPL_META || {};
+  const scoreable = m.max_forecast_gw || 0;
+  if (!scoreable || !preferred || preferred <= scoreable) return preferred;
+  return scoreable;
+}
+
 export function fmtPrice(tenths) {
   if (tenths === undefined || tenths === null) return "–";
   return `£${(tenths / 10).toFixed(1)}m`;

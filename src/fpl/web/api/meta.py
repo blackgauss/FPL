@@ -18,10 +18,8 @@ def get_store(request: Request) -> Store:
 @router.get("")
 def get_meta(request: Request) -> dict:
     store = get_store(request)
-    try:
-        current_gw = store.current_gw()
-    except Exception:
-        current_gw = 0
+    clock = store.clock()
+    current_gw = clock["current"]
 
     live: dict = {"available": False, "fetched_at": None, "age_seconds": None}
     lv = store.live()
@@ -42,7 +40,7 @@ def get_meta(request: Request) -> dict:
     return {
         "season": store.season,
         "current_gw": current_gw,
-        "max_forecast_gw": store.max_forecast_gw(),
+        "max_forecast_gw": clock["scoreable"],
         "entry_id": store.entry_id(),
         "live": live,
         "artifacts": store.artifacts(),
