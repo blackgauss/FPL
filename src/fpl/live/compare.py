@@ -122,7 +122,9 @@ def write_comparison(
 
     players = pl.read_parquet(f"{processed}/players_{season}.parquet")
     gw_stats = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
-    td = load_training(processed, [season])[season]
+    # target next_points only exists for COMPLETED GWs; scoring an in-progress
+    # or upcoming GW must still work on the feature rows (see team.distribution)
+    td = load_training(processed, [season], require_target=False)[season]
     if official_forecast:
         from fpl.live.live import fetch_bootstrap, to_live_frame
 

@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from fpl.model.experiment import REGISTRY, run_experiment, write_results
-from fpl.model.train import assemble
+from fpl.model.train import TrainingData, assemble
 
 FEAT = {
     "player_id": [1, 1, 2, 2],
@@ -122,3 +122,23 @@ class TestResultArtifact:
         assert payload["status"] == "complete"
         assert payload["metadata"]["git_sha"] == "test"
         assert payload["results"][0]["name"] == "artifact"
+
+
+class TestRidgeToleratesNaN:
+    def test_ridge_fits_with_nan_features(self, pairs):
+        # live-season features legitimately carry NaN (unrated opponent ELO,
+        # unknown position codes); Ridge must impute, not crash
+        train, fit = pairs
+        extra = np.full((1, train.X.shape[1]), np.nan)
+        extra[0, 1:] = train.X[0, 1:]
+        train_n = TrainingData(
+            X=np.vstack([train.X, extra]),
+            y=np.concatenate([train.y, [train.y[0]]]),
+            gw=np.concatenate([train.gw, [train.gw[0]]]),
+            feature_names=train.feature_names,
+            categorical=train.categorical,
+            meta=pl.concat([train.meta, train.meta.head(1)]),
+        )
+        r = run_experiment(train_n, fit, name="n", model="ridge",
+                           fit_gw_max=2, test_gw_min=3)
+        assert np.isfinite(r.mae)

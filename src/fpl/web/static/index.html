@@ -1,0 +1,118 @@
+<!doctype html>
+<!-- App shell for the FPL web PoC: top bar, tabs, content, drawer -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPL</title>
+<link rel="stylesheet" href="uplot.min.css">
+<script src="uplot.min.js"></script>
+<style>
+:root { --fg:#1c2330; --mut:#68707f; --bg:#f6f7f9; --card:#fff; --line:#dfe3e8; --acc:#2456d6; --bad:#c62f2f; --warn:#b07404; --ok:#17803d; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.45 system-ui,sans-serif; color:var(--fg); background:var(--bg); }
+header { display:flex; align-items:center; gap:16px; padding:10px 18px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+.brand { font-weight:700; letter-spacing:.04em; }
+.meta { color:var(--mut); font-size:13px; }
+nav { display:flex; gap:4px; margin-left:auto; }
+nav button { border:0; background:none; padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit; color:var(--mut); }
+nav button.active { background:var(--acc); color:#fff; }
+main { padding:18px; max-width:1200px; margin:0 auto; }
+h1 { font-size:19px; margin:0 0 12px; }
+h2 { font-size:15px; margin:18px 0 8px; }
+table { border-collapse:collapse; width:100%; background:var(--card); }
+th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th { font-weight:600; color:var(--mut); font-size:12px; text-transform:uppercase; cursor:pointer; user-select:none; }
+tr.click { cursor:pointer; } tr.click:hover td { background:#eef2fb; }
+.cards { display:flex; flex-wrap:wrap; gap:10px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:140px; }
+.card .k { color:var(--mut); font-size:12px; } .card .v { font-size:18px; font-weight:600; }
+.card.stat .stat-v { font-size:24px; font-weight:700; }
+.card.stat.ok .stat-v { color:var(--ok); } .card.stat.bad .stat-v { color:var(--bad); }
+.mut { color:var(--mut); } tr.dim { opacity:.55; } .num-ok { color:var(--ok); } .num-bad { color:var(--bad); }
+.chip { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; background:#eceff3; }
+.chip.ok{color:var(--ok);background:#e2f4e9;} .chip.bad{color:var(--bad);background:#fbe4e4;} .chip.warn{color:var(--warn);background:#f7ecd4;}
+.controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+input,select { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); }
+.pager { display:flex; gap:10px; align-items:center; margin-top:10px; color:var(--mut); }
+.pager button { padding:4px 12px; border:1px solid var(--line); background:var(--card); border-radius:6px; cursor:pointer; }
+.empty,.loading,.err { padding:30px; text-align:center; color:var(--mut); background:var(--card); border:1px dashed var(--line); border-radius:8px; }
+.err { color:var(--bad); border-color:var(--bad); }
+.drawer { position:fixed; top:0; right:0; width:min(640px,95vw); height:100%; background:var(--card); border-left:1px solid var(--line); box-shadow:-4px 0 16px rgba(0,0,0,.08); padding:18px; overflow:auto; z-index:10; }
+.drawer.hidden { display:none; }
+.drawer .close { float:right; border:0; background:none; font-size:20px; cursor:pointer; }
+.flag-ok{color:var(--ok);} .flag-warn{color:var(--warn);} .flag-bad{color:var(--bad);}
+.uplot,.chart { margin:12px 0; }
+.self-row td { background:#e7eeff; }
+pre.json { background:#f2f4f7; padding:8px; border-radius:6px; overflow:auto; }
+.spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--acc); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">FPL</div>
+  <div id="meta-bar" class="meta"></div>
+  <nav id="tabs">
+    <button data-view="overview" class="active">Overview</button>
+    <button data-view="explorer">Explorer</button>
+    <button data-view="team">Team</button>
+    <button data-view="transfers">Transfers</button>
+    <button data-view="league">League</button>
+    <button data-view="research">Research</button>
+  </nav>
+</header>
+<main id="content"><div class="loading"><span class="spinner"></span> Loading…</div></main>
+<div id="drawer" class="drawer hidden"></div>
+<div id="jserr" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#7a1d1d;color:#fff;padding:8px 14px;font:12px ui-monospace,monospace;white-space:pre-wrap;z-index:99;max-height:30vh;overflow:auto"></div>
+<script>
+// Uncaught errors surface at the bottom of the page (report this text if the
+// UI misbehaves); stale-asset deploys can otherwise fail silently in browser.
+window.addEventListener("error", (e) => {
+  const box = document.getElementById("jserr");
+  box.style.display = "block";
+  box.textContent = "JS error: " + (e.message || e.error)
+    + " @ " + (e.filename || "?") + ":" + (e.lineno || "?")
+    + (e.stack ? "\n" + String(e.stack).split("\n").slice(0, 4).join("\n") : "");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const box = document.getElementById("jserr");
+  box.style.display = "block";
+  box.textContent = "JS promise error: " + (e.reason?.stack || e.reason);
+});
+</script>
+<script type="module">
+const meta = { season: "", current_gw: 0, artifacts: [] };
+window.FPL_META = meta;
+const bar = document.getElementById("meta-bar");
+try {
+  const { api } = await import("./js/api.js");
+  Object.assign(meta, await api.meta());
+  bar.textContent = `${meta.season ?? ""} · GW ${meta.current_gw ?? "?"}`;
+} catch (e) {
+  bar.textContent = `meta unavailable: ${e.message}`;
+}
+const content = document.getElementById("content");
+document.getElementById("tabs").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-view]");
+  if (!btn) return;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  show(btn.dataset.view);
+});
+async function show(view) {
+  content.innerHTML = '<div class="loading"><span class="spinner"></span> Loading…</div>';
+  try {
+    const mod = await import(`./js/views/${view}.js`);
+    await mod.render(content);
+  } catch (e) {
+    content.innerHTML = "";
+    const d = document.createElement("div");
+    d.className = "err";
+    d.textContent = e.message;
+    content.appendChild(d);
+  }
+}
+show("overview");
+</script>
+</body>
+</html>

@@ -138,12 +138,14 @@ def assemble(df: pl.DataFrame, players: pl.DataFrame, gw_stats: pl.DataFrame,
             return pl.col(c).cast(pl.Int64)  # team_code is already int
         vocab = _stable_categories(c)
         if vocab is not None:
-            return pl.col(c).cast(pl.Enum(vocab)).to_physical()
+            # unknown values (e.g. "UNK" positions early in a new season)
+            # encode as null = missing, which trees handle; never a crash
+            return pl.col(c).cast(pl.Enum(vocab), strict=False).to_physical()
         return pl.col(c).cast(pl.Categorical).to_physical()
 
     X = df.select(feature_columns).with_columns(
         # encode string categoricals into int codes with a cross-season stable
-        # vocabulary where one exists; unknown values raise, not mis-code
+        # vocabulary where one exists; unknown values become null, not mis-code
         *[_encode(c) for c in cat_selected]
     )
     feature_names = list(feature_columns)

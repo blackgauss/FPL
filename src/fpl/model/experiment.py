@@ -52,12 +52,21 @@ def _hist_gb(params: dict):
 
 
 def _ridge(params: dict):
+    from sklearn.impute import SimpleImputer
     from sklearn.linear_model import Ridge
+    from sklearn.pipeline import Pipeline
 
     def make(X, y, categorical=None):
         cfg = {"alpha": 1.0}
         cfg.update(params)
-        return Ridge(**cfg).fit(X, y).predict
+        # median-impute INSIDE the pipeline (fit on train rows only): season
+        # features legitimately contain NaN (e.g. unrated opponents' ELO,
+        # unknown position codes) which tree models eat but Ridge rejects
+        pipe = Pipeline([
+            ("imp", SimpleImputer(strategy="median")),
+            ("ridge", Ridge(**cfg)),
+        ])
+        return pipe.fit(X, y).predict
 
     return make
 

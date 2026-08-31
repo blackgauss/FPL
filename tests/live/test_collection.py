@@ -143,3 +143,60 @@ def test_compare_team_requires_entry_for_multi_team_pick_artifact():
                                    "minutes": [90], "total_points": [1]}),
             forecast=pl.DataFrame({"player_code": [100], "gw": [1],
                                     "expected_points": [1.0]}), gw=1)
+
+
+def test_resolve_h2h_scores_each_gw_separately() -> None:
+    """Multi-GW picks must settle PER GW: two managers tied on season
+    totals but splitting the GWs 1-1 are W-L/W-L, not a draw (comparing
+    totals was the historical bug once a second GW is collected)."""
+    from fpl.live.collection import resolve_h2h_standings
+
+    pos = (["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3) * 2
+    ids = list(range(1, 31))
+    players = pl.DataFrame({
+        "player_id": ids, "player_code": [1000 + i for i in ids],
+        "web_name": [f"P{i}" for i in ids], "position": pos,
+        "team_code": [i % 5 + 1 for i in range(30)], "price_tenths": [50] * 30,
+    })
+    picks_rows = []
+    for eid, base in ((1, 0), (2, 15)):
+        for gw in (1, 2):
+            for slot in range(15):
+                picks_rows.append({
+                    "entry_id": eid, "gw": gw, "element": base + slot + 1,
+                    "position": slot + 1, "multiplier": 2 if slot == 0 else 1,
+                    "is_captain": slot == 0, "is_vice_captain": slot == 1,
+                    "element_type": 1})
+    picks = pl.DataFrame(picks_rows)
+
+    def live(pid, gw, pts, minsec=90):
+        return {"player_id": pid, "gw": gw, "minutes": minsec,
+                "total_points": pts}
+    event_live = pl.DataFrame([
+        # GW1: A = 30*2(cap) + 10 + 10 = 80 ; B = 0 (cap plays blank) + 10 = 10
+        live(1, 1, 30), live(2, 1, 10), live(3, 1, 10),
+        live(16, 1, 0), live(17, 1, 10),
+        # GW2 mirrored: A = 10 ; B = 30*2 + 10 + 10 = 80  → tied 90 totals
+        live(16, 2, 30), live(17, 2, 10), live(18, 2, 10),
+        live(2, 2, 10),
+    ])
+    matches = pl.DataFrame({
+        "entry_1_entry": [1, 2], "entry_2_entry": [2, 1],
+        "entry_1_points": [0, 0], "entry_2_points": [0, 0],
+        "event": [1, 2], "is_bye": [False, False],
+    })
+    standings = [{"entry": 1, "entry_name": "A", "player_name": "a"},
+                 {"entry": 2, "entry_name": "B", "player_name": "b"}]
+    out = resolve_h2h_standings(standings=standings, matches=matches,
+                               picks=picks, event_live=event_live,
+                               players=players).sort("entry_id")
+    rows = out.rows()
+    r1 = dict(zip(out.columns, rows[0], strict=True))
+    r2 = dict(zip(out.columns, rows[1], strict=True))
+    # GW1: A 80 (cap×2 + VC + 5pt) vs B 10 -> A; GW2 mirrored -> 1-1 each,
+    # even though A's totals (100: VC inherits captaincy when the captain
+    # doesn't play) exceed B's (90). Comparing totals would have made A
+    # win BOTH matches — the historical bug.
+    assert r1["resolved_score"] == 100.0 and r2["resolved_score"] == 90.0
+    assert (r1["wins"], r1["draws"], r1["losses"], r1["league_points"]) == (1, 0, 1, 3)
+    assert (r2["wins"], r2["draws"], r2["losses"], r2["league_points"]) == (1, 0, 1, 3)
