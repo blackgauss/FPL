@@ -1,6 +1,7 @@
 // Explorer view: faceted player table + forecast drawer
 import { api, el, empty, fmtPrice, fmtNum, resolveForecastGw } from "../api.js";
 import { bandChart, multiLineChart } from "../charts.js";
+import { chip, fail } from "../ui.js";
 
 const PAGE = 25;
 const CHIP = {
@@ -49,8 +50,7 @@ export async function render(root) {
         el("button", { disabled: st.offset + PAGE >= st.total, onclick: () => { st.offset += PAGE; load(); } }, "next →"),
       );
     } catch (e) {
-      tableBox.replaceChildren(el("div", { class: "err" },
-        e.cold ? "computing… (retry in a moment)" : e.message));
+      tableBox.replaceChildren(fail(e));
       pager.replaceChildren();
     } finally { controls._loading = false; }
   }
@@ -87,7 +87,7 @@ export async function render(root) {
         el("td", {}, r.position ?? r.pos ?? ""),
         el("td", {}, r.team ?? r.team_short ?? r.club ?? ""),
         el("td", {}, fmtPrice(price)),
-        el("td", {}, el("span", { class: `chip ${cls}` }, txt)),
+        el("td", {}, chip(cls, txt)),
         el("td", {}, r.selected_by_percent != null ? fmtNum(r.selected_by_percent) : "–"),
         el("td", { title: "owned by league managers (latest collected picks)" },
           r.own_league != null ? fmtNum(r.own_league) + "%" : "–"),

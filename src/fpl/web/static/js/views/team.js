@@ -3,6 +3,7 @@
 import { api, el, empty, fmtPrice, fmtNum } from "../api.js";
 import { bandChart } from "../charts.js";
 import { openPlayerDrawer } from "./explorer.js";
+import { bar, chip, fail } from "../ui.js";
 
 const num = (v, d = 1) => (v == null ? "–" : Number(v).toFixed(d));
 
@@ -23,12 +24,7 @@ function statCard(label, value, sub, cls = "") {
 function pctBar(pct) {
   if (pct == null) return el("td", {}, "–");
   const color = pct >= 95 ? "#17803d" : pct <= 5 ? "#c62f2f" : "#2456d6";
-  return el("td", {},
-    el("span", { style: "display:inline-block;width:44px;height:8px;"
-      + "background:#eceff3;border-radius:2px;vertical-align:middle;margin-right:6px",
-    }, el("span", { style: `display:block;height:8px;width:${pct.toFixed(0)}%;`
-      + `background:${color};border-radius:2px` })),
-    `${pct.toFixed(0)}%`);
+  return el("td", {}, bar(pct / 100, color), `${pct.toFixed(0)}%`);
 }
 
 export async function render(root) {
@@ -37,7 +33,7 @@ export async function render(root) {
   try {
     data = await api.teamFlags({ gw: window.FPL_META?.current_gw || undefined });
   } catch (e) {
-    root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
+    root.append(fail(e));
     return;
   }
   if (!data.available) {
@@ -69,11 +65,11 @@ export async function render(root) {
   for (const r of rows) {
     const bench = (r.slot ?? 0) > 11;
     const name = el("td", {}, r.web_name ?? `#${r.player_id}`,
-      ...(r.is_captain ? [el("span", { class: "chip ok" }, "C")] : []),
-      ...(r.is_vice_captain ? [el("span", { class: "chip" }, "A")] : []),
-      ...(bench ? [el("span", { class: "chip" }, "bench")] : []));
-    const chips = [el("span", { class: `chip ${flagClass(r.flag)}`,
-      title: r.news || null }, String(r.flag ?? "ok"))];
+      ...(r.is_captain ? [chip("ok", "C")] : []),
+      ...(r.is_vice_captain ? [chip("", "A")] : []),
+      ...(bench ? [chip("", "bench")] : []));
+    const chips = [chip(flagClass(r.flag), String(r.flag ?? "ok"),
+                        r.news || null)];
     t.lastChild.append(el("tr", { class: bench ? "dim" : "" },
       name,
       el("td", {}, `#${r.slot ?? "?"}`),
@@ -112,8 +108,8 @@ async function performanceSection(root) {
       onclick: () => openPlayerDrawer({ player_code: r.player_code, web_name: r.web_name }),
     },
       el("td", {}, r.web_name ?? String(r.player_code),
-        ...(r.is_captain ? [el("span", { class: "chip ok" }, "C")] : []),
-        ...(r.is_vice_captain ? [el("span", { class: "chip" }, "A")] : [])),
+        ...(r.is_captain ? [chip("ok", "C")] : []),
+        ...(r.is_vice_captain ? [chip("", "A")] : [])),
       el("td", {}, String(r.minutes ?? "–")),
       el("td", {}, num(r.actual_points, 0)),
       el("td", { class: "mut" }, num(r.model_pred ?? r.expected_points)),

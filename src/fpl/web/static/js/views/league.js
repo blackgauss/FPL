@@ -1,6 +1,7 @@
 // League view: standings + per-manager form, H2H record, league ownership
 import { api, el, empty, fmtNum } from "../api.js";
 import { sparkBars } from "../charts.js";
+import { chip, fail } from "../ui.js";
 
 const COLUMNS = {
   h2h_resolved: [
@@ -21,7 +22,7 @@ export async function render(root) {
   try {
     data = await api.leagueStandings({});
   } catch (e) {
-    root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
+    root.append(fail(e));
     return;
   }
   const rows = (data.rows ?? []).map(r => r.record == null && r.wins != null
@@ -81,7 +82,7 @@ function drawRecord(root, report, me) {
       el("td", {}, fmtNum(cell.points)),
       el("td", { class: "mut" }, `#${cell.opponent}`),
       el("td", { class: "mut" }, fmtNum(cell.opponent_points)),
-      el("td", {}, el("span", { class: `chip ${res === "W" ? "ok" : res === "L" ? "bad" : ""}` }, res))));
+      el("td", {}, chip(res === "W" ? "ok" : res === "L" ? "bad" : "", res))));
   }
   root.append(t);
 }
