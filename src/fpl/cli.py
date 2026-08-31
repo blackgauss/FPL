@@ -7,6 +7,7 @@ import json
 
 from fpl.live import collection, compare
 from fpl.stages import gym, search
+from fpl.weekly import sequence
 
 
 def main() -> None:
@@ -61,6 +62,19 @@ def main() -> None:
     compare_parser.add_argument("--official-forecast", action="store_true",
                                 help="use FPL ep_this for current GW when model GW0 is unavailable")
 
+    plan_parser = subparsers.add_parser("plan", help="plan the next gameweek")
+    plan_parser.add_argument("--picks", required=True)
+    plan_parser.add_argument("--history", required=True)
+    plan_parser.add_argument("--entry-id", type=int, required=True)
+    plan_parser.add_argument("--processed", default="data/processed")
+    plan_parser.add_argument("--season", default="2026-2027")
+    plan_parser.add_argument("--model", default="data/processed/points_lgbm.txt")
+    plan_parser.add_argument("--gw", type=int, required=True,
+                             help="current gameweek; plans gw+1")
+    plan_parser.add_argument("--bank-tenths", type=int, default=0)
+    plan_parser.add_argument("--top", type=int, default=10)
+    plan_parser.add_argument("--out")
+
     args = parser.parse_args()
     if args.stage == "collect":
         collection.collect(
@@ -78,6 +92,14 @@ def main() -> None:
             official_forecast=args.official_forecast, entry_id=args.entry_id,
         )
         print(json.dumps(payload["summary"], indent=2))
+    elif args.stage == "plan":
+        payload = sequence.run_from_files(
+            picks_path=args.picks, history_path=args.history,
+            processed=args.processed, season=args.season, model_path=args.model,
+            gw=args.gw, bank_tenths=args.bank_tenths, top=args.top, out=args.out,
+            entry_id=args.entry_id,
+        )
+        print(json.dumps(payload, indent=2))
     elif args.stage == "search":
         search.run(
             processed=args.processed, season=args.season, gw_start=args.gw,

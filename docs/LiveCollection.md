@@ -66,3 +66,18 @@ while the gameweek is provisional.
 For the current season's opening gameweek, use `--official-forecast`: the
 local model has no preseason source-GW0 row yet, so FPL's `ep_this` is the only
 available provisional xScore until a preseason forecast snapshot is stored.
+
+Plan the next gameweek from the collected manager state:
+
+```bash
+uv run python -m fpl plan \
+  --picks data/raw/fpl_api/account/team_picks.parquet \
+  --history data/raw/fpl_api/account/team_history.parquet \
+  --entry-id <manager-entry-id> --season 2026-2027 --gw 1 \
+  --bank-tenths 0 --out data/raw/fpl_api/account/gw2_plan.json
+```
+
+The planner ranks hold plus legal one-transfer alternatives, then chooses a
+legal formation, captain, vice-captain, and goalkeeper-aware bench priority
+for each option. `bank-tenths` is the available cash in FPL tenths; exact
+selling-price support will be added when that account field is collected.
