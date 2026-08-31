@@ -1,5 +1,6 @@
 // Research view: artifact list + recursive metrics tables
 import { api, el, empty } from "../api.js";
+import { fail } from "../ui.js";
 
 export async function render(root) {
   root.innerHTML = "";
@@ -27,8 +28,7 @@ async function showRun(run, out) {
     const data = await api.researchMetrics(run);
     out.replaceChildren(el("h3", {}, run), ...jsonTable(data));
   } catch (e) {
-    out.replaceChildren(el("div", { class: "err" },
-      e.cold ? "computing… (retry in a moment)" : e.message));
+    out.replaceChildren(fail(e));
   }
 }
 

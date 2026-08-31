@@ -8,9 +8,6 @@ feature store, H2H league tables that only read right resolved.
 
 from __future__ import annotations
 
-import json
-import shutil
-import subprocess
 from itertools import pairwise
 from pathlib import Path
 
@@ -18,7 +15,6 @@ import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
-from fpl.web import app as web_app
 from fpl.web.app import create_app
 from fpl.web.queries import Store
 
@@ -111,16 +107,8 @@ def test_players_cover_live_status_official_ep(client: TestClient) -> None:
 @requires_data
 def test_headless_render_smoke_real_data(client: TestClient,
                                          tmp_path: Path) -> None:
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("node not installed")
-    from tests.web.test_web_api import _capture_payloads
-
-    payloads = tmp_path / "payloads.json"
-    payloads.write_text(json.dumps(_capture_payloads(client)), encoding="utf-8")
-    js_dir = Path(web_app.__file__).parent / "static" / "js"
-    r = subprocess.run([node, str(js_dir / "render_smoke.mjs"), str(payloads)],
-                       capture_output=True, text=True, timeout=240, cwd=js_dir)
+    from tests.web.support import render_smoke
+    r = render_smoke(client, tmp_path / "payloads.json", timeout=240)
     assert r.returncode == 0, f"render smoke failed:\n{r.stdout}\n{r.stderr}"
 
 

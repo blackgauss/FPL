@@ -1,6 +1,7 @@
 // Transfers view: weekly plan options with impact bars + in/out CDF preview
 import { api, el, empty, fmtNum, fmtPrice, resolveForecastGw } from "../api.js";
 import { multiLineChart } from "../charts.js";
+import { bar, chip, fail } from "../ui.js";
 
 export async function render(root) {
   root.innerHTML = "";
@@ -9,7 +10,7 @@ export async function render(root) {
   try {
     data = await api.transferSuggestions({});
   } catch (e) {
-    root.append(el("div", { class: "err" }, e.cold ? "computing… (retry in a moment)" : e.message));
+    root.append(fail(e));
     return;
   }
   const options = data.suggestions ?? [];
@@ -30,14 +31,10 @@ export async function render(root) {
 
   options.forEach((o, i) => {
     const gain = o.expected_gain ?? 0;
-    const w = Math.round(((gain - gainMin) / (gainMax - gainMin || 1)) * 60);
-    const bar = el("span", {
-      style: `display:inline-block;height:8px;width:${w}px;background:${
-        gain >= 0 ? "#17803d" : "#c62f2f"};border-radius:2px;margin-right:6px;vertical-align:middle`,
-    });
-    const ownChip = (v) => el("td", {}, el("span", {
-      class: `chip ${v != null && v > 30 ? "warn" : ""}`,
-    }, v == null ? "–" : fmtNum(v) + "%"));
+    const gainBar = bar((gain - gainMin) / (gainMax - gainMin || 1),
+                        gain >= 0 ? "#17803d" : "#c62f2f");
+    const ownChip = (v) => el("td", {},
+      chip(v != null && v > 30 ? "warn" : "", v == null ? "–" : fmtNum(v) + "%"));
     const detail = el("div", { class: "meta" }, "loading forecast comparison…");
     const det = el("details", {}, el("summary", {}, "CDF in vs out"), detail);
     let loaded = false;
@@ -51,7 +48,7 @@ export async function render(root) {
       el("td", {}, String(o.transfer_in ?? "?")),
       el("td", { class: "mut" }, String(o.transfer_out ?? "?")),
       el("td", gain >= 0 ? { class: "num-ok" } : { class: "num-bad" },
-        bar, "+" + fmtNum(gain) + " pts"),
+        gainBar, "+" + fmtNum(gain) + " pts"),
       el("td", {}, fmtNum(o.expected_score)),
       ownChip(o.ownership_in),
       ownChip(o.ownership_out),
