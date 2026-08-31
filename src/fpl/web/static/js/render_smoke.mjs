@@ -96,7 +96,8 @@ globalThis.document = {
 };
 const fetched = [];
 const Q_PCT = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99];
-// mirror of fpl.dist.probability_below: CDF from a quantile vector
+// stand-in for the SERVER-side fpl.dist.probability_below (fetch stub only;
+// browser views must never re-derive probabilities from the grid themselves)
 function probBelow(vals, th) {
   const pairs = vals.map((v, i) => [v, Q_PCT[i]]).sort((a, b) => a[0] - b[0]);
   if (th <= pairs[0][0]) return 0;
@@ -128,9 +129,17 @@ globalThis.fetch = async (url) => {
       xs.push(Math.round(x * 1000) / 1000);
       cdf.push(probBelow(vals, x));
     }
-    return { ok: true, status: 200, statusText: "OK",
-      json: async () => ({ player_code: code, gw, pred: row.pred,
-        web_name: row.web_name, xs, cdf, quantiles: row.quantiles }) };
+    const json = { player_code: code, gw, pred: row.pred,
+      web_name: row.web_name, xs, cdf, quantiles: row.quantiles };
+    const at = (q.get("at") ?? "").split(",").filter(Boolean);
+    if (at.length) {
+      json.tails = {};
+      for (const t of at) {
+        const p = probBelow(vals, Number(t));
+        json.tails[t] = { p_le: p, p_gt: 1 - p };
+      }
+    }
+    return { ok: true, status: 200, statusText: "OK", json: async () => json };
   }
   let body = payloads[path];
   if (path === "/api/forecast" && body?.rows) {

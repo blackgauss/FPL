@@ -68,8 +68,7 @@ function capName(data, code) {
 
 async function cdfFor(code, gw) {
   const g = resolveForecastGw(gw);  // one clamp policy (see api.js)
-  const d = await api.forecastCdf({ player_code: code, gw: g, n: 48 });
-  return d;
+  return api.forecastCdf({ player_code: code, gw: g, n: 48, at: "5" });
 }
 
 async function compareCdf(box, o, gw) {
@@ -77,20 +76,14 @@ async function compareCdf(box, o, gw) {
   if (codes.length < 2) { box.textContent = "codes unavailable for CDF."; return; }
   try {
     const [inn, out] = await Promise.all(codes.map(c => cdfFor(c, gw)));
-    const pAt = (d) => (x) => {
-      const step = d.xs[1] - d.xs[0];
-      const i = Math.min(d.cdf.length - 2, Math.max(0, Math.floor(x / step)));
-      return d.cdf[i] + (x / step - i) * (d.cdf[i + 1] - d.cdf[i]);
-    };
+    const pct = (d) => Math.round((d.tails?.["5"]?.p_gt ?? 0) * 100);
     const label = (d, side) => `${side} ${d.web_name ?? d.player_code}`;
     if (!multiLineChart(box2(box), inn.xs, [
       { label: label(inn, "in"), ys: inn.cdf },
       { label: label(out, "out"), ys: out.cdf },
     ], { yPercent: true, xlabel: "points" })) box.textContent = "chart unavailable";
-    const hi = 5;
     box.append(el("div", { class: "meta" },
-      `P(≥${hi} pts): in ${Math.round((1 - pAt(inn)(hi)) * 100)}% vs `
-      + `out ${Math.round((1 - pAt(out)(hi)) * 100)}%`
+      "P(≥5 pts): in " + pct(inn) + "% vs out " + pct(out) + "%"
       + ((inn.gw != null && inn.gw !== gw)
         ? ` · ${gw > inn.gw ? `GW${gw} window not published yet — GW${inn.gw} distributions shown`
           : `GW${inn.gw} window`}`
