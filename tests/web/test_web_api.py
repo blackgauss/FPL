@@ -12,8 +12,12 @@ from fastapi.testclient import TestClient
 from fpl.dist import QS
 from fpl.web.queries import Store
 from tests.web.support import (
-    ENTRY, N_PLAYERS, PLAYERS, SEASON, _write_root, fake_forecast,
-    render_smoke,)
+    ENTRY,
+    N_PLAYERS,
+    SEASON,
+    fake_forecast,
+    render_smoke,
+)
 
 
 def test_meta(client: TestClient) -> None:
