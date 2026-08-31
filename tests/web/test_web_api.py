@@ -638,3 +638,21 @@ def test_clock_single_source_of_gw_truth(client: TestClient,
                                                     "scoreable": 0}
     meta = client.get("/api/meta").json()
     assert (meta["current_gw"], meta["max_forecast_gw"]) == (1, 2)
+
+
+def test_forecast_cdf_tails_are_server_interpolated(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Views get tail probabilities, not raw grids to interpolate twice in
+    JS — and thresholds echo back as the client sent them (dict keys)."""
+    fake_forecast(monkeypatch)
+    body = client.get("/api/forecast/cdf", params={
+        "player_code": 1001, "gw": 3, "at": "5,10,0.5"}).json()
+    tails = body["tails"]
+    assert set(tails) == {"5", "10", "0.5"}
+    for t in tails.values():
+        assert t["p_le"] + t["p_gt"] == pytest.approx(1.0, abs=1e-3)
+    assert tails["5"]["p_gt"] >= tails["10"]["p_gt"]   # farther right = rarer
+    assert tails["0.5"]["p_le"] <= tails["5"]["p_le"]
+    bad = client.get("/api/forecast/cdf",
+                     params={"player_code": 1001, "gw": 3, "at": "5,lol"})
+    assert bad.status_code == 422

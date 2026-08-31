@@ -42,6 +42,10 @@ def get_cdf(
     player_code: int,
     gw: int | None = Query(None, ge=1, description="defaults to the next GW"),
     n: int = Query(80, ge=16, le=400, description="CDF grid points"),
+    at: str | None = Query(
+        None, description="comma-separated point thresholds; returns "
+        "server-interpolated tail probabilities so clients never re-derive "
+        "CDFs from the grid (fpl.dist.probability_below stays the one oracle)"),
 ) -> dict:
     """Empirical CDF P(X <= x) of one player's GW points, read off the
     t-digest quantiles (the sigma-scaled residual shape) — the full
@@ -68,11 +72,26 @@ def get_cdf(
     top = max(max(vals) * 1.05, rec["pred"] + 1.0, 5.0)
     xs = [round(i * top / (n - 1), 3) for i in range(n)]
     cdf = [probability_below(vals, float(x)) for x in xs]
-    return {
+    out = {
         "player_code": player_code, "web_name": rec.get("web_name"),
         "gw": gw, "pred": rec["pred"], "xs": xs, "cdf": cdf,
         "quantiles": {k: rec[k] for k in Q_KEYS},
     }
+    if at:
+        tails: dict[str, dict[str, float]] = {}
+        for token in at.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                thr = float(token)
+            except ValueError:
+                raise HTTPException(
+                    422, f"bad 'at' threshold: {token!r}") from None
+            p = probability_below(vals, thr)
+            tails[token] = {"p_le": round(p, 4), "p_gt": round(1 - p, 4)}
+        out["tails"] = tails
+    return out
 
 
 @router.get("", response_model=ForecastOut)

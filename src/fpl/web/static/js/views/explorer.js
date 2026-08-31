@@ -171,8 +171,10 @@ async function fetchForecast(code, gw, retries = 2) {
     (async () => {
       const per = [];
       for (const gwv of [...new Set(rows.map(r => r.gw))]) {
-        try { per.push(await api.forecastCdf({ player_code: code, gw: gwv })); }
-        catch { /* cold or outside window: remaining GWs still draw */ }
+        try {
+          per.push(await api.forecastCdf({ player_code: code, gw: gwv,
+                                           at: "5,10,0.5" }));
+        } catch { /* cold or outside window: remaining GWs still draw */ }
       }
       if (!per.length) { cdfNote.textContent = "CDF unavailable (cold forecast)"; return; }
       cdfNote.textContent = "cumulative probability of GW points";
@@ -180,19 +182,13 @@ async function fetchForecast(code, gw, retries = 2) {
         per.map((d) => ({ label: "GW" + d.gw, ys: d.cdf })),
         { yPercent: true, xlabel: "points" });
       for (const d of per) {
-        const step = d.xs[1] - d.xs[0];
-        const pAt = (x) => {
-          if (x <= d.xs[0]) return d.cdf[0];
-          if (x >= d.xs[d.xs.length - 1]) return 1;
-          const i = Math.min(d.cdf.length - 2, Math.floor(x / step));
-          return d.cdf[i] + (x / step - i) * (d.cdf[i + 1] - d.cdf[i]);
-        };
+        const t = d.tails ?? {};
         cdfTbl.lastChild.append(el("tr", {},
           el("td", {}, "GW" + d.gw),
           el("td", {}, fmtNum(d.quantiles.q50)),
-          el("td", {}, Math.round((1 - pAt(5)) * 100) + "%"),
-          el("td", {}, Math.round((1 - pAt(10)) * 100) + "%"),
-          el("td", {}, Math.round(pAt(0.5) * 100) + "%")));
+          el("td", {}, Math.round((t["5"]?.p_gt ?? 0) * 100) + "%"),
+          el("td", {}, Math.round((t["10"]?.p_gt ?? 0) * 100) + "%"),
+          el("td", {}, Math.round((t["0.5"]?.p_le ?? 0) * 100) + "%")));
       }
     })();
     return holder;
