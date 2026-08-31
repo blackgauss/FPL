@@ -30,20 +30,22 @@ def _current_squad(picks: pl.DataFrame, players: pl.DataFrame,
             entry_id = int(ids[0])
         selected = selected.filter(pl.col("entry_id") == entry_id)
     joined = selected.join(
-        players.select("player_id", "player_code", "web_name", "position"),
+        players.select("player_id", "player_code", "web_name", "position",
+                       "team_code"),
         left_on="element", right_on="player_id", how="inner",
     ).join(
-        live.select("player_id", "team_code", "now_cost"),
+        live.select("player_id", "now_cost"),
         left_on="element", right_on="player_id", how="left",
     )
+    # Clubs come from the collected snapshot, NOT live: the 3-per-club cap is
+    # enforced at deadline, and mid-window club transfers can leave a legal
+    # squad with 4 players of one club in the live bootstrap.
     joined = joined.with_columns(
         pl.col("position_right").alias("player_position"),
-        pl.col("team_code").alias("live_team_code"),
     )
     frame = joined.select(
-        "player_code", "web_name", "player_position", "live_team_code", "now_cost",
-    ).rename({"player_position": "position", "live_team_code": "team_code",
-              "now_cost": "price_tenths"})
+        "player_code", "web_name", "player_position", "team_code", "now_cost",
+    ).rename({"player_position": "position", "now_cost": "price_tenths"})
     base = squad_from_frame(frame, gw=gw)
     ordered = joined.sort("position")
     result = replace(
@@ -212,14 +214,28 @@ def run_from_files(
     live = to_live_frame(fetch_bootstrap())
     td = load_training(processed, [season], require_target=False)[season]
     model = load_model(model_path)
-    _, per_gw = score_players(td, model, gw_start=gw + 1, gw_end=gw + 1,
-                              players=players, detail=True)
-    expected = dict(zip(per_gw["player_code"], per_gw["expected_points"], strict=False))
+    try:
+        _, per_gw = score_players(td, model, gw_start=gw + 1, gw_end=gw + 1,
+                                  players=players, detail=True)
+        expected = dict(zip(per_gw["player_code"], per_gw["expected_points"],
+                            strict=False))
+        source = "model"
+    except ValueError:
+        # The target GW's source features do not exist yet (its fixture is
+        # still settling). FPL's official EP is the best unbiased value and
+        # the payload tags the source so the UI can say so.
+        expected, source = {}, "official_ep"
+    if not expected:
+        expected = {int(r["player_code"]): float(r["ep_next"] or 0.0)
+                    for r in live.iter_rows(named=True)
+                    if r.get("ep_next") is not None}
+        source = "official_ep"
     result = plan_one_week(
         picks=pl.read_parquet(picks_path), history=pl.read_parquet(history_path),
         players=players, live=live, expected=expected, gw=gw,
         bank_tenths=bank_tenths, top=top, entry_id=entry_id,
     )
+    result["expected_source"] = source
     if out:
         path = Path(out)
         path.parent.mkdir(parents=True, exist_ok=True)

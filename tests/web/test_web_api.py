@@ -602,3 +602,26 @@ def test_team_performance_percentiles(client: TestClient,
     assert p12["percentile"] <= 5.0 and p12["p_exceed"] >= 0.95
     assert body["summary"]["below_5th"] == ["P12"]
     assert all(r["q05"] <= r["q95"] for r in rows)
+
+
+def test_latest_account_picks_highest_gw_not_mtime(tmp_path: Path) -> None:
+    """Recency of file mtime must never win over game-week number — a stale
+    re-gw2 run after a gw5 plan must not resurrect it."""
+    (tmp_path / "account").mkdir()
+    w = lambda name, gw: (tmp_path / "account" / name).write_text(
+        json.dumps({"gw": gw}))
+    w("gw5_plan.json", 5)
+    w("gw12_plan.json", 12)
+    w("gw3_comparison.json", 3)
+    store = Store(root=tmp_path, account_dir="account")
+    assert store.latest_account("plan")["file"] == "gw12_plan.json"
+    assert store.latest_account("comparison")["file"] == "gw3_comparison.json"
+    assert store.latest_account("plan")["gw"] == 12
+    assert store.latest_account("matches") is None
+
+
+def test_entry_id_nested_collection_variant(tmp_path: Path) -> None:
+    (tmp_path / "account").mkdir()
+    (tmp_path / "account" / "collection.json").write_text(
+        json.dumps({"entry": {"id": 123}}))
+    assert Store(root=tmp_path, account_dir="account").entry_id() == 123
