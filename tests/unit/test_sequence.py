@@ -121,3 +121,17 @@ def test_plan_reports_xi_distribution_and_beat_probability():
     assert hold["xi_q10"] == hold["xi_q90"]  # degenerate grid: no spread
     got = sum(expected[c] for c in hold["starters"]) + expected[hold["captain"]]
     assert hold["xi_q50"] == pytest.approx(got)  # XI sum + captain doubled
+
+
+def test_planner_survives_observed_club_drift(tmp_path):
+    """A re-collected snapshot that moved players into one club (post-window
+    transfers) must not brick planning: drift is tolerated; adding a NEW
+    player from the drifted club is not."""
+    picks, players, live, expected = _inputs()
+    drifted = players.with_columns(
+        pl.when(pl.col("player_id") <= 4).then(pl.lit(101))
+        .otherwise(pl.col("team_code")).alias("team_code"))
+    result = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=drifted, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=5)
+    assert result["gw"] == 2  # squad assembled despite four from club 101

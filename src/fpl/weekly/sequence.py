@@ -60,7 +60,13 @@ def _current_squad(picks: pl.DataFrame, players: pl.DataFrame,
         "player_code", "web_name", "player_position", "team_code",
         "now_cost_eff",
     ).rename({"player_position": "position", "now_cost_eff": "price_tenths"})
-    base = squad_from_frame(frame, gw=gw)
+    observed: dict[int, int] = {}
+    for club in frame["team_code"].to_list():
+        observed[club] = observed.get(club, 0) + 1
+    # Observed clubs are the tolerated baseline: the cap constrains NEW
+    # selections, while mid-window club transfers can leave drift (see
+    # domain/transfer notes).
+    base = squad_from_frame(frame, gw=gw, club_baseline=observed)
     ordered = joined.sort("position")
     result = replace(
         base,
@@ -72,7 +78,7 @@ def _current_squad(picks: pl.DataFrame, players: pl.DataFrame,
         vice_captain=int(ordered.filter(pl.col("is_vice_captain"))
                          ["player_code"].item()),
     )
-    problems = result.validate()
+    problems = result.validate(club_baseline=observed)
     if problems:
         raise ValueError("collected team is invalid: " + "; ".join(problems))
     return result

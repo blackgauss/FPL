@@ -66,7 +66,7 @@ layer keyed by player_code. Build the team from the store, then lower every
 read onto store data — no per-player conversion loop. (Executed by the test
 suite via tests/unit/test_domain.py::test_domain_docstrings_execute.)
 
-    >>> import polars as pl
+import polars as pl
     >>> from fpl.domain import squad_from_frame
     >>> n = 0
     >>> rows = []
@@ -135,7 +135,7 @@ str-subclass, so it stays interoperable with every string column).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -306,7 +306,18 @@ class Squad:
             counts[p.position] += 1
         return counts
 
-    def validate(self) -> list[str]:
+    def club_counts(self) -> dict[int, int]:
+        """Club headcounts observed in this squad — the tolerance baseline
+        when validating an already-registered (possibly club-drifted) state
+        or swaps derived from it; FPL caps clubs at selection time only."""
+        counts: dict[int, int] = {}
+        for p in self.players:
+            counts[p.club] = counts.get(p.club, 0) + 1
+        return counts
+
+    def validate(self, *,
+                club_baseline: Mapping[int, int] | None = None,
+                ) -> list[str]:
         """Return a list of rule violations (empty == valid Squad).
 
         Reports *problems* (including malformed references) rather than
@@ -330,8 +341,13 @@ class Squad:
         for p in self.players:
             clubs[p.club] = clubs.get(p.club, 0) + 1
         for club, n in clubs.items():
-            if n > MAX_PER_CLUB:
-                problems.append(f"club {club} has {n} > {MAX_PER_CLUB}")
+            # FPL enforces MAX_PER_CLUB at SELECTION time; a squad can hold
+            # one more via mid-window club transfers. Callers validating an
+            # already-observed squad pass its club counts so that tolerated
+            # drift is not reported, while NEW breaches still are.
+            cap = max(MAX_PER_CLUB, (club_baseline or {}).get(club, 0))
+            if n > cap:
+                problems.append(f"club {club} has {n} > {cap}")
         starts = self.starters or [p.code for p in self.players[:11]]
         unknown = [c for c in starts if c not in by_code]
         if unknown:
@@ -360,10 +376,15 @@ class Squad:
                 problems.append("vice-captain not in squad")
             elif self.vice_captain not in starts:
                 problems.append("vice-captain must be a starter")
-        if (self.captain is not None and self.vice_captain is not None
+        # The different-clubs C/VC rule is enforced at selection time; a
+        # baseline was passed exactly when we are validating an observed,
+        # possibly club-drifted squad where drift can collide their clubs.
+        if (club_baseline is None and self.captain is not None
+                and self.vice_captain is not None
                 and self.captain in by_code and self.vice_captain in by_code
                 and by_code[self.captain].club == by_code[self.vice_captain].club):
-            problems.append("captain and vice-captain should be different clubs")
+            problems.append(
+                "captain and vice-captain should be different clubs")
         return problems
 
     def gw_settlement(self, played: dict[int, bool],
@@ -476,7 +497,9 @@ def players_to_frame(players: Sequence[Player]) -> pl.DataFrame:
     return pl.DataFrame(frames)
 
 
-def squad_from_frame(frame: pl.DataFrame, *, gw: int = 1) -> Squad:
+def squad_from_frame(frame: pl.DataFrame, *, gw: int = 1,
+                     club_baseline: Mapping[int, int] | None = None,
+                     ) -> Squad:
     """Build a valid Squad from a 15-row basket frame (greedy output).
 
     Raises ValueError with the exact shape problem if the frame is not a
@@ -508,7 +531,7 @@ def squad_from_frame(frame: pl.DataFrame, *, gw: int = 1) -> Squad:
     starts += [p.code for p in by_pos["FWD"][:1]]   # 1 FWD
     squad = Squad(players=tuple(players), gw=gw,
                   starters=tuple(starts))
-    problems = squad.validate()
+    problems = squad.validate(club_baseline=club_baseline)
     if problems:
         raise ValueError("cannot construct valid Squad: " + "; ".join(problems))
     return squad

@@ -1,6 +1,6 @@
 # Ranking Ability Report
 
-Generated: 2026-08-30T22:42:24.365069+00:00 (git 2f9af0ba41591decfc27dac2711c1db50d51f863)
+Generated: 2026-08-31T22:27:18.378161+00:00 (git df995ded9d39cab50feca975f07e4471c6824c56)
 Frame: ranking stage (spearman / topk_hit_rate / concordance)
 
 Reproduce with:

@@ -326,3 +326,18 @@ class TestLiveIntegrationShape:
         d = p._frame_row()
         assert set(d) >= {"player_code", "web_name", "position", "team_code",
                           "price_tenths"}
+
+def test_validate_club_baseline_tolerates_observed_drift():
+    """FPL caps clubs at selection time; five players sharing a club through
+    post-window transfers is state, not a violation — but adding a fifth is."""
+    club_of = {1: 1, 2: 2, 10: 3, 11: 3, 12: 4, 13: 5, 14: 6,
+               20: 3, 21: 3, 22: 7, 23: 8, 24: 9, 30: 3, 31: 10, 32: 11}
+    pos_of = ({c: "GKP" for c in (1, 2)} | {c: "DEF" for c in range(10, 15)}
+              | {c: "MID" for c in range(20, 25)} | {c: "FWD" for c in (30, 31, 32)})
+    squad = Squad(players=[
+        Player(PlayerIdentity(c, f"P{c}", Position(pos_of[c])), PlayerState(club_of[c], 55))
+        for c in sorted(club_of)
+    ])
+    assert any("club 3 has 5 > 3" in p for p in squad.validate())
+    assert not [p for p in squad.validate(club_baseline=squad.club_counts())
+                if "club" in p]
