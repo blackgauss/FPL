@@ -1,6 +1,7 @@
 """Tests for one-gameweek transfer and lineup planning."""
 
 import polars as pl
+import pytest
 
 from fpl.weekly.sequence import plan_one_week
 
@@ -89,3 +90,34 @@ def test_planner_survives_midwindow_club_transfers(tmp_path, monkeypatch):
         bank_tenths=0, top=3, out=str(out), entry_id=None)
     assert result["expected_source"] == "official_ep"
     assert result["gw"] == 2 and out.exists()  # scored with ep_next values
+
+
+def _flat(n_value_map):
+    """Constant quantile grids (degenerate distributions at a fixed value)."""
+    return {code: [float(v)] * 9 for code, v in n_value_map.items()}
+
+
+def test_digest_mean_and_prob_greater():
+    from fpl.weekly.sequence import digest_mean, prob_greater
+    uniform = [10 * q for q in (0.01, 0.05, .1, .25, .5, .75, .9, .95, .99)]
+    assert digest_mean(uniform) == pytest.approx(5.0, abs=0.05)
+    assert prob_greater([7.0] * 9, [3.0] * 9) == 1.0
+    assert prob_greater([5.0] * 9, [5.0] * 9) == 0.5
+    mixed = prob_greater([1.0] * 4 + [9.0] * 5, [5.0] * 9)
+    assert 0.4 < mixed < 0.6  # 5 of 9 cells win
+
+
+def test_plan_reports_xi_distribution_and_beat_probability():
+    from fpl.weekly.sequence import plan_one_week
+    picks, players, live, expected = _inputs()
+    dist = {code: [float(v)] * 9 for code, v in expected.items()}
+    result = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=10, distributions=dist)
+    hold = next(o for o in result["options"] if o["transfer_out"] is None)
+    assert hold["prob_beat_hold"] == 0.5  # identical lineups: pure ties
+    gainers = [o for o in result["options"] if o["expected_delta"] > 0]
+    assert gainers and all(o["prob_beat_hold"] > 0.9 for o in gainers)
+    assert hold["xi_q10"] == hold["xi_q90"]  # degenerate grid: no spread
+    got = sum(expected[c] for c in hold["starters"]) + expected[hold["captain"]]
+    assert hold["xi_q50"] == pytest.approx(got)  # XI sum + captain doubled
