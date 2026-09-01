@@ -61,6 +61,8 @@ def get_suggestions(request: Request, gw: int | None = None,
         "bank_tenths": newest.get("bank_tenths"),
         "current_squad": newest.get("current_squad"),
         "ownership_basis": newest.get("ownership_basis"),
+        "sell_bottom_pct": (None if newest.get("sell_bottom_q") is None
+                            else round(newest["sell_bottom_q"] * 100)),
         "expected_source": newest.get("expected_source"),
         "suggestions": suggestions,
     }

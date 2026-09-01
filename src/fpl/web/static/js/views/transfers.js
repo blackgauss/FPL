@@ -32,6 +32,8 @@ export async function render(root) {
     `GW${data.gw} plan · from ${data.source}`
     + (data.bank_tenths != null ? ` · bank ${fmtPrice(Math.abs(data.bank_tenths * 10)).replace("£", data.bank_tenths < 0 ? "-£" : "£")}` : "")
     + (data.ownership_basis ? ` · ownership: ${data.ownership_basis}` : "")
+    + (data.sell_bottom_pct != null && data.sell_bottom_pct < 100
+      ? ` · sell: bottom ${data.sell_bottom_pct}% by value` : "")
     + (data.expected_source ? ` · values: ${VALUES[data.expected_source] ?? data.expected_source}` : "")));
 
   const gainMin = Math.min(0, ...options.map(o => o.expected_gain ?? 0));
