@@ -345,10 +345,11 @@ def run_from_files(
         prices = (settled.sort("player_id", "gw").group_by("player_id")
                   .last().select("player_id", "now_cost"))
         # Durability signal for the sellable gate: mean of each player's
-        # last three settled gameweeks, so ONE bad fixture week (or one
-        # lucky hat-trick) cannot move who is considered sellable.
+        # last five settled gameweeks, so ONE bad fixture week (or one
+        # lucky hat-trick) cannot move who is considered sellable —
+        # selling means OUT OF FORM across weeks, not one bad Saturday.
         recent = (settled.group_by("player_id").agg(
-            pl.col("total_points").sort().slice(-3, 3).mean().alias("avg3"))
+            pl.col("total_points").sort().slice(-5, 5).mean().alias("avg3"))
             .rename({"player_id": "element"}))
         season_avg = {
             int(row["player_code"]): round(float(row["avg3"]), 3)
