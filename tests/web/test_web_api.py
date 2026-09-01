@@ -446,3 +446,12 @@ def test_team_flags_rows_carry_expected(client: TestClient,
                         and r["expected_source"] in ("model", "official")
                         and not r["flag"].startswith(("missing", "error"))
                         for r in rows)
+
+
+def test_league_exposure_endpoint(client: TestClient) -> None:
+    body = client.get("/api/league/exposure").json()
+    assert body["available"] is True
+    assert body["league_entries"] == 3
+    assert body["rows"][0]["pct"] >= body["rows"][-1]["pct"]
+    shared = [r for r in body["rows"] if r["managers_owning"] > 1]
+    assert shared and shared[0]["pct"] > 30.0

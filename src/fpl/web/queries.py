@@ -243,6 +243,40 @@ class Store:
                                     "managers": int(r["managers"])}
                 for r in counts.iter_rows(named=True)}
 
+    def league_exposure(self, entry_id: int) -> dict | None:
+        """My latest GW squad, each player tagged with how many league
+        managers ALSO own him (me included). A heavily owned starter who
+        scores big is net-zero: everyone else booked him too — differential
+        lives at the other end of the list."""
+        picks = self.account("team_picks")
+        if picks is None or not picks.height:
+            return None
+        gw = int(picks.get_column("gw").max())
+        latest = picks.filter(pl.col("gw") == gw)
+        unique = latest.unique(["entry_id", "element"])
+        n = int(unique.get_column("entry_id").n_unique())
+        mine = latest.filter(pl.col("entry_id") == entry_id)
+        if not n or not mine.height:
+            return None
+        owning = {int(r["element"]): int(r["managers"]) for r in
+                  unique.group_by("element").agg(
+                      pl.len().alias("managers")).iter_rows(named=True)}
+        joined = self.with_live(mine, on="element",
+                                cols=["web_name", "now_cost"])
+        rows = [{
+            "element": int(r["element"]),
+            "web_name": r.get("web_name"),
+            "now_cost": r.get("now_cost"),
+            "position": int(r.get("position") or 0),
+            "started": int(r.get("position") or 0) <= 11,
+            "captain": bool(r.get("is_captain")),
+            "managers_owning": owning.get(int(r["element"]), 0),
+            "pct": round(100.0 * owning.get(int(r["element"]), 0) / n, 1),
+        } for r in joined.iter_rows(named=True)]
+        rows.sort(key=lambda r: -r["pct"])
+        return {"gw": gw, "league_entries": n,
+                "rows": rows}
+
     def league_report(self) -> dict | None:
         """Per-manager GW scores + head-to-head results derived from
         collected league matches (FPL's own winner fields are unsettled, so

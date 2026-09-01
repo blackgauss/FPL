@@ -1,7 +1,7 @@
 // League view: standings + per-manager form, H2H record, league ownership
 import { api, el, empty, fmtNum } from "../api.js";
 import { sparkBars } from "../charts.js";
-import { chip, fail } from "../ui.js";
+import { bar, chip, fail } from "../ui.js";
 
 const COLUMNS = {
   h2h_resolved: [
@@ -64,6 +64,7 @@ export async function render(root) {
   root.append(t);
 
   if (report && data.entry_id != null) drawRecord(root, report, data.entry_id);
+  exposureSection(root).catch(() => { /* optional panel */ });
   ownershipSection(root).catch(() => { /* optional panel */ });
 }
 
@@ -108,6 +109,30 @@ async function ownershipSection(root) {
         : r.diff != null && r.diff <= -5 ? { class: "num-ok" } : {},
       r.diff == null ? "–" : (r.diff > 0 ? "+" : "") + fmtNum(r.diff)),
       el("td", {}, fmtNum(r.pred_next))));
+  }
+  root.append(t);
+}
+
+async function exposureSection(root) {
+  let data;
+  try { data = await api.leagueExposure(); } catch { return; }
+  if (!data.available || !data.rows?.length) return;
+  root.append(el("h2", {}, `Your exposure — league GW${data.gw}`));
+  root.append(el("div", { class: "meta" },
+    `how many of the ${data.league_entries} league managers also own each of`
+    + " yours · heavily owned assets are net-zero even when they score big"));
+  const t = el("table", {}, el("thead", {}, el("tr", {},
+    ...["Player", "XIs", "% owning", "Status"]
+      .map(h => el("th", {}, h)))), el("tbody"));
+  for (const r of data.rows) {
+    const tag = r.pct >= 50 && r.started ? "public stock"
+      : r.pct <= 15 && r.started ? "edge" : "";
+    t.lastChild.append(el("tr", {},
+      el("td", {}, (r.web_name ?? String(r.element)) + (r.captain ? " (C)" : "")),
+      el("td", {}, bar(r.pct / 100, r.pct >= 50 ? "#c0392b" : "#7f8c8d")),
+      el("td", r.pct >= 50 ? { class: "num-bad" } : r.pct <= 15 ? { class: "num-ok" } : {},
+        `${r.pct}% (${r.managers_owning})`),
+      el("td", {}, tag ? chip(r.pct >= 50 ? "warn" : "ok", tag) : "")));
   }
   root.append(t);
 }
