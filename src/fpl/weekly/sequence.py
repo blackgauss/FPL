@@ -168,6 +168,24 @@ def prob_greater(a: Sequence[float], b: Sequence[float]) -> float:
     return round(wins / (len(a) * len(b)), 4)
 
 
+SELL_FORM_WEIGHT = 0.6  # season-form share of the sellable ranking
+
+
+def sell_rank_map(values: Mapping[int, float],
+                  season_avg: Mapping[int, float] | None) -> dict[int, float]:
+    """Ranking basis for what is *sellable*: a durable blend of form and
+    projection. One bad fixture week (low forecast, high form) must not
+    sell a player; one good week must not protect him.
+    """
+    if not season_avg:
+        return dict(values)
+    return {
+        code: SELL_FORM_WEIGHT * season_avg.get(code, 0.0)
+        + (1.0 - SELL_FORM_WEIGHT) * value
+        for code, value in values.items()
+    }
+
+
 def bottom_sellable(current: Squad, values: Mapping[int, float],
                     bottom_q: float) -> set[int]:
     """Codes in the bottom `bottom_q` fraction of the squad's OWN values.
@@ -190,6 +208,7 @@ def plan_one_week(
     bank_tenths: int = 0, top: int = 10, entry_id: int | None = None,
     distributions: Mapping[int, Sequence[float]] | None = None,
     prices: pl.DataFrame | None = None, sell_bottom_q: float = 0.4,
+    season_avg: Mapping[int, float] | None = None,
 ) -> dict:
     """Rank hold and legal one-transfer plans for the next gameweek.
 
@@ -231,7 +250,8 @@ def plan_one_week(
         ))
     # The explicit constructor above is kept behind this boundary because live
     # frames use FPL's numeric element_type while the domain uses Position.
-    sell = bottom_sellable(current, values, sell_bottom_q)
+    sell = bottom_sellable(current, sell_rank_map(values, season_avg),
+                           sell_bottom_q)
     options = []
     transfer_choices = [(None, None)]
     for out in current.players:
@@ -294,6 +314,7 @@ def plan_one_week(
         "current_squad": list(current.codes()),
         "ownership_basis": "unique league entries selecting the player",
         "sell_bottom_q": sell_bottom_q,
+        "sell_form_weight": SELL_FORM_WEIGHT if season_avg else None,
         "options": [_serialize_option(option) for option in options[:top]],
     }
 
@@ -320,11 +341,24 @@ def run_from_files(
     live = to_live_frame(fetch_bootstrap())
     try:
         gs = pl.read_parquet(f"{processed}/gw_stats_{season}.parquet")
-        prices = (gs.filter(pl.col("gw") <= gw)
-                  .sort("player_id", "gw").group_by("player_id")
+        settled = gs.filter(pl.col("gw") <= gw)
+        prices = (settled.sort("player_id", "gw").group_by("player_id")
                   .last().select("player_id", "now_cost"))
+        # Durability signal for the sellable gate: mean of each player's
+        # last three settled gameweeks, so ONE bad fixture week (or one
+        # lucky hat-trick) cannot move who is considered sellable.
+        recent = (settled.group_by("player_id").agg(
+            pl.col("total_points").sort().slice(-3, 3).mean().alias("avg3"))
+            .rename({"player_id": "element"}))
+        season_avg = {
+            int(row["player_code"]): round(float(row["avg3"]), 3)
+            for row in recent.join(
+                live.select(pl.col("player_id").alias("element"),
+                            "player_code"),
+                on="element", how="inner").to_dicts()
+        }
     except Exception:
-        prices = None
+        prices, season_avg = None, None
     distributions: dict[int, list[float]] = {}
     expected: dict[int, float] = {}
     source = "official_ep"
@@ -365,7 +399,7 @@ def run_from_files(
         picks=pl.read_parquet(picks_path), history=pl.read_parquet(history_path),
         players=players, live=live, expected=expected, gw=gw,
         bank_tenths=bank_tenths, top=top, entry_id=entry_id,
-        distributions=distributions, prices=prices,
+        distributions=distributions, prices=prices, season_avg=season_avg,
     )
     result["expected_source"] = source
     if out:
