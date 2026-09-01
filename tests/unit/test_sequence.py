@@ -167,3 +167,33 @@ def test_planner_survives_observed_club_drift(tmp_path):
         picks=picks, history=pl.DataFrame(), players=drifted, live=live,
         expected=expected, gw=1, bank_tenths=0, top=5)
     assert result["gw"] == 2  # squad assembled despite four from club 101
+
+
+def test_sell_rank_map_uses_durable_blend():
+    from fpl.weekly.sequence import SELL_FORM_WEIGHT, sell_rank_map
+    blended = sell_rank_map({1: 1.0}, {1: 10.0})
+    assert blended[1] == round(
+        SELL_FORM_WEIGHT * 10.0 + (1 - SELL_FORM_WEIGHT) * 1.0, 4)
+    assert sell_rank_map({1: 1.0}, None) == {1: 1.0}
+
+
+def test_one_bad_week_does_not_sell_a_form_player():
+    """A starter projected mildly low but with strong recent form must not
+    be sellable; without the form view his mild projection would rank him
+    last and dump him."""
+    picks, players, live, _ = _inputs()
+    expected = {c: 5.0 for c in range(8, 13)} | {
+        c: 6.0 for c in list(range(1, 8)) + list(range(13, 16))} | {16: 5.5}
+    season_avg = {c: 8.0 for c in range(8, 13)} | {
+        c: 1.0 for c in list(range(1, 8)) + list(range(13, 16))}
+    strong_mids = {8, 9, 10, 11, 12}
+    protected = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=30, season_avg=season_avg)
+    assert [o for o in protected["options"]
+            if o["transfer_out_code"] in strong_mids] == []
+    naked = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=30)
+    assert any(o["transfer_out_code"] in strong_mids
+               and o["transfer_in"] == "New MID" for o in naked["options"])
