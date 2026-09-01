@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from itertools import combinations
@@ -167,12 +168,28 @@ def prob_greater(a: Sequence[float], b: Sequence[float]) -> float:
     return round(wins / (len(a) * len(b)), 4)
 
 
+def bottom_sellable(current: Squad, values: Mapping[int, float],
+                    bottom_q: float) -> set[int]:
+    """Codes in the bottom `bottom_q` fraction of the squad's OWN values.
+
+    A transfer should free up a weak asset, not relitigate a chosen
+    starter: selling happens within the lowest expected points of what
+    you already hold (season points and next-GW projections both reduce
+    to this one ranking). bottom_q >= 1 disables the policy.
+    """
+    if bottom_q >= 1.0:
+        return {p.code for p in current.players}
+    ordered = sorted(current.players,
+                     key=lambda p: (values.get(p.code, 0.0), p.code))
+    return {p.code for p in ordered[:math.ceil(bottom_q * len(current.players))]}
+
+
 def plan_one_week(
     *, picks: pl.DataFrame, history: pl.DataFrame, players: pl.DataFrame,
     live: pl.DataFrame, expected: dict[int, float], gw: int,
     bank_tenths: int = 0, top: int = 10, entry_id: int | None = None,
     distributions: Mapping[int, Sequence[float]] | None = None,
-    prices: pl.DataFrame | None = None,
+    prices: pl.DataFrame | None = None, sell_bottom_q: float = 0.4,
 ) -> dict:
     """Rank hold and legal one-transfer plans for the next gameweek.
 
@@ -214,9 +231,12 @@ def plan_one_week(
         ))
     # The explicit constructor above is kept behind this boundary because live
     # frames use FPL's numeric element_type while the domain uses Position.
+    sell = bottom_sellable(current, values, sell_bottom_q)
     options = []
     transfer_choices = [(None, None)]
     for out in current.players:
+        if out.code not in sell:
+            continue
         for new in candidates:
             if new.position != out.position:
                 continue
@@ -273,6 +293,7 @@ def plan_one_week(
         "bank_tenths": bank_tenths,
         "current_squad": list(current.codes()),
         "ownership_basis": "unique league entries selecting the player",
+        "sell_bottom_q": sell_bottom_q,
         "options": [_serialize_option(option) for option in options[:top]],
     }
 
@@ -290,7 +311,7 @@ def _serialize_option(option: dict) -> dict:
 def run_from_files(
     *, picks_path: str, history_path: str, processed: str, season: str,
     model_path: str, gw: int, bank_tenths: int, top: int, out: str | None = None,
-    entry_id: int | None = None,
+    entry_id: int | None = None, sell_bottom_q: float = 0.4,
 ) -> dict:
     """Build a one-week plan. Values come from OUR model: full t-digest
     distributions when their GW window is settled enough, else the point

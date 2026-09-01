@@ -72,6 +72,9 @@ def main() -> None:
     plan_parser.add_argument("--gw", type=int, required=True,
                              help="current gameweek; plans gw+1")
     plan_parser.add_argument("--bank-tenths", type=int, default=0)
+    plan_parser.add_argument("--sell-bottom-pct", type=int, default=40,
+                             help="only sell players in this bottom fraction"
+                                  " of the squad by expected points (100 = off)")
     plan_parser.add_argument("--top", type=int, default=10)
     plan_parser.add_argument("--out")
 
@@ -96,7 +99,8 @@ def main() -> None:
         payload = sequence.run_from_files(
             picks_path=args.picks, history_path=args.history,
             processed=args.processed, season=args.season, model_path=args.model,
-            gw=args.gw, bank_tenths=args.bank_tenths, top=args.top, out=args.out,
+            gw=args.gw, bank_tenths=args.bank_tenths, top=args.top,
+            sell_bottom_q=args.sell_bottom_pct / 100.0, out=args.out,
             entry_id=args.entry_id,
         )
         print(json.dumps(payload, indent=2))

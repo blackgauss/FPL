@@ -38,7 +38,7 @@ def test_one_week_plan_returns_legal_transfer_and_lineup_options():
     picks, players, live, expected = _inputs()
     result = plan_one_week(
         picks=picks, history=pl.DataFrame(), players=players, live=live,
-        expected=expected, gw=1, bank_tenths=0, top=5,
+        expected=expected, gw=1, bank_tenths=0, top=5, sell_bottom_q=1.0,
     )
     assert result["gw"] == 2
     assert len(result["options"]) == 5
@@ -107,13 +107,45 @@ def test_digest_mean_and_prob_greater():
     assert 0.4 < mixed < 0.6  # 5 of 9 cells win
 
 
+def test_sell_policy_only_trades_away_bottom_assets():
+    """Strong starters are not relitigated by a value swap: only players in
+    the bottom fraction of the squad's own values are sellable (q=1 off)."""
+    picks, players, live, _ = _inputs()
+    extra = live.filter(pl.col("player_id") == 16).with_columns(
+        pl.lit(17, dtype=pl.Int64).alias("player_id"),
+        pl.lit(17, dtype=pl.Int64).alias("player_code"),
+        pl.lit("New DEF").alias("web_name"),
+        pl.lit("DEF").alias("position"),
+    )
+    extra = extra.with_columns(
+        pl.lit("2").cast(live.schema["element_type"]).alias("element_type"))
+    live = pl.concat([live, extra])
+    expected = {c: 30.0 for c in range(1, 16)}
+    expected |= {1: 1.0, 2: 1.0, 15: 1.0}  # two GK + benched FWD: weak
+    expected |= {c: 8.0 for c in range(3, 8)}  # DEFs: middling
+    expected[16] = expected[17] = 40.0
+    policy = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=20)
+    assert any(o["transfer_in"] == "New DEF" for o in policy["options"])
+    strong_mids = {8, 9, 10, 11, 12}
+    assert not [o for o in policy["options"]
+                if o["transfer_out_code"] in strong_mids]
+    free = plan_one_week(
+        picks=picks, history=pl.DataFrame(), players=players, live=live,
+        expected=expected, gw=1, bank_tenths=0, top=30, sell_bottom_q=1.0)
+    assert any(o["transfer_in"] == "New MID"
+               and o["transfer_out_code"] in strong_mids for o in free["options"])
+
+
 def test_plan_reports_xi_distribution_and_beat_probability():
     from fpl.weekly.sequence import plan_one_week
     picks, players, live, expected = _inputs()
     dist = {code: [float(v)] * 9 for code, v in expected.items()}
     result = plan_one_week(
         picks=picks, history=pl.DataFrame(), players=players, live=live,
-        expected=expected, gw=1, bank_tenths=0, top=10, distributions=dist)
+        expected=expected, gw=1, bank_tenths=0, top=10, distributions=dist,
+        sell_bottom_q=1.0)
     hold = next(o for o in result["options"] if o["transfer_out"] is None)
     assert hold["prob_beat_hold"] == 0.5  # identical lineups: pure ties
     gainers = [o for o in result["options"] if o["expected_delta"] > 0]
