@@ -13,6 +13,15 @@ const VALUES = {
 // QS levels (fpl.dist) the XI quantile vectors are indexed by
 const XI_Q = [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99];
 
+function gainTitle(o) {
+  const pair = (which) => {
+    const m = o[`model_expected_${which}`], e = o[`official_ep_next_${which}`];
+    if (m == null) return "";
+    return `${which === "in" ? "+" : "-"} ours ${fmtNum(m)} / FPL ${fmtNum(e)}`;
+  };
+  return [pair("in"), pair("out")].filter(Boolean).join("   ");
+}
+
 export async function render(root) {
   root.innerHTML = "";
   root.append(el("h1", {}, "Transfers"));
@@ -66,7 +75,7 @@ export async function render(root) {
       el("td", { class: "mut" }, String(o.transfer_out ?? "?")),
       el("td", gain >= 0 ? { class: "num-ok" } : { class: "num-bad" },
         gainBar, "+" + fmtNum(gain) + " pts"),
-      el("td", {}, fmtNum(o.expected_score)),
+      el("td", { title: gainTitle(o) }, fmtNum(o.expected_score)),
       el("td", { title: o.prob_beat_hold != null
         ? `P(beats hold lineup) ${Math.round(o.prob_beat_hold * 100)}%` : "" },
         o.xi_q10 != null ? `${fmtNum(o.xi_q10)}–${fmtNum(o.xi_q90)} pts` : "–"),
