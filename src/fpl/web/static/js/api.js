@@ -30,6 +30,7 @@ export const api = {
   leagueStandings: (p) => get("/api/league/standings", p),
   leagueReport: () => get("/api/league/standings/report"),
   leagueOwnership: () => get("/api/league/ownership"),
+  leagueExposure: () => get("/api/league/exposure"),
   teamHistory: () => get("/api/team/history"),
   teamPerformance: (p) => get("/api/team/performance", p),
   researchMetrics: (run) => get("/api/research/metrics", { run }),

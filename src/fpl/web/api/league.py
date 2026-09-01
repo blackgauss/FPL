@@ -75,6 +75,20 @@ def get_report(request: Request) -> dict:
     return {"available": True, **report}
 
 
+@router.get("/exposure")
+def get_exposure(request: Request, entry_id: int | None = None) -> dict:
+    """My squad tagged by league exposure: which of my assets rival
+    managers also own (heavily owned = score moves the league, not me)."""
+    store = get_store(request)
+    if entry_id is None:
+        entry_id = store.entry_id()
+    data = store.league_exposure(entry_id)
+    if data is None:
+        return {"available": False,
+                "reason": "no collected league team_picks"}
+    return {"available": True, "entry_id": entry_id, **data}
+
+
 @router.get("/ownership")
 def get_ownership(request: Request) -> dict:
     """Friend-owned players with official-ownership deltas: what my league
